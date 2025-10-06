@@ -187,4 +187,4 @@ def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, c
     plt.show()
 
 
-visualize_pressure_field(q[1]["q_matrix"], "Signe_sang.wav", 16000, q[1]['sources_position'], q[1]['room_dim'])
+visualize_pressure_field(q[1]["q_matrix"], "Signe_sang.wav", 16000, q[1]['sources_position'], q[1]['room_dim'], q[1]['Center:'], q[1]['R'], grid_res=100, z_plane=1.5)

@@ -76,7 +76,7 @@ dict_update = {
         'mic_positions': mic_positions,
         'bright_zone_mics_index': bright_zone_mics_index,
         'dark_zone_mics_index': dark_zone_mics_index,
-        'Center:': Center,
+        'Center': Center,
         'R': R}
 
 
