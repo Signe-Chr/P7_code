@@ -9,53 +9,87 @@ import os
 example_key = "VAST_example_1"
 room_dim=[8.12, 7.35, 3.00]
 
+def archive_q_matrix(q_matrix, archive_path, key_name, design_params):
+    archive_dict = {}
+    
+    if os.path.exists(archive_path):
+        try:
+            loaded_data = np.load(archive_path, allow_pickle=True)
+            if loaded_data.ndim == 0:
+                archive_dict = loaded_data.item()
+            else:
+                print(f"Warning: Existing file at {archive_path} does not look like a dictionary archive. Starting new archive.")
+        except Exception as e:
+            print(f"Warning: Could not load existing archive at {archive_path} due to error: {e}. Starting new archive.")
+    
+    # Update the dictionary with the new matrix
+    archive_dict[key_name] = {
+        'q_matrix': q_matrix,
+        'parameters': design_params # Saves under 'parameters' key
+    }
+    
+    np.save(archive_path, archive_dict, allow_pickle=True)
+    print(f"Archived filter under key '{key_name}' and saved updated archive to {archive_path}.")
+
+
+# --- Corrected Load Function ---
 def load_q_matrix(archive_path, key_name):
     """
-    Loads a specific q_matrix from the persistent archive file using its key name.
+    Loads a specific q_matrix and the full item dictionary from the persistent archive file.
 
     Args:
         archive_path (str): Path to the .npy archive file.
         key_name (str): The unique key used to identify the matrix when archiving.
 
     Returns:
-        np.ndarray: The requested q_matrix, or None if the file or key is not found.
+        tuple: (q_matrix (np.ndarray), item_dict (dict)) 
+               The requested q_matrix and the full dictionary item 
+               ({'q_matrix':..., 'parameters':...}), or (None, None) if not found.
     """
     if not os.path.exists(archive_path):
         print(f"Error: Archive file not found at {archive_path}.")
-        return None
+        return None, None
 
     try:
-        # 1. Load the entire dictionary from the file
         loaded_data = np.load(archive_path, allow_pickle=True)
         
-        # 2. Check structure (ensure it's a 0-D array containing the dict)
         if loaded_data.ndim == 0:
             archive_dict = loaded_data.item()
         else:
             print(f"Error: File at {archive_path} is not a valid dictionary archive.")
-            return None
+            return None, None
         
-        # 3. Retrieve the specific matrix by key
         if key_name not in archive_dict:
             print(f"Error: Key '{key_name}' not found in archive.")
             print(f"Available keys: {list(archive_dict.keys())}")
-            return None
+            return None, None
             
-        print(f"Successfully loaded q_matrix for key: '{key_name}' with shape {archive_dict[key_name].shape}")
-        return archive_dict[key_name]
+        # --- FIX IS HERE: Access the entire item dict and the q_matrix ---
+        loaded_item_dict = archive_dict[key_name]
+        q_matrix = loaded_item_dict.get('q_matrix')
+
+        if q_matrix is None:
+             print(f"Error: Archive item for key '{key_name}' is corrupt or missing 'q_matrix'.")
+             return None, None
+
+        print(f"Successfully loaded q_matrix for key: '{key_name}' with shape {q_matrix.shape}")
+        
+        # Return the matrix AND the full item dictionary, as requested
+        return q_matrix, loaded_item_dict
 
     except Exception as e:
         print(f"An error occurred while loading or unpacking the archive: {e}")
-        return None
-
-q_matrix = load_q_matrix("VAST_filter_archive.npy", example_key)
+        return None, None
 
 
-def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, 
-                             grid_res=50, z_plane=1.5):
+q = load_q_matrix("VAST_filter_archive.npy", example_key)
+
+print(q[1]['N'])
+
+def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, center_pos, R_mic, grid_res=50, z_plane=1.5):
     """
-    Computes and plots the RMS pressure field using a direct-path approximation 
-    for visualization purposes.
+    Computes and plots the RMS pressure field using a direct-path approximation
+    for visualization purposes, with zones correctly defined by the circular array.
     """
     L = q_matrix.shape[0]
 
@@ -80,9 +114,6 @@ def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim,
     for ix in range(Gx):
         for iy in range(Gy):
             point = np.array([X[ix,iy], Y[ix,iy], z_plane])
-            p_sum_sq = 0.0 # Using squared sum for coherent approximation (simpler here)
-            
-            # Sum the pressure contribution from each loudspeaker
             
             # --- CONVOLVE DRIVE SIGNALS (d_l) ---
             # d_l = x * q_l
@@ -114,10 +145,13 @@ def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim,
     
     print("Pressure computed in {:.2f}s".format(time.perf_counter() - tstart))
 
-    # Compute averages for bright/dark masks
-    room_center_x = room_dim[0] / 2
-    bright_mask = X < room_center_x
-    dark_mask = ~bright_mask
+    # --- CORRECT ZONE MASKING (CIRCULAR) ---
+    center_x, center_y = center_pos[0], center_pos[1]
+    dist_sq = (X - center_x)**2 + (Y - center_y)**2
+    
+    # Bright Zone: Inside or on the boundary of the microphone circle
+    bright_mask = dist_sq <= (R_mic + 0.1)**2 # Added 0.1 buffer for visualization contrast
+    dark_mask = dist_sq > (R_mic + 0.1)**2 
     
     avg_bright = np.mean(pressure_field[bright_mask])
     avg_dark = np.mean(pressure_field[dark_mask])
@@ -134,10 +168,16 @@ def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim,
     plt.colorbar(label='Relative dB')
     plt.scatter([s[0] for s in sources], [s[1] for s in sources], c='cyan', marker='*', s=100, edgecolors='k', label='Loudspeakers')
     
-    # Add Bright/Dark zone markers
-    plt.plot([room_center_x, room_center_x], [0, room_dim[1]], 'w--', linewidth=1, label='Zone Boundary')
-    plt.text(room_center_x / 2, room_dim[1] * 0.9, 'Bright Zone', color='white', ha='center', fontsize=10, weight='bold')
-    plt.text(room_center_x + (room_dim[0] - room_center_x) / 2, room_dim[1] * 0.9, 'Dark Zone', color='white', ha='center', fontsize=10, weight='bold')
+    # Add Circular Bright/Dark zone markers
+    theta = np.linspace(0, 2 * np.pi, 100)
+    boundary_x = center_x + R_mic * np.cos(theta)
+    boundary_y = center_y + R_mic * np.sin(theta)
+    plt.plot(boundary_x, boundary_y, 'w--', linewidth=1, label='Zone Boundary')
+    
+    # Place text labels
+    plt.text(center_x, center_y, 'Bright Zone', color='white', ha='center', fontsize=10, weight='bold')
+    plt.text(center_x + R_mic + 0.2, center_y + R_mic + 0.2, 'Dark Zone', color='white', ha='left', fontsize=10, weight='bold')
+
 
     plt.title('Relative SPL (dB) at z={:.2f} m (VAST Filter Result)'.format(z_plane))
     plt.xlabel('x (m)')
@@ -146,4 +186,5 @@ def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim,
     plt.tight_layout()
     plt.show()
 
-visualize_pressure_field(q_matrix, "Signe_sang.wav", 16000, )
+
+visualize_pressure_field(q[1]["q_matrix"], "Signe_sang.wav", 16000, q[1]['sources_position'], q[1]['room_dim'])
