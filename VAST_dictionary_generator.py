@@ -14,6 +14,7 @@ absorption=0.2
 max_order=10
 reg_eps=1e-6
 target_amplitude=0.3536
+R = 1.0
 
 wav_path = "Signe_sang.wav"
 out_q_path = "q_solution_td.npy"
@@ -36,7 +37,7 @@ def sources_mics(R, Center, N_mics):
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index
 
 
-sources_position, mic_positions, bright_zone_mics_index, dark_zone_mics_index = sources_mics(1, Center, 12)
+sources_position, mic_positions, bright_zone_mics_index, dark_zone_mics_index = sources_mics(R, Center, 12)
 
 import matplotlib.pyplot as plt
 x_angle = np.pi/2
@@ -74,7 +75,9 @@ dict_update = {
         'sources_position': sources_position,
         'mic_positions': mic_positions,
         'bright_zone_mics_index': bright_zone_mics_index,
-        'dark_zone_mics_index': dark_zone_mics_index}
+        'dark_zone_mics_index': dark_zone_mics_index,
+        'Center:': Center,
+        'R': R}
 
 
 def archive_q_matrix(q_matrix, archive_path, key_name):
