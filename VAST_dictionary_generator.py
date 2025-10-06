@@ -30,12 +30,34 @@ def sources_mics(R, Center, N_mics):
     mic_positions_list.append([Center[0], Center[1], Center[2]])
     dark_zone_mics_index = [N_mics]
 
-    sources_position_list = [[Center[0]- 0.2, Center[1]-0.1, Center[2]], [Center[0]- 0.2, Center[1]+0.1, Center[2]], [Center[0]- 0.2, Center[1], Center[2]+0.2]]
+    sources_position_list = [[Center[0]- 0.2, Center[1]-0.1, Center[2]],
+                             [Center[0]- 0.2, Center[1]+0.1, Center[2]],
+                             [Center[0]- 0.2, Center[1], Center[2]+0.2]]
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index
 
 
 sources_position, mic_positions, bright_zone_mics_index, dark_zone_mics_index = sources_mics(1, Center, 12)
 
+import matplotlib.pyplot as plt
+x_angle = np.pi/2
+y_angle = np.pi/3
+sp = np.array(sources_position)
+print(*sp.T)
+fig = plt.figure()
+ax = fig.add_subplot(projection='3d')
+ax.scatter(*sp.T, c="blue")
+
+
+rotation_x = np.array([[1,               0,                0],
+                       [0, np.cos(x_angle), -np.sin(x_angle)],
+                       [0, np.sin(x_angle),  np.cos(x_angle)]])
+rs = np.matmul(rotation_x, sp.T)
+print(*rs)
+ax.scatter(*rs, c="orange")
+
+plt.show()
+
+exit()  # Don't need to run code after testing
 
 q_matrix = design_vast_filter(sources_position, mic_positions, bright_zone_mics_index, dark_zone_mics_index,
                           wav_path, fs_target=fs_target, J=J, N=N, 
