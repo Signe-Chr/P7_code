@@ -39,27 +39,40 @@ def sources_mics(R, Center, N_mics):
 
 sources_position, mic_positions, bright_zone_mics_index, dark_zone_mics_index = sources_mics(R, Center, 12)
 
-import matplotlib.pyplot as plt
-x_angle = np.pi/2
-y_angle = np.pi/3
-sp = np.array(sources_position)
-print(*sp.T)
-fig = plt.figure()
-ax = fig.add_subplot(projection='3d')
-ax.scatter(*sp.T, c="blue")
+x_angle = np.pi/4   # How much to rotate the phone around the x axis
+y_angle = np.pi/4
+z_angle = np.pi/4
 
+sp = np.array(sources_position).T   # Convert to array with every columns being a vector with coordinates for 1 source
+centroid_ori = np.mean(sp, axis=1, keepdims=True)  # Find the centroid, the output needs to be a column vector
 
-
+# Calculate rotation matrices
 rotation_x = np.array([[1,               0,                0],
                        [0, np.cos(x_angle), -np.sin(x_angle)],
                        [0, np.sin(x_angle),  np.cos(x_angle)]])
-rs = np.matmul(rotation_x, sp.T)
-print(*rs)
-ax.scatter(*rs, c="orange")
+rotation_y = np.array([[ np.cos(y_angle), 0, np.sin(y_angle)],
+                       [               0, 1,               0],
+                       [-np.sin(y_angle), 0, np.cos(y_angle)]])
+rotation_z = np.array([[np.cos(z_angle), -np.sin(z_angle), 0],
+                       [np.sin(z_angle),  np.cos(z_angle), 0],
+                       [              0,                0, 1]])
+full_rotation_matrix = np.matmul(np.matmul(rotation_x, rotation_y), rotation_z)
+# Rotation happens around origo, so the sources are centered before rotating, after rotation return to center position
+rs = np.matmul(full_rotation_matrix, sp-centroid_ori) + centroid_ori
 
+# This section is only to check if the sources are rotated correctly, can be removed/skipped with no repurcussions
+####################################################
+centroid_rot = np.mean(rs, axis=1)
+import matplotlib.pyplot as plt
+fig = plt.figure()
+ax = fig.add_subplot(projection='3d')
+ax.scatter(*centroid_ori, c="black", label="Centroid of non-rotated sources")
+ax.scatter(*sp, c="blue", label="Non-rotated sources")
+ax.scatter(*centroid_rot, c="green", label="Centroid of rotated sources")
+ax.scatter(*rs, c="orange", label="Rotated sources")
+ax.legend()
 plt.show()
-
-exit()  # Don't need to run code after testing
+####################################################
 
 q_matrix = design_vast_filter(sources_position, mic_positions, bright_zone_mics_index, dark_zone_mics_index,
                           wav_path, fs_target=fs_target, J=J, N=N, 
