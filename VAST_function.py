@@ -130,8 +130,8 @@ def compute_q_vast(V, mu, lambda_vals, U, r_B):
 # --- 2. MAIN DESIGN FUNCTION ---
 
 def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                          wav_path, out_q_path, fs_target=16000, J=256, N=2000, 
-                          V=4, mu=0.5, room_dim=[6.0, 3.0, 3.5], absorption=0.2, 
+                          wav_path, fs_target=16000, J=256, N=2000, 
+                          V=4, mu=0.5, room_dim=[8.12, 7.35, 3.00], absorption=0.2, 
                           max_order=10, reg_eps=1e-6, target_amplitude=0.3536):
     """
     Designs the VAST Time-Domain filter coefficients (q_matrix) and saves them.
@@ -221,104 +221,8 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     q_matrix = q_vec.reshape(n_srcs, J)
 
     # --- Save Coefficients ---
-    np.save(out_q_path, q_matrix)
-    print(f"Successfully designed filter and saved q_matrix to {out_q_path} in {time.perf_counter() - t_start_total:.2f} s")
+    #np.save(out_q_path, q_matrix)
+    #print(f"Successfully designed filter and saved q_matrix to {out_q_path} in {time.perf_counter() - t_start_total:.2f} s")
     
     return q_matrix
 
-# --- 3. VISUALIZATION FUNCTION ---
-
-def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, 
-                             grid_res=50, z_plane=1.5):
-    """
-    Computes and plots the RMS pressure field using a direct-path approximation 
-    for visualization purposes.
-    """
-    L = q_matrix.shape[0]
-
-    # Load test signal (use a short segment for visualization speed)
-    fs_wav, wav = wavfile.read(wav_path)
-    if wav.ndim > 1: wav = wav[:, 0]
-    wav = np.array(wav, dtype=float)
-    wav = wav / (np.max(np.abs(wav)) + 1e-12)
-    test_signal = wav[:fs_target // 4] if len(wav) >= fs_target // 4 else wav
-    
-    x_grid = np.linspace(0, room_dim[0], grid_res)
-    y_grid = np.linspace(0, room_dim[1], grid_res)
-    X, Y = np.meshgrid(x_grid, y_grid, indexing='ij')
-    Gx, Gy = X.shape
-    pressure_field = np.zeros_like(X, dtype=float)
-    
-    speed_of_sound = 343.0
-
-    print("\nComputing pressure field (coarse grid for speed)...")
-    tstart = time.perf_counter()
-
-    for ix in range(Gx):
-        for iy in range(Gy):
-            point = np.array([X[ix,iy], Y[ix,iy], z_plane])
-            p_sum_sq = 0.0 # Using squared sum for coherent approximation (simpler here)
-            
-            # Sum the pressure contribution from each loudspeaker
-            
-            # --- CONVOLVE DRIVE SIGNALS (d_l) ---
-            # d_l = x * q_l
-            drives = [fftconvolve(test_signal, q_matrix[l])[:len(test_signal)] for l in range(L)]
-            
-            # --- CONVOLVE WITH PATH (h_l) ---
-            total_pressure = np.zeros_like(drives[0])
-            for l in range(L):
-                src_pos = np.array(sources[l])
-                r = np.linalg.norm(point - src_pos)
-                
-                # Approximate acoustic path (direct path only 1/r)
-                if r > 1e-6:
-                    h_val = 1.0 / r 
-                else:
-                    h_val = 1.0 
-                    
-                # Time delay
-                delay = int(round(r * fs_target / speed_of_sound))
-                
-                # Apply delay and gain
-                out_l = np.roll(drives[l], delay) * h_val
-                out_l[:delay] = 0.0 # Zero out wrapped part
-
-                total_pressure += out_l
-            
-            # RMS value of the total pressure waveform
-            pressure_field[ix,iy] = np.sqrt(np.mean(total_pressure**2))
-    
-    print("Pressure computed in {:.2f}s".format(time.perf_counter() - tstart))
-
-    # Compute averages for bright/dark masks
-    room_center_x = room_dim[0] / 2
-    bright_mask = X < room_center_x
-    dark_mask = ~bright_mask
-    
-    avg_bright = np.mean(pressure_field[bright_mask])
-    avg_dark = np.mean(pressure_field[dark_mask])
-    
-    print(f"Average pressure (bright) = {avg_bright:.6f} ; (dark) = {avg_dark:.6f}")
-    contrast_db = 20.0 * np.log10((avg_bright + 1e-12) / (avg_dark + 1e-12))
-    print(f"Contrast (bright/dark) [dB] = {contrast_db:.2f}")
-
-    # Plot relative SPL
-    P_db = 20.0 * np.log10(pressure_field / (np.max(pressure_field) + 1e-12) + 1e-12)
-    
-    plt.figure(figsize=(8,6))
-    plt.imshow(P_db.T, origin='lower', extent=[0, room_dim[0], 0, room_dim[1]], cmap='inferno', aspect='auto')
-    plt.colorbar(label='Relative dB')
-    plt.scatter([s[0] for s in sources], [s[1] for s in sources], c='cyan', marker='*', s=100, edgecolors='k', label='Loudspeakers')
-    
-    # Add Bright/Dark zone markers
-    plt.plot([room_center_x, room_center_x], [0, room_dim[1]], 'w--', linewidth=1, label='Zone Boundary')
-    plt.text(room_center_x / 2, room_dim[1] * 0.9, 'Bright Zone', color='white', ha='center', fontsize=10, weight='bold')
-    plt.text(room_center_x + (room_dim[0] - room_center_x) / 2, room_dim[1] * 0.9, 'Dark Zone', color='white', ha='center', fontsize=10, weight='bold')
-
-    plt.title('Relative SPL (dB) at z={:.2f} m (VAST Filter Result)'.format(z_plane))
-    plt.xlabel('x (m)')
-    plt.ylabel('y (m)')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
