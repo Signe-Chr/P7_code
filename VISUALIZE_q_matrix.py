@@ -6,8 +6,7 @@ import time
 import pyroomacoustics as pra
 import os
 
-example_key = "VAST_example_1"
-room_dim=[8.12, 7.35, 3.00]
+example_key = "VAST_example_(0, 0, 0)"
 
 def archive_q_matrix(q_matrix, archive_path, key_name, design_params):
     archive_dict = {}
@@ -86,7 +85,7 @@ q = load_q_matrix("VAST_filter_archive.npy", example_key)
 
 #print(q[1])
 
-def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, center_pos, R_mic, grid_res=50, z_plane=1.5):
+def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, center_pos, R_mic, grid_res=100, z_plane=1.5):
     """
     Computes and plots the RMS pressure field using a direct-path approximation
     for visualization purposes, with zones correctly defined by the circular array.
@@ -187,4 +186,4 @@ def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, c
     plt.show()
 
 
-visualize_pressure_field(q[1]["q_matrix"], "Signe_sang.wav", 16000, q[1]['sources_position'], q[1]['room_dim'], q[1]['Center'], q[1]['R'], grid_res=100, z_plane=1.5)
+visualize_pressure_field(q[1]["q_matrix"], "Signe_sang.wav", 16000, q[1]['sources_position'], q[1]['room_dim'], q[1]['Center'], q[1]['R'])
