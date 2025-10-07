@@ -2,22 +2,22 @@ from VAST_function import design_vast_filter
 import numpy as np
 import os
 
-room_dim=[8.12, 7.35, 3.00]
+room_dim=[10,10,10]#[8.12, 7.35, 3.00]
 Center = [room_dim[0]/2, room_dim[1]/2, room_dim[2]/2]
 
-J=256
+J=2048
 N=2000
-V=4
-mu=0.5
+V=1
+mu=0
 fs_target=16000
 absorption=0.2
 max_order=10
 reg_eps=1e-6
 target_amplitude=0.3536
-R = 1.0
+R = 3.0
 
 wav_path = "Signe_sang.wav"
-out_q_path = "q_solution_td.npy"
+out_q_path = "VAST_filter_archive.npy"
 
 def sources_mics(R, Center, N_mics):
     mic_positions_list = []
@@ -56,28 +56,16 @@ rs = np.matmul(rotation_x, sp.T)
 print(*rs)
 ax.scatter(*rs, c="orange")
 
-plt.show()
+#plt.show()
 
-exit()  # Don't need to run code after testing
+#exit()  # Don't need to run code after testing
 
 q_matrix = design_vast_filter(sources_position, mic_positions, bright_zone_mics_index, dark_zone_mics_index,
                           wav_path, fs_target=fs_target, J=J, N=N, 
                           V=V, mu=mu, room_dim=room_dim, absorption=absorption, 
                           max_order=max_order, reg_eps=reg_eps, target_amplitude=target_amplitude)
+print(q_matrix[0][:10])
 
-dict_update = {
-        'q_matrix': q_matrix, 
-        'J': J,
-        'N': N,
-        'V': V,
-        'mu': mu,
-        'room_dim': room_dim,
-        'sources_position': sources_position,
-        'mic_positions': mic_positions,
-        'bright_zone_mics_index': bright_zone_mics_index,
-        'dark_zone_mics_index': dark_zone_mics_index,
-        'Center': Center,
-        'R': R}
 
 
 def archive_q_matrix(q_matrix, archive_path, key_name):
@@ -101,7 +89,9 @@ def archive_q_matrix(q_matrix, archive_path, key_name):
         'sources_position': sources_position,
         'mic_positions': mic_positions,
         'bright_zone_mics_index': bright_zone_mics_index,
-        'dark_zone_mics_index': dark_zone_mics_index}
+        'dark_zone_mics_index': dark_zone_mics_index,
+        'Center': Center,
+        'R': R}
     
     archive_dict = {}
     
@@ -125,4 +115,4 @@ def archive_q_matrix(q_matrix, archive_path, key_name):
     np.save(archive_path, archive_dict, allow_pickle=True)
     print(f"Archived filter under key '{key_name}' and saved updated archive to {archive_path}.")
 
-archive_q_matrix(q_matrix, "VAST_filter_archive.npy", "VAST_example_1")
+archive_q_matrix(q_matrix, out_q_path, "VAST_example_1")
