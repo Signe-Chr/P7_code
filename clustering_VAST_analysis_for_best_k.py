@@ -6,7 +6,7 @@ from sklearn_extra.cluster import KMedoids
 from sklearn.metrics import silhouette_score
 
 # =========================================================
-# 1. Load VAST filter archive
+# 1. Load VAST filter archive 
 # =========================================================
 archive_path = "VAST_filter_archive.npy"
 
