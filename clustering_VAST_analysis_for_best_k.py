@@ -107,9 +107,13 @@ medoid_keys = [list(configurations.keys())[i] for i in medoid_indices]
 medoid_filters = [configurations[key]['q_matrix'] for key in medoid_keys]
 
 print("\nMedoid configurations (representative filters):")
+
 for key in medoid_keys:
     print(" -", key)
-
+medoid_dict = {
+    key: configurations[key] for key in medoid_keys
+}
+np.save("VAST_medoids_full.npy", medoid_dict)
 # =========================================================
 # 8. Plot Silhouette Scores vs K
 # =========================================================
