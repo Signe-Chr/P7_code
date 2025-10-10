@@ -100,6 +100,10 @@ best_model.fit(X_reduced)
 labels = best_model.labels_
 medoid_indices = best_model.medoid_indices_
 
+unique_labels, counts = np.unique(labels, return_counts=True)
+print("\nNumber of points in each cluster:")
+for label, count in zip(unique_labels, counts):
+    print(f"Cluster {label}: {count} points")
 # =========================================================
 # 7. Extract medoid filters (original, not PCA)
 # =========================================================
@@ -124,4 +128,27 @@ plt.xlabel("Number of clusters (K)")
 plt.ylabel("Silhouette Score")
 plt.title("Silhouette Score vs K — K-Medoids Clustering")
 plt.grid(True)
+plt.show()
+
+# ----------------------------------------
+# 9. Plot clusters using first 3 PCA components
+# ----------------------------------------
+from mpl_toolkits.mplot3d import Axes3D
+
+fig = plt.figure(figsize=(7,5))
+ax = fig.add_subplot(111, projection='3d')
+for k in range(best_k):
+    cluster_points = X_reduced[labels==k]
+    ax.scatter(cluster_points[:,0], cluster_points[:,1], cluster_points[:,2], label=f"Cluster {k+1}", alpha=0.7)
+
+ax.scatter(
+    X_reduced[medoid_indices,0],
+    X_reduced[medoid_indices,1],
+    X_reduced[medoid_indices,2],
+    c="black", marker="X", s=120, label="Medoids"
+)
+ax.set_xlabel("PC1")
+ax.set_ylabel("PC2")
+ax.set_zlabel("PC3")
+ax.legend()
 plt.show()
