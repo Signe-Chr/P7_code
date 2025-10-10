@@ -5,6 +5,7 @@ from scipy.signal import fftconvolve
 from scipy.io import wavfile
 from scipy.signal import lfilter
 import os
+from VAST_dictionary_generator import sources_mics
 
 
 
@@ -14,6 +15,7 @@ file_path = os.path.join(script_dir, "Signe_sang.wav")
 fs, lyd_data = wavfile.read(file_path)
 
 lyd_data=list(np.array(lyd_data[0:fs*1])/max(lyd_data))
+
 
 #plt.plot(lyd_data)
 #plt.show()
@@ -286,7 +288,7 @@ scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=1)
 
 
 
-def pressure_matching_loss(pressure_field, X, room_dim, target_db=65.0):
+def pressure_matching_loss(pressure_field, X, room_dim, target_pressure = 0.3536):
     """
     Loss function that rewards pressure field values close to target_db (default 65 dB)
     in the bright zone only.
@@ -296,9 +298,8 @@ def pressure_matching_loss(pressure_field, X, room_dim, target_db=65.0):
     bright_values = pressure_field[bright_mask]
     # Avoid log of zero
     bright_values = torch.clamp(bright_values, min=1e-12)
-    bright_db = 20 * torch.log10(bright_values / (torch.max(bright_values) + 1e-12) + 1e-12)
     # Mean squared error to target dB (only bright zone)
-    loss = torch.mean((bright_db - target_db) ** 2)
+    loss = (bright_mask - target_pressure)**2
     return loss
 
 def pressure_field_2d(room_dim, sources, q_opt, lyd_data, grid_res=50, z_plane=1.5, J=J, fs=16000):
