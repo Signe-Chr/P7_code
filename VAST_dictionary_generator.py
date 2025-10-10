@@ -12,7 +12,7 @@ fs_wav, wav = wavfile.read(wav_path)
 wav = wav[5*44100:7*44100]
 
 room_dim=[10,10,10]#[8.12, 7.35, 3.00]
-Center = [room_dim[0]/2, room_dim[1]/2, room_dim[2]/2]
+Center =[room_dim[0]/2, room_dim[1]/2, room_dim[2]/2]
 
 J = 1048
 N = 2000#len(wav)
@@ -139,7 +139,7 @@ q_matrix = design_vast_filter(sources_position, mic_positions, bright_zone_mics_
 
 archive_q_matrix(q_matrix, out_q_path, "VAST_example_(0, 0, 0)", sources_position)
 
-exit()
+#exit()
 
 for i in range(opdeling):
     r_0 = np.linalg.matrix_power(rotation_x, i)
