@@ -6,29 +6,7 @@ import time
 import pyroomacoustics as pra
 import os
 
-example_key = "VAST_example_(0, 0, 0)"
-
-def archive_q_matrix(q_matrix, archive_path, key_name, design_params):
-    archive_dict = {}
-    
-    if os.path.exists(archive_path):
-        try:
-            loaded_data = np.load(archive_path, allow_pickle=True)
-            if loaded_data.ndim == 0:
-                archive_dict = loaded_data.item()
-            else:
-                print(f"Warning: Existing file at {archive_path} does not look like a dictionary archive. Starting new archive.")
-        except Exception as e:
-            print(f"Warning: Could not load existing archive at {archive_path} due to error: {e}. Starting new archive.")
-    
-    # Update the dictionary with the new matrix
-    archive_dict[key_name] = {
-        'q_matrix': q_matrix,
-        'parameters': design_params # Saves under 'parameters' key
-    }
-    
-    np.save(archive_path, archive_dict, allow_pickle=True)
-    print(f"Archived filter under key '{key_name}' and saved updated archive to {archive_path}.")
+example_key = "VAST_example_(1, 0, 0)"
 
 
 # --- Corrected Load Function ---
@@ -83,9 +61,11 @@ def load_q_matrix(archive_path, key_name):
 
 q = load_q_matrix("VAST_filter_archive.npy", example_key)
 
+arpath = "VAST_filter_archive.npy"
+
 #print(q[1])
 
-def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, center_pos, R_mic, grid_res=100, z_plane=1.5):
+def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, center_pos, R_mic, grid_res=300, z_plane=1.5):
     """
     Computes and plots the RMS pressure field using a direct-path approximation
     for visualization purposes, with zones correctly defined by the circular array.
@@ -187,3 +167,118 @@ def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, c
 
 
 visualize_pressure_field(q[1]["q_matrix"], "Signe_sang.wav", 16000, q[1]['sources_position'], q[1]['room_dim'], q[1]['Center'], q[1]['R'])
+
+
+wav_path = "Signe_sang.wav"
+out_q_path = "Signe_sang_pos.wav"
+
+
+def sound_output(pos, length_sec, archive_path = arpath, key_name=example_key, wav_path=wav_path, output_wav_name="output_sound.wav"):
+    """
+    Generates and returns the audio waveform at a specific position (pos) 
+    in the room, given a VAST filter and source audio.
+    
+    Args:
+        pos (list or np.array): [x, y, z] coordinates of the listening point.
+        length_sec (float): Duration of the output sound to generate (in seconds).
+        archive_path (str): Path to the .npy archive file.
+        key_name (str): Key of the filter to load.
+        wav_path (str): Path to the input source audio file.
+        output_wav_name (str): Filename to save the resulting audio.
+        
+    Returns:
+        np.ndarray: The resulting audio waveform (normalized).
+    """
+    print(f"\n--- Generating sound output at position {pos} for {length_sec} seconds ---")
+    
+    # 1. Load VAST filter and parameters
+    q_matrix, params = load_q_matrix(archive_path, key_name)
+    if q_matrix is None:
+        return np.array([])
+    
+    # Extract necessary parameters
+    sources = params.get('sources_position', [])
+    fs_target = params.get('fs_target', 16000)
+    L = q_matrix.shape[0]
+
+    if not sources or L != len(sources):
+        print("Error: Source positions not found or mismatch filter size.")
+        return np.array([])
+    
+    speed_of_sound = 343.0
+    
+    # 2. Load and trim source audio
+    try:
+        fs_wav, wav = wavfile.read(wav_path)
+    except FileNotFoundError:
+        print(f"Error: Source audio file not found at {wav_path}.")
+        return np.array([])
+        
+    # Resample or ensure correct rate if necessary (for now, just use fs_target)
+    if fs_wav != fs_target:
+        print(f"Warning: Source audio fs ({fs_wav}) differs from target fs ({fs_target}). Using source fs for simplicity.")
+        fs_target = fs_wav
+        
+    if wav.ndim > 1: wav = wav[:, 0]
+    wav = np.array(wav, dtype=float)
+    wav = wav / (np.max(np.abs(wav)) + 1e-12) # Normalize source signal
+
+    n_samples = int(length_sec * fs_target)
+    input_signal = wav[:n_samples]
+
+    if len(input_signal) == 0:
+        print("Error: Input signal length is zero.")
+        return np.array([])
+
+    # 3. Apply VAST filters (drives) and calculate acoustic path
+    
+    # Calculate filtered drives for each speaker: d_l = x * q_l
+    print("Applying VAST filters (Convolution)...")
+    drives = [fftconvolve(input_signal, q_matrix[l]) for l in range(L)]
+    
+    # Ensure all drives are the same length for summation (trim to shortest)
+    max_drive_len = min(len(d) for d in drives)
+    total_pressure = np.zeros(max_drive_len)
+    
+    point = np.array(pos)
+    
+    print("Simulating direct path propagation...")
+    
+    for l in range(L):
+        src_pos = np.array(sources[l])
+        r = np.linalg.norm(point - src_pos)
+        
+        # Approximate acoustic path (direct path only 1/r gain)
+        h_val = 1.0 / (r + 1e-6) # Add small epsilon to prevent division by zero
+        
+        # Time delay (in samples)
+        delay = int(round(r * fs_target / speed_of_sound))
+        
+        # Apply filter and trim to correct length
+        drive_l = drives[l][:max_drive_len]
+
+        # Apply delay and gain
+        out_l = np.roll(drive_l, delay) * h_val
+        out_l[:delay] = 0.0 # Zero out wrapped part
+
+        total_pressure += out_l
+        
+    # 4. Normalize and Save Output
+    if np.max(np.abs(total_pressure)) > 1e-12:
+        output_waveform = total_pressure / np.max(np.abs(total_pressure))
+    else:
+        output_waveform = total_pressure # Silence
+
+    # Convert to 16-bit integer for saving as WAV
+    output_int16 = (output_waveform * 32767).astype(np.int16)
+
+    try:
+        wavfile.write("output_" + output_wav_name, fs_target, output_int16)
+        print(f"Successfully saved output audio to 'output_{output_wav_name}' at {fs_target} Hz.")
+    except Exception as e:
+        print(f"Warning: Could not save output WAV file. {e}")
+
+
+    return output_waveform
+
+sound_output([5, 5, 5], 2)

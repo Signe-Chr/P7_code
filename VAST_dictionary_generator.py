@@ -1,14 +1,23 @@
 from VAST_function import design_vast_filter
 import numpy as np
 import os
+import scipy.io.wavfile as wavfile
+
+
+
+wav_path = "Signe_sang.wav"
+out_q_path = "VAST_filter_archive.npy"
+
+fs_wav, wav = wavfile.read(wav_path)
+wav = wav[5*44100:7*44100]
 
 room_dim=[10,10,10]#[8.12, 7.35, 3.00]
 Center = [room_dim[0]/2, room_dim[1]/2, room_dim[2]/2]
 
-J=1024
-N=2000
-V=10
-mu=0.5
+J = 1048
+N = 2000#len(wav)
+V = 1
+mu = 0
 fs_target=16000
 absorption=0.2
 max_order=10
@@ -16,8 +25,6 @@ reg_eps=1e-6
 target_amplitude=0.3536
 R = 1.0
 
-wav_path = "Signe_sang.wav"
-out_q_path = "VAST_filter_archive.npy"
 
 def sources_mics(R, Center, N_mics):
     mic_positions_list = []
@@ -28,7 +35,7 @@ def sources_mics(R, Center, N_mics):
                                    Center[2]])
         dark_zone_mics_index.append(i)
     
-    mic_positions_list.append([Center[0], Center[1], Center[2]])
+    mic_positions_list.append([Center[0], Center[1], Center[2]+0.5])
     bright_zone_mics_index = [N_mics]
 
     sources_position_list = [[Center[0]- 0.2, Center[1]-0.1, Center[2]],
@@ -39,7 +46,7 @@ def sources_mics(R, Center, N_mics):
 
 sources_position, mic_positions, bright_zone_mics_index, dark_zone_mics_index = sources_mics(R, Center, 12)
 
-opdeling = 5
+opdeling = 4
 
 x_angle = np.pi/opdeling   # How much to rotate the phone around the x axis
 y_angle = np.pi/opdeling
@@ -133,7 +140,6 @@ q_matrix = design_vast_filter(sources_position, mic_positions, bright_zone_mics_
 archive_q_matrix(q_matrix, out_q_path, "VAST_example_(0, 0, 0)", sources_position)
 
 exit()
-
 
 for i in range(opdeling):
     r_0 = np.linalg.matrix_power(rotation_x, i)

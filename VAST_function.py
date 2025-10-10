@@ -167,6 +167,7 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     if not os.path.exists(wav_path):
         raise FileNotFoundError(f"{wav_path} not found - adjust path.")
     fs_wav, wav = wavfile.read(wav_path)
+
     
     if fs_wav != fs_target:
         print(f"Warning: wav sample rate {fs_wav} != target {fs_target}. This implementation does not resample.")
