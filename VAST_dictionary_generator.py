@@ -6,7 +6,7 @@ import scipy.io.wavfile as wavfile
 
 
 wav_path = "Signe_sang.wav"
-out_q_path = "ACC_filter_archive.npy"
+out_q_path = "PM_filter_archive.npy"
 
 fs_wav, wav = wavfile.read(wav_path)
 wav = wav[5*44100:7*44100]
@@ -24,8 +24,8 @@ spatial_positions=[[room_dim[0]/2, room_dim[1]/2, room_dim[2]/2],
 
 J = 1024
 N = 2000#len(wav)
-V = 1
-mu = 0
+V = J*3
+mu = 1
 fs_target=16000
 absorption=0.2
 max_order=10
@@ -148,7 +148,7 @@ if __name__ == "__main__":
                                 V=V, mu=mu, room_dim=room_dim, absorption=absorption, 
                                 max_order=max_order, reg_eps=reg_eps, target_amplitude=target_amplitude)
 
-        archive_q_matrix(q_matrix, out_q_path, "ACC_key_(0, 0, 0, 0)", sources_position)
+        archive_q_matrix(q_matrix, out_q_path, "PM_key_(0, 0, 0, 0)", sources_position)
 
         #exit()
 
@@ -166,4 +166,4 @@ if __name__ == "__main__":
                                 wav_path, fs_target=fs_target, J=J, N=N, 
                                 V=V, mu=mu, room_dim=room_dim, absorption=absorption, 
                                 max_order=max_order, reg_eps=reg_eps, target_amplitude=target_amplitude)
-                    archive_q_matrix(q_matrix, out_q_path, f"ACC_key_{j,i,ii,iii}", rs)
+                    archive_q_matrix(q_matrix, out_q_path, f"PM_key_{j,i,ii,iii}", rs)
