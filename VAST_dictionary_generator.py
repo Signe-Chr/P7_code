@@ -12,15 +12,19 @@ fs_wav, wav = wavfile.read(wav_path)
 wav = wav[5*44100:7*44100]
 
 room_dim=[8.12, 7.35, 3.00]#[10,10,10]
-spatial_positions=[[room_dim[0]/2, room_dim[1]/2, room_dim[2]/2],
-                   [          1.3, room_dim[1]/2, room_dim[2]/2],
-                   [         6.82, room_dim[1]/2, room_dim[2]/2],
-                   [          1.3,           1.3, room_dim[2]/2],
-                   [          1.3,          6.05, room_dim[2]/2],
-                   [         6.82,           1.3, room_dim[2]/2],
-                   [         6.82,          6.05, room_dim[2]/2],
-                   [room_dim[0]/2,          6.05, room_dim[2]/2],
-                   [room_dim[0]/2,           1.3, room_dim[2]/2]]
+spatial_positions = [
+    [          1.3,          6.05, room_dim[2]/2],  # 0 — upper left
+    [room_dim[0]/2,          6.05, room_dim[2]/2],  # 1 — upper middle
+    [         6.82,          6.05, room_dim[2]/2],  # 2 — upper right
+
+    [          1.3, room_dim[1]/2, room_dim[2]/2],  # 3 — mid left
+    [room_dim[0]/2, room_dim[1]/2, room_dim[2]/2],  # 4 — center
+    [         6.82, room_dim[1]/2, room_dim[2]/2],  # 5 — mid right
+
+    [          1.3,           1.3, room_dim[2]/2],  # 6 — bottom left
+    [room_dim[0]/2,           1.3, room_dim[2]/2],  # 7 — bottom middle
+    [         6.82,           1.3, room_dim[2]/2],  # 8 — bottom right
+]
 
 J = 1024
 N = 2000#len(wav)
