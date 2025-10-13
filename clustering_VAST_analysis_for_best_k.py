@@ -13,7 +13,7 @@ pastel_green = "#D4E4BC"    # Contrast – pastel green
 # =========================================================
 # 1. Load VAST filter archive 
 # =========================================================
-archive_path = "ACC_filter_archive.npy"
+archive_path = "PM_filter_archive.npy"
 
 loaded = np.load(archive_path, allow_pickle=True)
 if loaded.ndim == 0:
@@ -73,8 +73,8 @@ print(f"Number of PCA components explaining at least {threshold*100:.0f}% varian
 import warnings
 warnings.filterwarnings("ignore", message="Cluster .* is empty!")
 K_range = range(2, 10)
-pcs_to_test = range(3, 9)  # 3 → 8 inclusive
-fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+pcs_to_test = range(1, 9)  # 3 → 8 inclusive
+fig, axes = plt.subplots(2, 4, figsize=(15, 8))
 axes = axes.flatten()  # flatten to easily iterate over
 
 for idx, n_pc in enumerate(pcs_to_test):
@@ -132,8 +132,8 @@ plt.show()
 # ----------------------------------------
 # 9. Final clustering with best K and NUmber of Principal Components
 # ----------------------------------------
-n_pc = 3
-K = 3
+n_pc = 1
+K = 2
 
 # Step 1: PCA reduction
 pca = PCA(n_components=n_pc)
@@ -154,44 +154,45 @@ for key in medoid_keys:
 
 # Step 4: Optionally, extract their q_matrices and save
 medoid_dict = {key: configurations[key] for key in medoid_keys}
-np.save(f"ACC_medoids_PCA{n_pc}_K{K}.npy", medoid_dict)
+np.save(f"PM_medoids_PCA{n_pc}_K{K}.npy", medoid_dict)
 
-print(f"\nSaved medoids to 'ACC_medoids_PCA{n_pc}_K{K}.npy'")
-# ----------------------------------------
-# 9. Plot clusters using first 3 PCA components
-# ----------------------------------------
-from mpl_toolkits.mplot3d import Axes3D
+print(f"\nSaved medoids to 'PM_medoids_PCA{n_pc}_K{K}.npy'")
 
-cluster_colors = [deep_plum, tropical_green, rose_pink, peach_orange, pastel_green]
+if n_pc>=3:
+    # ----------------------------------------
+    # 9. Plot clusters using first 3 PCA components
+    # ----------------------------------------
+    from mpl_toolkits.mplot3d import Axes3D
 
-fig = plt.figure(figsize=(7, 5))
-ax = fig.add_subplot(111, projection='3d')
+    cluster_colors = [deep_plum, tropical_green, rose_pink, peach_orange, pastel_green]
+    fig = plt.figure(figsize=(7, 5))
+    ax = fig.add_subplot(111, projection='3d')
 
-for k in range(best_k):
-    cluster_points = X_reduced[labels == k]
-    color = cluster_colors[k % len(cluster_colors)]  # repeat if more clusters than colors
+    for k in range(best_k):
+        cluster_points = X_reduced[labels == k]
+        color = cluster_colors[k % len(cluster_colors)]  # repeat if more clusters than colors
+        ax.scatter(
+            cluster_points[:, 0],
+            cluster_points[:, 1],
+            cluster_points[:, 2],
+            color=color,
+            label=f"Cluster {k+1}",
+            alpha=0.7
+        )
+
+    # Medoids
     ax.scatter(
-        cluster_points[:, 0],
-        cluster_points[:, 1],
-        cluster_points[:, 2],
-        color=color,
-        label=f"Cluster {k+1}",
-        alpha=0.7
+        X_reduced[medoid_indices, 0],
+        X_reduced[medoid_indices, 1],
+        X_reduced[medoid_indices, 2],
+        c="black",
+        marker="X",
+        s=120,
+        label="Medoids"
     )
 
-# Medoids
-ax.scatter(
-    X_reduced[medoid_indices, 0],
-    X_reduced[medoid_indices, 1],
-    X_reduced[medoid_indices, 2],
-    c="black",
-    marker="X",
-    s=120,
-    label="Medoids"
-)
-
-ax.set_xlabel("PC1")
-ax.set_ylabel("PC2")
-ax.set_zlabel("PC3")
-ax.legend()
-plt.show()
+    ax.set_xlabel("PC1")
+    ax.set_ylabel("PC2")
+    ax.set_zlabel("PC3")
+    ax.legend()
+    plt.show()
