@@ -2,6 +2,8 @@ from VAST_function import design_vast_filter
 import numpy as np
 import os
 import scipy.io.wavfile as wavfile
+import pyroomacoustics as pra
+
 
 
 
@@ -28,15 +30,21 @@ spatial_positions = [
 
 J = 1024
 N = 2000#len(wav)
-V = J*3
-mu = 1
+V = 1
+mu = 0
 fs_target=16000
 absorption=0.2
 max_order=10
 reg_eps=1e-6
-target_amplitude=0.3536
+target_amplitude = 0.080792
 R = 1.0
 
+room = pra.ShoeBox(
+    room_dim,
+    fs=fs_target,
+    materials=pra.Material(absorption),
+    max_order=max_order,
+)
 
 def sources_mics(R, Center, N_mics):
     mic_positions_list = []
@@ -54,6 +62,29 @@ def sources_mics(R, Center, N_mics):
                              [Center[0]- 0.2, Center[1]+0.1, Center[2]],
                              [Center[0]- 0.2, Center[1], Center[2]+0.2]]
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index
+
+
+def rir_func(IR, n_mics, n_srcs, max_length=512):
+    """
+    Prepare RIR data as CNN input tensor
+    Shape: (batch_size, channels, n_mics, n_srcs, time)
+    """
+    # Create a tensor to hold all RIRs
+    rir_list = []
+
+    for mic_idx in range(n_mics):
+        rir_temp = []
+        for src_idx in range(n_srcs):
+            rir = IR[mic_idx][src_idx]
+            # Truncate or zero-pad to max_length
+            if len(rir) > max_length:
+                rir = rir[:max_length]
+            else:
+                rir = np.pad(rir, (0, max_length - len(rir)))
+            rir_temp.append(rir)
+        rir_list.append(rir_temp)
+
+    return np.array(rir_list)
 
 if __name__ == "__main__":
     opdeling = 4
@@ -123,7 +154,8 @@ if __name__ == "__main__":
                 'bright_zone_mics_index': bright_zone_mics_index,
                 'dark_zone_mics_index': dark_zone_mics_index,
                 'Center': Center,
-                'R': R}
+                'R': R,
+                'IR': rir_func(room.rir, len(mic_positions), len(sp), max_length=512)}
             
             archive_dict = {}
             
