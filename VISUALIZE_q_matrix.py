@@ -6,7 +6,7 @@ import time
 import pyroomacoustics as pra
 import os
 
-example_key = "VAST_example_(1, 0, 0)"
+example_key = "ACC_key_(4, 0, 0, 0)"
 
 
 # --- Corrected Load Function ---
@@ -59,9 +59,9 @@ def load_q_matrix(archive_path, key_name):
         return None, None
 
 
-q = load_q_matrix("VAST_filter_archive.npy", example_key)
+q = load_q_matrix("ACC_filter_archive.npy", example_key)
 
-arpath = "VAST_filter_archive.npy"
+arpath = "ACC_filter_archive.npy"
 
 
 def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, center_pos, R_mic, grid_res=300, z_plane=1.5):
@@ -137,7 +137,6 @@ def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, c
     print(f"Average pressure (bright) = {avg_bright:.6f} ; (dark) = {avg_dark:.6f}")
     contrast_db = 10.0 * np.log10((avg_bright + 1e-12) / (avg_dark + 1e-12))
     print(f"Contrast (bright/dark) [dB] = {contrast_db:.2f}")
-    print(10**(-50/10))
 
     # Plot relative SPL
     P_db = 20.0 * np.log10(pressure_field / (np.max(pressure_field) + 1e-12) + 1e-12)

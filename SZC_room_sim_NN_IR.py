@@ -8,6 +8,7 @@ import os
 import VAST_dictionary_generator as vdg
 from mpl_toolkits.mplot3d import Axes3D
 import VISUALIZE_q_matrix as vq
+import torch.nn.functional as F
 
 
 # Get the directory where the script is located
@@ -36,7 +37,7 @@ room = pra.ShoeBox(
 )
 
 
-sources_position_list, mic_positions, bright_zone_mics_index, dark_zone_mics_index = vdg.sources_mics(vdg.R, vdg.Center, 12)
+sources_position_list, mic_positions, bright_zone_mics_index, dark_zone_mics_index = vdg.sources_mics(vdg.R, vdg.spatial_positions[4], 12)
 
 
 room.add_microphone_array(pra.MicrophoneArray(np.array(mic_positions).T, room.fs))
@@ -195,6 +196,7 @@ def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
     rir_list = []
 
     for mic_idx in range(n_mics):
+        rir_temp = []
         for src_idx in range(n_srcs):
             rir = IR[mic_idx][src_idx]
             # Truncate or zero-pad to max_length
@@ -203,7 +205,8 @@ def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
             else:
                 rir = np.pad(rir, (0, max_length - len(rir)))
             rir_tensor[0, 0, mic_idx, src_idx, :] = torch.tensor(rir)
-        rir_list.append(rir)
+            rir_temp.append(rir)
+        rir_list.append(rir_temp)
 
     
     return rir_tensor, np.array(rir_list)
@@ -277,15 +280,14 @@ class ILZ_CNN_RIR(nn.Module):
 model = ILZ_CNN_RIR(M=n_mics, S=n_srcs, T=J, K=J)
 
 
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-5, weight_decay=1e-7)  # Lower learning rate
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=1e-4)  # Lower learning rate
 #optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4) #lr: learning rate, weight_decay: L2 regularization
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=1)
 
 q = vq.q[0]
-
 fcentre = [1000, 2000]
 
-def L_1_loss(q_opt, H_B):
+def L_1_loss(q_opt):
     g = np.fft.fft(q_opt, axis = 0)
     target_pressure = np.abs(g)*1.3 # revurderes
     L_1 = 0
@@ -422,9 +424,8 @@ def L_4_loss(q_opt):
 
     return L_4
 
-def w_g(tau):
+def w_g(tau, tau_d):
     sigma_f = 48000
-    tau_d = 0
     return np.sqrt(np.exp((tau-tau_d)**2/sigma_f))
 
 def eps(q_opt):
@@ -436,131 +437,30 @@ def L_5_loss(q_opt):
         L_5_ = 0
         q_opt_s = q_opt[s]
         for tau in range(J):
-            L_5_ += ((1 - w_g(tau))*q_opt_s[tau]**2/eps(q_opt_s))**2
+            L_5_ += ((1 - w_g(tau,0))*q_opt_s[tau]**2/eps(q_opt_s))**2
         L_5 += np.sqrt(L_5_)
     return L_5
 
 def w_n(n,N, alpha=0.5):
     return 1+alpha*(n/N)
 
-from scipy.linalg import toeplitz
-
-def build_A_m(room, m, J, N=None):
-    """
-    Build the A_m matrix for microphone m.
-    
-    Parameters
-    ----------
-    room : pra.ShoeBox
-        Pyroomacoustics room with computed RIRs.
-    m : int
-        Microphone index (0-based).
-    J : int
-        Length of each loudspeaker filter q_l.
-    N : int, optional
-        Desired length of output impulse response.
-        If None, it's automatically set to len(h_m_l) + J - 1.
-    
-    Returns
-    -------
-    A_m : np.ndarray, shape (N, L*J)
-        Convolution matrix mapping stacked loudspeaker filters q to output IR at mic m.
-    """
-    # Number of loudspeakers
-    L = len(room.sources)
-    
-    # Build convolution matrix for each loudspeaker
-    H_blocks = []
-    for l in range(L):
-        h_m_l = np.array(room.rir[m][l])
-        if len(h_m_l) == 0:
-            raise ValueError(f"Empty RIR for mic {m}, source {l}")
-        
-        if N is None:
-            N = len(h_m_l) + J - 1
-        
-        # Create Toeplitz matrix: each column is a shifted version of h_m_l
-        first_col = np.concatenate((h_m_l, np.zeros(J-1)))
-        first_row = np.zeros(J)
-        H_m_l = toeplitz(first_col, first_row)[:N, :J]
-        H_blocks.append(H_m_l)
-    
-    # Concatenate horizontally
-    A_m = np.hstack(H_blocks)
-    return A_m
-
 
 def L_6_loss(q_opt):
     L_6 = 0
+    
     for m in range(n_mics):
         L_6_ = 0
-        for n in range(len(rir[0])):
-            A_m = build_A_m(room, m, J, N = len(rir[0]))
-            print(A_m.shape, q_opt.flatten().shape)
-            h_tilde = A_m @ q_opt.flatten().T
-            L_6_ += ((1 - w_g(n))*h_tilde[n]**2/energy_tilde(q_opt,m,n))**2
+        h_tilde = 0
+        for s in range(n_srcs):
+            h_tilde += np.convolve(rir[m][s], q_opt[s])
+        e = eps(h_tilde)
+        for n in range(len(h_tilde)):
+            L_6_ += ((1 - w_g(n, 1000))*h_tilde[n]**2/e)**2
         L_6 += np.sqrt(L_6_)
     return L_6
 
-print("L_6 before training:", L_6_loss(q))
+print(L_6_loss(q), L_5_loss(q), L_4_loss(q), L_3_loss(q), L_2_loss(q), L_1_loss(q))
 
-
-
-
-def acoustic_contrast_loss(AC_des, AC_sim, w_AC):
-    """
-    Compute the Euclidean distance loss between desired and simulated Acoustic Contrast (AC).
-
-    Parameters
-    ----------
-    AC_des : np.ndarray
-        Desired acoustic contrast per band (shape: [n_bands])
-    AC_sim : np.ndarray
-        Simulated acoustic contrast per band (shape: [n_bands])
-    w_AC : np.ndarray
-        Weighting function (shape: [n_bands]) — typically gives more importance to low frequencies.
-
-    Returns
-    -------
-    L2 : float
-        Euclidean distance between desired and simulated AC.
-    C : np.ndarray
-        Vector of per-band contrast errors (C_i).
-    """
-
-    # Ensure inputs are numpy arrays
-    AC_des = np.asarray(AC_des)
-    AC_sim = np.asarray(AC_sim)
-    w_AC = np.asarray(w_AC)
-
-    # Compute weighted desired AC
-    AC_weighted = AC_des * w_AC
-
-    # Compute contrast error per band (C_i)
-    C = np.where(AC_sim <= AC_weighted, AC_weighted - AC_sim, 0.0)
-
-    # Euclidean distance (L2 norm)
-    L2 = np.sqrt(np.sum(C**2))
-
-    return L2, C
-
-exit()
-
-
-
-def pressure_matching_loss(pressure_field, X, room_dim, target_pressure = 0.080792):
-    """
-    Loss function that rewards pressure field values close to target_db (default 65 dB)
-    in the bright zone only.
-    """
-    # Bright zone mask
-    bright_mask = X < room_dim[0] / 2
-    bright_values = pressure_field[bright_mask]
-    # Avoid log of zero
-    bright_values = torch.clamp(bright_values, min=1e-12)
-    # Mean squared error to target dB (only bright zone)
-    loss = (bright_mask - target_pressure)**2
-    return loss
 
 def pressure_field_2d(room_dim, sources, q_opt, lyd_data, grid_res=50, z_plane=1.5, J=J, fs=16000):
     """
@@ -606,20 +506,32 @@ def pressure_field_2d(room_dim, sources, q_opt, lyd_data, grid_res=50, z_plane=1
 
     pressure_dB = 20 * np.log10(pressure_field / (np.max(pressure_field) + 1e-12) + 1e-12)
 
-    # Define bright and dark zones (left/right halves)
-    bright_mask = X < room_dim[0] / 2
-    dark_mask = X >= room_dim[0] / 2
+    center_x, center_y = vdg.spatial_positions[4][0], vdg.spatial_positions[4][1]
+    dist_sq = (X - center_x)**2 + (Y - center_y)**2
+    R_mic = vdg.R
+    # Bright Zone: Inside or on the boundary of the microphone circle
+    bright_mask = dist_sq <= (R_mic + 0.1)**2 # Added 0.1 buffer for visualization contrast
+    dark_mask = dist_sq > (R_mic + 0.1)**2 
     
     avg_bright = np.mean(pressure_field[bright_mask])
     avg_dark = np.mean(pressure_field[dark_mask])
+    
+    print(f"Average pressure (bright) = {avg_bright:.6f} ; (dark) = {avg_dark:.6f}")
+    contrast_db = 10.0 * np.log10((avg_bright + 1e-12) / (avg_dark + 1e-12))
+    print(f"Contrast (bright/dark) [dB] = {contrast_db:.2f}")
 
-
-    print(f"Average pressure in bright zone: {avg_bright:.4f}")
-    print(f"Average pressure in dark zone: {avg_dark:.4f}")
-    print(f"Pressure ratio (bright/dark) [dB]: {20 * np.log10(avg_bright / (avg_dark + 1e-12)):.2f} dB")
 
     plt.figure(figsize=(8, 6))
     plt.imshow(pressure_dB.T, origin='lower', extent=[0, room_dim[0], 0, room_dim[1]], aspect='auto', cmap='inferno')
+        # Add Circular Bright/Dark zone markers
+    theta = np.linspace(0, 2 * np.pi, 100)
+    boundary_x = center_x + R_mic * np.cos(theta)
+    boundary_y = center_y + R_mic * np.sin(theta)
+    plt.plot(boundary_x, boundary_y, 'w--', linewidth=1, label='Zone Boundary')
+    
+    # Place text labels
+    plt.text(center_x, center_y, 'Bright Zone', color='white', ha='center', fontsize=10, weight='bold')
+    plt.text(center_x + R_mic + 0.2, center_y + R_mic + 0.2, 'Dark Zone', color='white', ha='left', fontsize=10, weight='bold')
     plt.colorbar(label='SPL [dB]')
     plt.xlabel('x [m]')
     plt.ylabel('y [m]')
@@ -629,15 +541,18 @@ def pressure_field_2d(room_dim, sources, q_opt, lyd_data, grid_res=50, z_plane=1
     plt.tight_layout()
     plt.show()
 
-def contrast_loss(pressure_field, X, room_dim):
+def contrast_loss(pressure_field, X, Y, room_dim):
     """
     Loss function that maximizes the contrast between bright and dark zones.
     Bright zone: X < room_dim[0] / 2
     Dark zone:   X >= room_dim[0] / 2
     Returns negative contrast so optimizer maximizes it.
     """
-    bright_mask = X < room_dim[0] / 2
-    dark_mask = X >= room_dim[0] / 2
+    R_mic = vdg.R
+    center_x, center_y = vdg.spatial_positions[4][0], vdg.spatial_positions[4][1]
+    dist_sq = (X - center_x)**2 + (Y - center_y)**2
+    bright_mask = dist_sq <= (R_mic + 0.1)**2 # Added 0.1 buffer for visualization contrast
+    dark_mask = dist_sq > (R_mic + 0.1)**2 
     bright_mean = torch.mean(pressure_field[bright_mask])
     dark_mean = torch.mean(pressure_field[dark_mask])
     return -(bright_mean - dark_mean)
@@ -702,7 +617,7 @@ def compute_pressure_field_tensor(room_dim, sources, q_opt, lyd_data, grid_res=2
     rms_pressure = torch.sqrt(torch.mean(out ** 2, dim=-1) + 1e-12)  # (G, L)
     pressure_field = torch.sum(rms_pressure, dim=1)  # (G,)
     pressure_field = pressure_field.view(grid_res, grid_res)
-    return pressure_field, X
+    return pressure_field, X, Y
 
 
 
@@ -714,10 +629,11 @@ for epoch in range(num_epochs):
     # Use the RIR data as input
     q_opt = model(x_rir)[0]  # shape: (S, J)
     
-    pressure_field, X = compute_pressure_field_tensor(vdg.room_dim, sources_position_list, q_opt, lyd_data, grid_res=10, J=J, fs=fs)
+    pressure_field, X, Y = compute_pressure_field_tensor(vdg.room_dim, sources_position_list, q_opt, lyd_data, grid_res=10, J=J, fs=fs)
     
-    loss = 100 * contrast_loss(pressure_field, X, vdg.room_dim) + 0 * pressure_matching_loss(pressure_field, X, vdg.room_dim, target_db=65.0)
+    loss = 2*L_6_loss(q_opt.detach()) + 92*L_5_loss(q_opt.detach()) + 50*L_4_loss(q_opt.detach()) + 1e-5*L_3_loss(q_opt.detach()) + 2*L_2_loss(q_opt.detach()) + 126*L_1_loss(q_opt.detach())# 
     
+#100*contrast_loss(pressure_field, X, Y, vdg.room_dim) + 
     if torch.isnan(loss):
         print(f"Epoch {epoch}, Loss: NaN (skipped update)")
         continue
@@ -734,7 +650,7 @@ for epoch in range(num_epochs):
 
 # After training, visualize with the RIR-trained model
 q_final = model(x_rir)[0]
-pressure_field_2d(room_dim, sources, q_final.detach().cpu().numpy(), lyd_data, grid_res=50, z_plane=1.5, J=J, fs=fs)
+pressure_field_2d(vdg.room_dim, sources_position_list, q_final.detach().cpu().numpy(), lyd_data, grid_res=50, z_plane=1.5, J=J, fs=fs)
 
 # Save the model
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -848,4 +764,4 @@ def visualize_placement(room_dim, sources, mic_positions, bright_zone_mics, dark
         print(f"Center line microphones: {len(center_line_mics)}")
 
 
-visualize_placement(room_dim, sources, mic_positions, bright_zone_mics, dark_zone_mics)
+visualize_placement(vdg.room_dim, sources_position_list, mic_positions, bright_zone_mics_index, dark_zone_mics_index)
