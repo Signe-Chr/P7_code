@@ -65,7 +65,7 @@ arpath = "VAST_filter_archive.npy"
 
 #print(q[1])
 
-def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, center_pos, R_mic, grid_res=300, z_plane=1.5):
+def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, center_pos, R_mic, grid_res=300, z_plane=5.0):
     """
     Computes and plots the RMS pressure field using a direct-path approximation
     for visualization purposes, with zones correctly defined by the circular array.
