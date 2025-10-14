@@ -13,7 +13,7 @@ cluster_assignments = np.load("PM_cluster_assignments_PCA1_K2.npy", allow_pickle
 
 loaded = np.load(archive_path, allow_pickle=True)
 if loaded.ndim == 0:
-    configurations = loaded.item()
+    configurations = loaded.item() 
 else:
     configurations = loaded
 
