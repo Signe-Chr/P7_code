@@ -14,15 +14,15 @@ wav = wav[5*44100:7*44100]
 room_dim=[10,10,10]#[8.12, 7.35, 3.00]
 Center = [room_dim[0]/2, room_dim[1]/2, room_dim[2]/2]
 
-J = 1048
+J = 1024
 N = 2000#len(wav)
 V = 1
 mu = 0
-fs_target=16000
+fs_target=44100
 absorption=0.2
 max_order=10
 reg_eps=1e-6
-target_amplitude=0.3536
+target_amplitude = 0.080792
 R = 1.0
 
 

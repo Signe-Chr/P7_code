@@ -7,7 +7,7 @@ from scipy.signal import lfilter
 import os
 import VAST_dictionary_generator as vdg
 from mpl_toolkits.mplot3d import Axes3D
-
+import VISUALIZE_q_matrix as vq
 
 
 # Get the directory where the script is located
@@ -39,14 +39,17 @@ room = pra.ShoeBox(
 sources_position_list, mic_positions, bright_zone_mics_index, dark_zone_mics_index = vdg.sources_mics(vdg.R, vdg.Center, 12)
 
 
-room.add_microphone_array(pra.MicrophoneArray(mic_positions, room.fs))
+room.add_microphone_array(pra.MicrophoneArray(np.array(mic_positions).T, room.fs))
+
+for s in sources_position_list:
+        room.add_source(s)
 
 # ----------------------
 # Compute RIRs
 # ----------------------
 room.compute_rir()  # fills room.rir [mic_index][source_index] -> array
 
-n_mics = mic_positions.shape[1]
+n_mics = len(mic_positions)
 n_srcs = len(sources_position_list)
 
 IR = room.rir
@@ -62,7 +65,8 @@ def compute_H_matrix(room, n_fft=None):
         A pyroomacoustics room after calling room.compute_rir().
         room.rir[m][s] must contain the RIR from source s to mic m.
     n_fft : int, optional
-        FFT length. If None, it uses the longest RIR length.
+        FFT length. If None, it uses the next power of 2 greater than 
+        the longest RIR length. Defaults to 1024 if no RIRs are found.
 
     Returns
     -------
@@ -72,24 +76,45 @@ def compute_H_matrix(room, n_fft=None):
         Frequency vector corresponding to the frequency bins.
     """
 
-    n_mics = len(room.mic_array.R[0])
-    n_srcs = len(room.sources)
-    
-    # Find max RIR length across all mic–source pairs
-    if n_fft is None:
-        max_len = max(len(rir) for mic_rirs in room.rir for rir in mic_rirs)
-        n_fft = 2 ** int(np.ceil(np.log2(max_len)))  # next power of 2 for efficiency
+    # We must check if the room RIRs have actually been computed
+    if not hasattr(room, 'rir') or not room.rir:
+        print("Warning: room.rir is empty. Ensure room.compute_rir() was called successfully.")
+        # Fallback to a safe FFT size and empty results
+        n_fft = n_fft if n_fft is not None else 1024
+        freqs = np.fft.rfftfreq(n_fft, 1 / room.fs)
+        return np.zeros((0, 0, len(freqs)), dtype=np.complex128), freqs
 
+    n_mics = len(room.mic_array.R[0]) if room.mic_array is not None else 0
+    n_srcs = len(room.sources)
+
+    # --- CORRECTION APPLIED HERE ---
+    # Find max RIR length across all mic–source pairs safely.
+    # The 'or [0]' ensures max() always has at least one element.
+    all_rir_lengths = [len(rir) for mic_rirs in room.rir for rir in mic_rirs]
+    max_len = max(all_rir_lengths) if all_rir_lengths else 0
+    
+    # If n_fft is not specified, calculate it
+    if n_fft is None:
+        if max_len == 0:
+            n_fft = 1024  # Default FFT length if no RIRs were found
+        else:
+            # Use the next power of 2 for efficient FFT
+            n_fft = 2 ** int(np.ceil(np.log2(max_len)))
+
+    n_freqs = n_fft // 2 + 1
+    
     # Initialize frequency-domain matrix
-    H = np.zeros((n_mics, n_srcs, n_fft // 2 + 1), dtype=np.complex128)
+    H = np.zeros((n_mics, n_srcs, n_freqs), dtype=np.complex128)
 
     # Compute FFT for each microphone–source pair
     for m in range(n_mics):
         for s in range(n_srcs):
-            h = np.array(room.rir[m][s])
-            if len(h) == 0:
-                continue  # skip empty RIRs if any
-            H[m, s, :] = np.fft.rfft(h, n=n_fft)
+            # Check if the RIR list for this pair exists and is not empty
+            if m < len(room.rir) and s < len(room.rir[m]):
+                h = np.array(room.rir[m][s])
+                if len(h) > 0:
+                    # Use rfft which only computes the first half of the spectrum
+                    H[m, s, :] = np.fft.rfft(h, n=n_fft)
 
     freqs = np.fft.rfftfreq(n_fft, 1 / room.fs)
     return H, freqs
@@ -100,14 +125,64 @@ H_B = H[bright_zone_mics_index]  # Bright zone microphones
 
 H_D = H[dark_zone_mics_index]    # Dark zone microphones
 
-exit()
+def compute_H_B_time(room, bright_zone_mics):
+    """
+    Compute the time-domain spatial transfer matrix H_B[n]
+    for the bright zone microphones in a pyroomacoustics simulation.
 
+    Parameters
+    ----------
+    room : pra.ShoeBox
+        A pyroomacoustics room after calling room.compute_rir().
+        room.rir[m][s] is the RIR from source s to mic m.
+    bright_zone_mics : list of int
+        Indices of microphones that belong to the bright zone.
+
+    Returns
+    -------
+    H_B : np.ndarray
+        Time-domain matrix of shape (n_samples, M_B, L)
+        Each entry H_B[t, m, l] = h_{m,l}[t], the RIR sample at time t.
+    t : np.ndarray
+        Time vector in seconds corresponding to the samples.
+    """
+
+    if not hasattr(room, 'rir') or not room.rir:
+        raise ValueError("room.rir is empty. Ensure room.compute_rir() was called successfully.")
+
+    n_srcs = len(room.sources)
+    n_mics_total = len(room.rir)
+    M_B = len(bright_zone_mics)
+
+    # Determine maximum RIR length
+    max_len = max(len(r) for mic_rirs in room.rir for r in mic_rirs if len(r) > 0)
+    
+    # Initialize H_B
+    H_B = np.zeros((max_len, M_B, n_srcs))
+
+    # Fill in the impulse responses
+    for i_bz, m in enumerate(bright_zone_mics):
+        for s in range(n_srcs):
+            if m < len(room.rir) and s < len(room.rir[m]):
+                h = np.array(room.rir[m][s])
+                H_B[:len(h), i_bz, s] = h  # zero-pad as needed
+
+    t = np.arange(max_len) / room.fs
+    return H_B, t    
+
+H_B_time, t_b = compute_H_B_time(room, bright_zone_mics_index)
+
+H_D_time, t_d = compute_H_B_time(room, dark_zone_mics_index)
+
+
+# ----------------------
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
-J = 512
+J = vdg.J
+
 
 # Convert RIRs to a suitable tensor format for CNN input
 def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
@@ -117,7 +192,8 @@ def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
     """
     # Create a tensor to hold all RIRs
     rir_tensor = torch.zeros(1, 1, n_mics, n_srcs, max_length)
-    
+    rir_list = []
+
     for mic_idx in range(n_mics):
         for src_idx in range(n_srcs):
             rir = IR[mic_idx][src_idx]
@@ -126,71 +202,353 @@ def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
                 rir = rir[:max_length]
             else:
                 rir = np.pad(rir, (0, max_length - len(rir)))
-            
             rir_tensor[0, 0, mic_idx, src_idx, :] = torch.tensor(rir)
+        rir_list.append(rir)
+
     
-    return rir_tensor
+    return rir_tensor, np.array(rir_list)
 
 # Prepare the input tensor
-x_rir = prepare_rir_input(IR, n_mics, n_srcs, max_length=J)
+x_rir, rir = prepare_rir_input(IR, n_mics, n_srcs, max_length=J)
 
-# Fixed CNN model
+
+
+
 class ILZ_CNN_RIR(nn.Module):
-    def __init__(self, M, S, L, T, time_length=512):
+    """
+    CNN architecture for Source Zone Control (SZC) filter optimization.
+
+    Parameters:
+    M (int): Number of Microphones.
+    S (int): Number of Sources (Loudspeakers).
+    T (int): Number of filter coefficients per Loudspeaker (Filter length J).
+    K (int): Length of the RIR input (Time dimension L).
+    """
+    def __init__(self, M, S, T, K):
         super(ILZ_CNN_RIR, self).__init__()
-        self.M, self.S, self.L, self.T = M, S, L, T
-        self.time_length = time_length
-
-        # 3D convolutions to process time dimension
-        # Use smaller kernels and no stride to preserve information
-        self.conv1 = nn.Conv3d(1, 16, kernel_size=(1, 1, 16), padding=(0, 0, 8)) 
-        self.conv2 = nn.Conv3d(16, 32, kernel_size=(1, 1, 8), padding=(0, 0, 4))
-        self.conv3 = nn.Conv3d(32, 64, kernel_size=(1, 1, 4), padding=(0, 0, 2))
+        self.M, self.S, self.T = M, S, T
         
-        # Global average pooling instead of calculating size
-        self.pool = nn.AdaptiveAvgPool3d((M, S, 1))
+        # NOTE: Input Shape: (Batch, 1, M, S, K)
         
-        self.fc1 = nn.Linear(64 * M * S, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, S * T)
-        self.activation = nn.ReLU()
-        self.dropout = nn.Dropout(0.3)
+        # Layer 1: Aggregates across Mics (M)
+        self.conv1 = nn.Conv3d(
+            in_channels=1, out_channels=48, 
+            kernel_size=(M, 1, 1), # Consumes M dimension
+            padding=(0, 0, 0)
+        )
+        # Output shape after conv1: (Batch, 48, 1, S, K)
+        
+        # Layer 2: Aggregates across Sources (S)
+        self.conv2 = nn.Conv3d(
+            in_channels=48, out_channels=24, 
+            kernel_size=(1, S, 1), # Consumes S dimension
+            padding=(0, 0, 0)
+        )
+        # Output shape after conv2: (Batch, 24, 1, 1, K)
+        
+        # Calculate FC input size based on the remaining K dimension
+        self.fc_input_size = 24 * K # This K must match max_length used in preparation
 
+        # Fully Connected Layers
+        self.fc1 = nn.Linear(self.fc_input_size, 10)
+        self.fc2 = nn.Linear(10, S * T) # Final output size: S * T
+
+        # Activation Function
+        self.activation = nn.Hardtanh(min_val=-1.0, max_val=1.0)
+        
     def forward(self, x):
-        # x shape: (batch, 1, M, S, time_length)
+        # Convolutional Block
         x = self.activation(self.conv1(x))
         x = self.activation(self.conv2(x))
-        x = self.activation(self.conv3(x))
-        x = self.pool(x)  # (batch, 64, M, S, 1)
-        x = x.view(x.size(0), -1)  # Flatten: (batch, 64 * M * S)
-        x = self.dropout(self.activation(self.fc1(x)))
-        x = self.dropout(self.activation(self.fc2(x)))
-        x = self.fc3(x)
-        q = x.view(-1, self.S, self.T)  # (batch, S, T)
+        
+        # Flatten for FC layers: (batch, 24 * K)
+        x = x.view(x.size(0), -1) 
+        
+        # Fully Connected Block
+        x = self.activation(self.fc1(x))
+        x = self.fc2(x)
+        
+        # Reshape output to (batch, S, T) -> Filter coefficients q
+        q = x.view(x.size(0), self.S, self.T)
+        
         return q
 
-# Initialize model
-model = ILZ_CNN_RIR(n_mics, n_srcs, len(IR[0][0]), J, time_length=J)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)  # Lower learning rate
+model = ILZ_CNN_RIR(M=n_mics, S=n_srcs, T=J, K=J)
+
+
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-5, weight_decay=1e-7)  # Lower learning rate
 #optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4) #lr: learning rate, weight_decay: L2 regularization
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=1)
 
+q = vq.q[0]
 
-def L_1_loss(M_B,):
+fcentre = [1000, 2000]
+
+def L_1_loss(q_opt, H_B):
+    g = np.fft.fft(q_opt, axis = 0)
+    target_pressure = np.abs(g)*1.3 # revurderes
     L_1 = 0
-    for i in range(M_B):
-        L_1 += 
 
-    return 
+    for freq in fcentre:
+        fd = 2**(1/6)
+        f_low = freq/fd
+        f_high = freq*fd
+        delta_f = vdg.fs_target/vdg.J
 
-#def C(AC_des,w_AC, AC_tilde):
-#    if AC_tilde
+        k_low = int(np.ceil(f_low/delta_f))
 
-def L_2_loss( ):
-    return 0
+        k_high = int(np.ceil(f_high/delta_f))
 
-def pressure_matching_loss(pressure_field, X, room_dim, target_pressure = 0.3536):
+        L_1_ = 0
+
+        for m in range(len(bright_zone_mics_index)):
+            temp_1 = 0
+            for k in range(k_low, k_high):
+                H_B_tilde = np.matmul(H_B[:,:,k], g)
+                temp_1 += (np.linalg.norm(H_B_tilde[m,:], ord=1)-np.linalg.norm(target_pressure[:,k], ord=1))**2
+            L_1_ += np.sqrt(temp_1)
+        L_1 += L_1_
+    return L_1
+
+def C_i(AC_des, w_AC, AC_tilde):
+    #print(np.real(AC_des * w_AC - AC_tilde))
+    return max(0, np.real(AC_des * w_AC - AC_tilde))
+    
+def w_ac(center_frequencies: list, ref_frequency: float = 100.0, 
+                   beta: float = 1.0, min_weight: float = 1.0) -> list:
+    """
+    Calculates the frequency-dependent weight function (w_AC) for acoustic contrast.
+
+    This function prioritizes low frequencies by assigning a higher weight 
+    to lower frequency bands, ensuring the optimization loop focuses on the 
+    most challenging bands first.
+
+    The formula used is: w_AC = max(min_weight, (ref_frequency / f_i)^beta)
+
+    Args:
+        center_frequencies: List of center frequencies (in Hz) for the bands.
+        ref_frequency: The reference frequency (Hz), typically the lowest 
+                       frequency in the analysis range. This frequency will 
+                       have the weight determined by 1/min_weight.
+        beta: The exponent that controls the decay rate of the weight 
+              (a higher beta means faster decay). Typical values are 0.5 to 1.5.
+        min_weight: The minimum weight value allowed (usually 1.0 to ensure
+                    the desired AC is at least met in high frequencies).
+
+    Returns:
+        A list of weights (w_AC) corresponding to the input frequencies.
+    """
+    
+    # Convert inputs to NumPy arrays for vectorized calculation
+    f_i = np.array(center_frequencies)
+    
+    # Calculate the ratio raised to the power beta
+    weight_ratios = (ref_frequency / f_i) ** beta
+    
+    # Ensure the weight never drops below the specified minimum weight
+    w_ac = np.maximum(weight_ratios, min_weight)
+    
+    return w_ac.tolist()
+
+def AC_tilde(H_B, H_D, g):
+    return (len(dark_zone_mics_index)*(g.H*H_B.H)*(H_B*g))/(len(bright_zone_mics_index)*((g.H*H_D.H)*(H_D*g)))
+
+def L_2_loss(q_opt):
+    L_2 = 0
+    for freq in fcentre:
+        fd = 2**(1/6)
+        f_low = freq/fd
+        f_high = freq*fd
+        delta_f = vdg.fs_target/vdg.J
+
+        k_low = int(np.ceil(f_low/delta_f))
+
+        k_high = int(np.ceil(f_high/delta_f))
+        L_2_ = 0
+        for i in range(k_low, k_high):
+            g = np.matrix(np.fft.fft(q_opt, axis = 0))
+            AC_sim = AC_tilde(np.matrix(H_B[:,:,i]), np.matrix(H_D[:,:,i]), g[:,i])
+            AC_des = 10**(-50/10)#5.079192938063992e-07
+            w_AC = w_ac([freq], ref_frequency=100.0, beta=1.0, min_weight=1.0)[0]
+            C = C_i(AC_des, w_AC, AC_sim)
+            L_2_ += C**2
+        L_2 += np.sqrt(L_2_)
+    return L_2
+
+def energy_tilde(q_opt, mic_index, speaker_index):
+    e_b = 0
+    for i in range(vdg.N):
+        e_b += (np.matrix(q_opt)[speaker_index]*H_B_time[i,mic_index,speaker_index])*(H_B_time[i,mic_index,speaker_index]*np.matrix(q_opt)[speaker_index].T)
+    return e_b[0,0]
+
+def energy(mic_index, speaker_index):
+    e_b = 0
+    for i in range(vdg.N):
+        e_b += (H_B_time[i,mic_index,speaker_index])*(H_B_time[i,mic_index,speaker_index])
+    return e_b
+
+def L_3_loss(q_opt):
+    L_3 = 0
+    for m in range(len(bright_zone_mics_index)):
+        mm = 0
+        for s in range(n_srcs):
+            mm += (energy_tilde(q_opt, m, s)/energy_tilde(q_opt, m, -1) - energy(m, s)/energy(m, -1))**2
+        L_3 += np.sqrt(mm)
+
+    return L_3
+
+
+def C_sk(G,k):
+    hann_window = np.hanning(vdg.N)
+    return max(abs(G[k])-hann_window[k], 0)
+
+def L_4_loss(q_opt):
+    L_4 = 0
+    delta_f = vdg.fs_target/vdg.J
+    k_1 = int(np.ceil(20/delta_f))
+    k_2 = int(np.floor(20000/delta_f))
+    k_s = int(np.ceil(vdg.fs_target/2/delta_f))
+    G = np.fft.fft(q_opt, axis = 0)
+
+    for s in range(n_srcs):
+        G_s = G[s]
+        c_sum = 0
+        for k in range(k_1+1):
+            c_sum += C_sk(G_s,k)**2
+        for k in range(k_2, k_s+1):
+            c_sum += C_sk(G_s,k)**2  
+        L_4 += np.sqrt(c_sum)
+
+    return L_4
+
+def w_g(tau):
+    sigma_f = 48000
+    tau_d = 0
+    return np.sqrt(np.exp((tau-tau_d)**2/sigma_f))
+
+def eps(q_opt):
+    return np.linalg.norm(q_opt, ord=2)**2
+
+def L_5_loss(q_opt):
+    L_5 = 0
+    for s in range(n_srcs):
+        L_5_ = 0
+        q_opt_s = q_opt[s]
+        for tau in range(J):
+            L_5_ += ((1 - w_g(tau))*q_opt_s[tau]**2/eps(q_opt_s))**2
+        L_5 += np.sqrt(L_5_)
+    return L_5
+
+def w_n(n,N, alpha=0.5):
+    return 1+alpha*(n/N)
+
+from scipy.linalg import toeplitz
+
+def build_A_m(room, m, J, N=None):
+    """
+    Build the A_m matrix for microphone m.
+    
+    Parameters
+    ----------
+    room : pra.ShoeBox
+        Pyroomacoustics room with computed RIRs.
+    m : int
+        Microphone index (0-based).
+    J : int
+        Length of each loudspeaker filter q_l.
+    N : int, optional
+        Desired length of output impulse response.
+        If None, it's automatically set to len(h_m_l) + J - 1.
+    
+    Returns
+    -------
+    A_m : np.ndarray, shape (N, L*J)
+        Convolution matrix mapping stacked loudspeaker filters q to output IR at mic m.
+    """
+    # Number of loudspeakers
+    L = len(room.sources)
+    
+    # Build convolution matrix for each loudspeaker
+    H_blocks = []
+    for l in range(L):
+        h_m_l = np.array(room.rir[m][l])
+        if len(h_m_l) == 0:
+            raise ValueError(f"Empty RIR for mic {m}, source {l}")
+        
+        if N is None:
+            N = len(h_m_l) + J - 1
+        
+        # Create Toeplitz matrix: each column is a shifted version of h_m_l
+        first_col = np.concatenate((h_m_l, np.zeros(J-1)))
+        first_row = np.zeros(J)
+        H_m_l = toeplitz(first_col, first_row)[:N, :J]
+        H_blocks.append(H_m_l)
+    
+    # Concatenate horizontally
+    A_m = np.hstack(H_blocks)
+    return A_m
+
+
+def L_6_loss(q_opt):
+    L_6 = 0
+    for m in range(n_mics):
+        L_6_ = 0
+        for n in range(len(rir[0])):
+            A_m = build_A_m(room, m, J, N = len(rir[0]))
+            print(A_m.shape, q_opt.flatten().shape)
+            h_tilde = A_m @ q_opt.flatten().T
+            L_6_ += ((1 - w_g(n))*h_tilde[n]**2/energy_tilde(q_opt,m,n))**2
+        L_6 += np.sqrt(L_6_)
+    return L_6
+
+print("L_6 before training:", L_6_loss(q))
+
+
+
+
+def acoustic_contrast_loss(AC_des, AC_sim, w_AC):
+    """
+    Compute the Euclidean distance loss between desired and simulated Acoustic Contrast (AC).
+
+    Parameters
+    ----------
+    AC_des : np.ndarray
+        Desired acoustic contrast per band (shape: [n_bands])
+    AC_sim : np.ndarray
+        Simulated acoustic contrast per band (shape: [n_bands])
+    w_AC : np.ndarray
+        Weighting function (shape: [n_bands]) — typically gives more importance to low frequencies.
+
+    Returns
+    -------
+    L2 : float
+        Euclidean distance between desired and simulated AC.
+    C : np.ndarray
+        Vector of per-band contrast errors (C_i).
+    """
+
+    # Ensure inputs are numpy arrays
+    AC_des = np.asarray(AC_des)
+    AC_sim = np.asarray(AC_sim)
+    w_AC = np.asarray(w_AC)
+
+    # Compute weighted desired AC
+    AC_weighted = AC_des * w_AC
+
+    # Compute contrast error per band (C_i)
+    C = np.where(AC_sim <= AC_weighted, AC_weighted - AC_sim, 0.0)
+
+    # Euclidean distance (L2 norm)
+    L2 = np.sqrt(np.sum(C**2))
+
+    return L2, C
+
+exit()
+
+
+
+def pressure_matching_loss(pressure_field, X, room_dim, target_pressure = 0.080792):
     """
     Loss function that rewards pressure field values close to target_db (default 65 dB)
     in the bright zone only.
@@ -356,9 +714,9 @@ for epoch in range(num_epochs):
     # Use the RIR data as input
     q_opt = model(x_rir)[0]  # shape: (S, J)
     
-    pressure_field, X = compute_pressure_field_tensor(room_dim, sources, q_opt, lyd_data, grid_res=10, J=J, fs=fs)
+    pressure_field, X = compute_pressure_field_tensor(vdg.room_dim, sources_position_list, q_opt, lyd_data, grid_res=10, J=J, fs=fs)
     
-    loss = 100 * contrast_loss(pressure_field, X, room_dim) + 0 * pressure_matching_loss(pressure_field, X, room_dim, target_db=65.0)
+    loss = 100 * contrast_loss(pressure_field, X, vdg.room_dim) + 0 * pressure_matching_loss(pressure_field, X, vdg.room_dim, target_db=65.0)
     
     if torch.isnan(loss):
         print(f"Epoch {epoch}, Loss: NaN (skipped update)")
