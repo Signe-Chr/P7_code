@@ -130,7 +130,7 @@ plt.show()
 
 
 # ----------------------------------------
-# 9. Final clustering with best K and NUmber of Principal Components
+# 9. Final clustering with best K and Number of Principal Components
 # ----------------------------------------
 n_pc = 1
 K = 2
@@ -158,6 +158,15 @@ np.save(f"PM_medoids_PCA{n_pc}_K{K}.npy", medoid_dict)
 
 print(f"\nSaved medoids to 'PM_medoids_PCA{n_pc}_K{K}.npy'")
 
+# Get cluster labels for each configuration
+labels = model.labels_  # array of shape (num_configurations,)
+
+# Map configuration keys to their cluster index
+config_keys = list(configurations.keys())
+cluster_assignments = {
+    key: int(labels[i]) for i, key in enumerate(config_keys)
+}
+np.save(f"PM_cluster_assignments_PCA{n_pc}_K{K}.npy", cluster_assignments)
 if n_pc>=3:
     # ----------------------------------------
     # 9. Plot clusters using first 3 PCA components
