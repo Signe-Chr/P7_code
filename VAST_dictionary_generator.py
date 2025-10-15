@@ -131,7 +131,7 @@ if __name__ == "__main__":
         ####################################################
         """
         
-        def archive_q_matrix(q_matrix, archive_path, key_name, sp):
+        def archive_q_matrix(q_matrix, archive_path, key_name, sources_position):
             """
             Loads an existing filter archive (dictionary), adds the new q_matrix 
             under 'key_name', and resaves the entire dictionary to the same file.
@@ -141,7 +141,7 @@ if __name__ == "__main__":
                 archive_path (str): Path to the .npy archive file.
                 key_name (str): The unique key to identify this matrix in the archive.
             """
-            IR, M_b, M_d = vf.setup_acoustic_scenario(sp, 
+            IR, M_b, M_d = vf.setup_acoustic_scenario(sources_position, 
                             mic_positions, 
                             bright_zone_mics_index, 
                             dark_zone_mics_index, 
@@ -149,8 +149,8 @@ if __name__ == "__main__":
                             room_dim, 
                             absorption, 
                             max_order)
-            IR = rir_func(IR, len(mic_positions), len(sp), max_length=512)
-            
+            IR = rir_func(IR, len(mic_positions), len(sources_position), max_length=512)
+
             dict_update = {
                 'q_matrix': q_matrix, 
                 'J': J,
@@ -158,7 +158,7 @@ if __name__ == "__main__":
                 'V': V,
                 'mu': mu,
                 'room_dim': room_dim,
-                'sources_position': sp,
+                'sources_position': sources_position,
                 'mic_positions': mic_positions,
                 'bright_zone_mics_index': bright_zone_mics_index,
                 'dark_zone_mics_index': dark_zone_mics_index,
@@ -205,9 +205,9 @@ if __name__ == "__main__":
                 for iii in range(opdeling):
                     r_2 = np.linalg.matrix_power(rotation_z, iii)
                     rs = np.matmul(r_2, rs-centroid_ori) + centroid_ori
-                    print(rs)
+                    print(rs.T)
                     q_matrix = design_vast_filter(rs.T, mic_positions, bright_zone_mics_index, dark_zone_mics_index,
                                 wav_path, fs_target=fs_target, J=J, N=N, 
                                 V=V, mu=mu, room_dim=room_dim, absorption=absorption, 
                                 max_order=max_order, reg_eps=reg_eps, target_amplitude=target_amplitude)
-                    archive_q_matrix(q_matrix, out_q_path, f"PM_key_{j,i,ii,iii}", rs)
+                    archive_q_matrix(q_matrix, out_q_path, f"PM_key_{j,i,ii,iii}", rs.T)
