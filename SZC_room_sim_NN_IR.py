@@ -9,6 +9,9 @@ import VAST_dictionary_generator as vdg
 from mpl_toolkits.mplot3d import Axes3D
 import VISUALIZE_q_matrix as vq
 import torch.nn.functional as F
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 # Get the directory where the script is located
@@ -45,9 +48,6 @@ room.add_microphone_array(pra.MicrophoneArray(np.array(mic_positions).T, room.fs
 for s in sources_position_list:
         room.add_source(s)
 
-# ----------------------
-# Compute RIRs
-# ----------------------
 room.compute_rir()  # fills room.rir [mic_index][source_index] -> array
 
 n_mics = len(mic_positions)
@@ -122,9 +122,9 @@ def compute_H_matrix(room, n_fft=None):
 
 H, freqs = compute_H_matrix(room)
 
-H_B = H[bright_zone_mics_index]  # Bright zone microphones
+H_B = torch.Tensor(H[bright_zone_mics_index])  # Bright zone microphones
 
-H_D = H[dark_zone_mics_index]    # Dark zone microphones
+H_D = torch.Tensor(H[dark_zone_mics_index])    # Dark zone microphones
 
 def compute_H_B_time(room, bright_zone_mics):
     """
@@ -173,17 +173,13 @@ def compute_H_B_time(room, bright_zone_mics):
 
 H_B_time, t_b = compute_H_B_time(room, bright_zone_mics_index)
 
+H_B_time = torch.Tensor(H_B_time)
+
 H_D_time, t_d = compute_H_B_time(room, dark_zone_mics_index)
 
-
-# ----------------------
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
+H_D_time = torch.Tensor(H_D_time)
 
 J = vdg.J
-
 
 # Convert RIRs to a suitable tensor format for CNN input
 def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
@@ -214,8 +210,7 @@ def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
 # Prepare the input tensor
 x_rir, rir = prepare_rir_input(IR, n_mics, n_srcs, max_length=J)
 
-
-
+rir = torch.Tensor(rir)
 
 class ILZ_CNN_RIR(nn.Module):
     """
@@ -288,8 +283,9 @@ q = vq.q[0]
 fcentre = [1000, 2000]
 
 def L_1_loss(q_opt):
-    g = np.fft.fft(q_opt, axis = 0)
-    target_pressure = np.abs(g)*1.3 # revurderes
+    q_opt = torch.tensor(q_opt, dtype=torch.float32)
+    g = torch.fft.fft(q_opt, axis = 0)
+    target_pressure = torch.abs(g)*1.3 # revurderes
     L_1 = 0
 
     for freq in fcentre:
@@ -307,15 +303,17 @@ def L_1_loss(q_opt):
         for m in range(len(bright_zone_mics_index)):
             temp_1 = 0
             for k in range(k_low, k_high):
-                H_B_tilde = np.matmul(H_B[:,:,k], g)
-                temp_1 += (np.linalg.norm(H_B_tilde[m,:], ord=1)-np.linalg.norm(target_pressure[:,k], ord=1))**2
-            L_1_ += np.sqrt(temp_1)
+                H_B_tilde = torch.matmul(H_B[:,:,k], g)
+                temp_1 += (torch.linalg.norm(H_B_tilde[m,:], ord=1)-torch.linalg.norm(target_pressure[:,k], ord=1))**2
+            L_1_ += torch.sqrt(temp_1)
         L_1 += L_1_
     return L_1
 
+print(L_1_loss(q))
+
 def C_i(AC_des, w_AC, AC_tilde):
     #print(np.real(AC_des * w_AC - AC_tilde))
-    return max(0, np.real(AC_des * w_AC - AC_tilde))
+    return max(0, torch.real(AC_des * w_AC - AC_tilde))
     
 def w_ac(center_frequencies: list, ref_frequency: float = 100.0, 
                    beta: float = 1.0, min_weight: float = 1.0) -> list:
@@ -343,18 +341,18 @@ def w_ac(center_frequencies: list, ref_frequency: float = 100.0,
     """
     
     # Convert inputs to NumPy arrays for vectorized calculation
-    f_i = np.array(center_frequencies)
+    f_i = torch.asarray(center_frequencies)
     
     # Calculate the ratio raised to the power beta
     weight_ratios = (ref_frequency / f_i) ** beta
     
     # Ensure the weight never drops below the specified minimum weight
-    w_ac = np.maximum(weight_ratios, min_weight)
+    w_ac = torch.maximum(weight_ratios, min_weight)
     
     return w_ac.tolist()
 
 def AC_tilde(H_B, H_D, g):
-    return (len(dark_zone_mics_index)*(g.H*H_B.H)*(H_B*g))/(len(bright_zone_mics_index)*((g.H*H_D.H)*(H_D*g)))
+    return (len(dark_zone_mics_index)*(g.adjoint()*H_B.adjoint())*(H_B*g))/(len(bright_zone_mics_index)*((g.H*H_D.H)*(H_D*g)))
 
 def L_2_loss(q_opt):
     L_2 = 0
@@ -364,13 +362,13 @@ def L_2_loss(q_opt):
         f_high = freq*fd
         delta_f = vdg.fs_target/vdg.J
 
-        k_low = int(np.ceil(f_low/delta_f))
+        k_low = int(torch.ceil(f_low/delta_f))
 
-        k_high = int(np.ceil(f_high/delta_f))
+        k_high = int(torch.ceil(f_high/delta_f))
         L_2_ = 0
         for i in range(k_low, k_high):
-            g = np.matrix(np.fft.fft(q_opt, axis = 0))
-            AC_sim = AC_tilde(np.matrix(H_B[:,:,i]), np.matrix(H_D[:,:,i]), g[:,i])
+            g = torch.matrix(torch.fft.fft(q_opt, axis = 0))
+            AC_sim = AC_tilde(torch.tensor(H_B[:,:,i]), torch.tensor(H_D[:,:,i]), g[:,i])
             AC_des = 10**(-50/10)#5.079192938063992e-07
             w_AC = w_ac([freq], ref_frequency=100.0, beta=1.0, min_weight=1.0)[0]
             C = C_i(AC_des, w_AC, AC_sim)
@@ -461,6 +459,7 @@ def L_6_loss(q_opt):
 
 print(L_6_loss(q), L_5_loss(q), L_4_loss(q), L_3_loss(q), L_2_loss(q), L_1_loss(q))
 
+exit()
 
 def pressure_field_2d(room_dim, sources, q_opt, lyd_data, grid_res=50, z_plane=1.5, J=J, fs=16000):
     """

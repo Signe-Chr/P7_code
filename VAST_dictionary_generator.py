@@ -3,6 +3,7 @@ import numpy as np
 import os
 import scipy.io.wavfile as wavfile
 import pyroomacoustics as pra
+import VAST_function as vf
 
 
 
@@ -39,13 +40,6 @@ reg_eps=1e-6
 target_amplitude = 0.080792
 R = 1.0
 
-room = pra.ShoeBox(
-    room_dim,
-    fs=fs_target,
-    materials=pra.Material(absorption),
-    max_order=max_order,
-)
-
 def sources_mics(R, Center, N_mics):
     mic_positions_list = []
     dark_zone_mics_index = []
@@ -62,6 +56,9 @@ def sources_mics(R, Center, N_mics):
                              [Center[0]- 0.2, Center[1]+0.1, Center[2]],
                              [Center[0]- 0.2, Center[1], Center[2]+0.2]]
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index
+
+
+
 
 
 def rir_func(IR, n_mics, n_srcs, max_length=512):
@@ -85,6 +82,9 @@ def rir_func(IR, n_mics, n_srcs, max_length=512):
         rir_list.append(rir_temp)
 
     return np.array(rir_list)
+
+
+
 
 if __name__ == "__main__":
     opdeling = 4
@@ -130,7 +130,7 @@ if __name__ == "__main__":
         plt.show()
         ####################################################
         """
-
+        
         def archive_q_matrix(q_matrix, archive_path, key_name, sp):
             """
             Loads an existing filter archive (dictionary), adds the new q_matrix 
@@ -141,6 +141,15 @@ if __name__ == "__main__":
                 archive_path (str): Path to the .npy archive file.
                 key_name (str): The unique key to identify this matrix in the archive.
             """
+            IR, M_b, M_d = vf.setup_acoustic_scenario(sp, 
+                            mic_positions, 
+                            bright_zone_mics_index, 
+                            dark_zone_mics_index, 
+                            fs_target, 
+                            room_dim, 
+                            absorption, 
+                            max_order)
+            IR = rir_func(IR, len(mic_positions), len(sp), max_length=512)
             
             dict_update = {
                 'q_matrix': q_matrix, 
@@ -155,7 +164,7 @@ if __name__ == "__main__":
                 'dark_zone_mics_index': dark_zone_mics_index,
                 'Center': Center,
                 'R': R,
-                'IR': rir_func(room.rir, len(mic_positions), len(sp), max_length=512)}
+                'IR': IR}
             
             archive_dict = {}
             
@@ -178,6 +187,7 @@ if __name__ == "__main__":
             # Save the updated dictionary back, overwriting the old file
             np.save(archive_path, archive_dict, allow_pickle=True)
             print(f"Archived filter under key '{key_name}' and saved updated archive to {archive_path}.")
+        
 
         q_matrix = design_vast_filter(sources_position, mic_positions, bright_zone_mics_index, dark_zone_mics_index,
                                 wav_path, fs_target=fs_target, J=J, N=N, 
@@ -185,8 +195,6 @@ if __name__ == "__main__":
                                 max_order=max_order, reg_eps=reg_eps, target_amplitude=target_amplitude)
 
         archive_q_matrix(q_matrix, out_q_path, "PM_key_(0, 0, 0, 0)", sources_position)
-
-        #exit()
 
         for i in range(opdeling):
             r_0 = np.linalg.matrix_power(rotation_x, i)
