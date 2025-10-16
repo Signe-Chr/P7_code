@@ -2,6 +2,9 @@ from VAST_function import design_vast_filter
 import numpy as np
 import os
 import scipy.io.wavfile as wavfile
+import pyroomacoustics as pra
+import VAST_function as vf
+
 
 
 
@@ -28,15 +31,14 @@ spatial_positions = [
 
 J = 1024
 N = 2000#len(wav)
-V = J*3
-mu = 1
+V = 1
+mu = 0
 fs_target=16000
 absorption=0.2
 max_order=10
 reg_eps=1e-6
-target_amplitude=0.3536
+target_amplitude = 0.080792
 R = 1.0
-
 
 def sources_mics(R, Center, N_mics):
     mic_positions_list = []
@@ -54,6 +56,35 @@ def sources_mics(R, Center, N_mics):
                              [Center[0]- 0.2, Center[1]+0.1, Center[2]],
                              [Center[0]- 0.2, Center[1], Center[2]+0.2]]
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index
+
+
+
+
+
+def rir_func(IR, n_mics, n_srcs, max_length=512):
+    """
+    Prepare RIR data as CNN input tensor
+    Shape: (batch_size, channels, n_mics, n_srcs, time)
+    """
+    # Create a tensor to hold all RIRs
+    rir_list = []
+
+    for mic_idx in range(n_mics):
+        rir_temp = []
+        for src_idx in range(n_srcs):
+            rir = IR[mic_idx][src_idx]
+            # Truncate or zero-pad to max_length
+            if len(rir) > max_length:
+                rir = rir[:max_length]
+            else:
+                rir = np.pad(rir, (0, max_length - len(rir)))
+            rir_temp.append(rir)
+        rir_list.append(rir_temp)
+
+    return np.array(rir_list)
+
+
+
 
 if __name__ == "__main__":
     opdeling = 4
@@ -99,8 +130,8 @@ if __name__ == "__main__":
         plt.show()
         ####################################################
         """
-
-        def archive_q_matrix(q_matrix, archive_path, key_name, sp):
+        
+        def archive_q_matrix(q_matrix, archive_path, key_name, sources_position):
             """
             Loads an existing filter archive (dictionary), adds the new q_matrix 
             under 'key_name', and resaves the entire dictionary to the same file.
@@ -110,7 +141,16 @@ if __name__ == "__main__":
                 archive_path (str): Path to the .npy archive file.
                 key_name (str): The unique key to identify this matrix in the archive.
             """
-            
+            IR, M_b, M_d = vf.setup_acoustic_scenario(sources_position, 
+                            mic_positions, 
+                            bright_zone_mics_index, 
+                            dark_zone_mics_index, 
+                            fs_target, 
+                            room_dim, 
+                            absorption, 
+                            max_order)
+            IR = rir_func(IR, len(mic_positions), len(sources_position), max_length=512)
+
             dict_update = {
                 'q_matrix': q_matrix, 
                 'J': J,
@@ -118,12 +158,13 @@ if __name__ == "__main__":
                 'V': V,
                 'mu': mu,
                 'room_dim': room_dim,
-                'sources_position': sp,
+                'sources_position': sources_position,
                 'mic_positions': mic_positions,
                 'bright_zone_mics_index': bright_zone_mics_index,
                 'dark_zone_mics_index': dark_zone_mics_index,
                 'Center': Center,
-                'R': R}
+                'R': R,
+                'IR': IR}
             
             archive_dict = {}
             
@@ -146,6 +187,7 @@ if __name__ == "__main__":
             # Save the updated dictionary back, overwriting the old file
             np.save(archive_path, archive_dict, allow_pickle=True)
             print(f"Archived filter under key '{key_name}' and saved updated archive to {archive_path}.")
+        
 
         q_matrix = design_vast_filter(sources_position, mic_positions, bright_zone_mics_index, dark_zone_mics_index,
                                 wav_path, fs_target=fs_target, J=J, N=N, 
@@ -153,8 +195,6 @@ if __name__ == "__main__":
                                 max_order=max_order, reg_eps=reg_eps, target_amplitude=target_amplitude)
 
         archive_q_matrix(q_matrix, out_q_path, "PM_key_(0, 0, 0, 0)", sources_position)
-
-        #exit()
 
         for i in range(opdeling):
             r_0 = np.linalg.matrix_power(rotation_x, i)
@@ -165,9 +205,9 @@ if __name__ == "__main__":
                 for iii in range(opdeling):
                     r_2 = np.linalg.matrix_power(rotation_z, iii)
                     rs = np.matmul(r_2, rs-centroid_ori) + centroid_ori
-                    print(rs)
+                    print(rs.T)
                     q_matrix = design_vast_filter(rs.T, mic_positions, bright_zone_mics_index, dark_zone_mics_index,
                                 wav_path, fs_target=fs_target, J=J, N=N, 
                                 V=V, mu=mu, room_dim=room_dim, absorption=absorption, 
                                 max_order=max_order, reg_eps=reg_eps, target_amplitude=target_amplitude)
-                    archive_q_matrix(q_matrix, out_q_path, f"PM_key_{j,i,ii,iii}", rs)
+                    archive_q_matrix(q_matrix, out_q_path, f"PM_key_{j,i,ii,iii}", rs.T)
