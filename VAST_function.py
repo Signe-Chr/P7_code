@@ -53,7 +53,10 @@ def setup_acoustic_scenario(sources,
     room.compute_rir()
 
     # RIRs are stored in room.rir: room.rir[mic_index][source_index]
-    IR = room.rir 
+    IR = room.rir
+
+    room.sources = []
+    room.mic_array = None
     
     return IR, M_b, M_d
 
@@ -224,6 +227,8 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     # --- Save Coefficients ---
     #np.save(out_q_path, q_matrix)
     #print(f"Successfully designed filter and saved q_matrix to {out_q_path} in {time.perf_counter() - t_start_total:.2f} s")
+
+    
     
     return q_matrix
 
