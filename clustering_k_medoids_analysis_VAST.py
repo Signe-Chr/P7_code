@@ -13,7 +13,7 @@ pastel_green = "#D4E4BC"    # Contrast – pastel green
 # =========================================================
 # 1. Load VAST filter archive 
 # =========================================================
-archive_path = "PM_filter_archive.npy"
+archive_path = "ACC_filter_archive.npy"
 
 loaded = np.load(archive_path, allow_pickle=True)
 if loaded.ndim == 0:
@@ -154,9 +154,9 @@ for key in medoid_keys:
 
 # Step 4: Optionally, extract their q_matrices and save
 medoid_dict = {key: configurations[key] for key in medoid_keys}
-np.save(f"PM_medoids_PCA{n_pc}_K{K}.npy", medoid_dict)
+np.save(f"ACC_medoids_PCA{n_pc}_K{K}.npy", medoid_dict)
 
-print(f"\nSaved medoids to 'PM_medoids_PCA{n_pc}_K{K}.npy'")
+print(f"\nSaved medoids to 'ACC_medoids_PCA{n_pc}_K{K}.npy'")
 
 # Get cluster labels for each configuration
 labels = model.labels_  # array of shape (num_configurations,)
