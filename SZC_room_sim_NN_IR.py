@@ -417,6 +417,8 @@ def L_6_loss(q_opt, rir):
         L_6 += np.sqrt(L_6_)
     return L_6
 
+
+
 print("L_1", L_1_loss(q, fcentre, len(bright_zone_mics_index), H_B))
 print("L_2", L_2_loss(q))
 print("L_3", L_3_loss(q))
