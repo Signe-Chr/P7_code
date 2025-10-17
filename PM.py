@@ -5,7 +5,9 @@ from scipy.signal import fftconvolve
 from scipy.linalg import toeplitz
 import matplotlib.pyplot as plt
 import time, os
+import Room_configuration as rc
 
+'''
 # -------------------------
 # Parameters (tune these)
 # -------------------------
@@ -134,6 +136,8 @@ U_D = np.vstack(U_D_list) if len(U_D_list)>0 else np.zeros((0, n_srcs*J))
 print("Built U_B (shape {}) and U_D (shape {})".format(U_B.shape, U_D.shape))
 print("Time:", time.perf_counter()-tstart)
 
+
+
 # -------------------------
 # Build desired pressure d_B
 # -------------------------
@@ -159,18 +163,22 @@ for m in bright_zone_mics:
         d_m = np.pad(d_m, (0, N - d_m.shape[0]))
     dB_blocks.append(target_amplitude * d_m)
 d_B = np.concatenate(dB_blocks) if len(dB_blocks)>0 else np.zeros((0,))
+'''
 
 # -------------------------
 # Compute PM solution
 # -------------------------
 def PM_solution():
+    '''
     print("Forming R_B, R_D and r_B...")
     tstart = time.perf_counter()
     R_B = U_B.T @ U_B      # (LJ x LJ)
     R_D = U_D.T @ U_D      # (LJ x LJ)
     r_B = U_B.T @ d_B      # (LJ,)
+    '''
+    R_B, R_D, r_B = rc.build_R()
     # normal eqn matrix
-    A = R_B + xi * R_D + reg_eps * np.eye(R_B.shape[0])
+    A = R_B + rc.xi * R_D + rc.reg_eps * np.eye(R_B.shape[0])
     b = r_B  # note d_D=0 -> U_D.T d_D = 0
     print("Solving linear system A q = b ...")
     q_vec = np.linalg.solve(A, b)   # PM solution
@@ -180,7 +188,7 @@ def PM_solution():
     # reshape to per-source filters
     q_vec = np.real(q_vec)  # numerical safety
     q_vec = q_vec / (np.max(np.abs(q_vec)) + 1e-12)   # normalize for safe playback / plotting
-    q_matrix = q_vec.reshape(n_srcs, J)
+    q_matrix = q_vec.reshape(rc.n_srcs, rc.J)
     print("q_matrix shape:", q_matrix.shape)
     return q_vec, q_matrix
 
@@ -200,9 +208,9 @@ def pressure_field_from_q(q_matrix, IR, test_signal, room_dim, grid_res=50, z_pl
             p_sum = 0.0
             for l in range(L):
                 drive = fftconvolve(test_signal, q_matrix[l])[:len(test_signal)]
-                src_pos = np.array(sources[l])
+                src_pos = np.array(rc.sources[l])
                 r = np.linalg.norm(point - src_pos)
-                delay = int(round(r * fs_target / 343.0))
+                delay = int(round(r * rc.fs_target / 343.0))
                 h = np.zeros(max(1, delay+1))
                 h[delay] = 1.0/(r + 1e-6)
                 out = fftconvolve(drive, h)[:len(drive)]
@@ -213,12 +221,12 @@ def pressure_field_from_q(q_matrix, IR, test_signal, room_dim, grid_res=50, z_pl
 if __name__ == "__main__":
     q_vec, q_matrix = PM_solution()
     print("Computing pressure field for visualization...")
-    test_signal = wav[:fs_target//4] if len(wav) >= fs_target//4 else wav
+    test_signal = rc.wav[:rc.fs_target//4] if len(rc.wav) >= rc.fs_target//4 else rc.wav
     tstart = time.perf_counter()
-    Xg, Yg, P = pressure_field_from_q(q_matrix, IR, test_signal, room_dim, grid_res=grid_res, z_plane=z_plane)
+    Xg, Yg, P = pressure_field_from_q(q_matrix, rc.IR, test_signal, rc.room_dim, grid_res=rc.grid_res, z_plane=rc.z_plane)
     print("Computed in {:.2f}s".format(time.perf_counter() - tstart))
 
-    bright_mask = Xg < (room_dim[0]/2)
+    bright_mask = Xg < (rc.room_dim[0]/2)
     dark_mask = ~bright_mask
     avg_bright = np.mean(P[bright_mask])
     avg_dark = np.mean(P[dark_mask])
@@ -227,10 +235,10 @@ if __name__ == "__main__":
 
     P_db = 20.0 * np.log10(P / (np.max(P) + 1e-12) + 1e-12)
     plt.figure(figsize=(8,6))
-    plt.imshow(P_db.T, origin='lower', extent=[0, room_dim[0], 0, room_dim[1]], cmap='inferno', aspect='auto')
+    plt.imshow(P_db.T, origin='lower', extent=[0, rc.room_dim[0], 0, rc.room_dim[1]], cmap='inferno', aspect='auto')
     plt.colorbar(label='Relative dB')
-    plt.scatter([s[0] for s in sources], [s[1] for s in sources], c='cyan', marker='*', s=100, edgecolors='k')
-    plt.title('Relative SPL (dB) at z={:.2f} m (PM)'.format(z_plane))
+    plt.scatter([s[0] for s in rc.sources], [s[1] for s in rc.sources], c='cyan', marker='*', s=100, edgecolors='k')
+    plt.title('Relative SPL (dB) at z={:.2f} m (PM)'.format(rc.z_plane))
     plt.xlabel('x (m)'); plt.ylabel('y (m)')
     plt.tight_layout()
     plt.show()

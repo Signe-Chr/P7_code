@@ -6,7 +6,9 @@ from scipy.linalg import toeplitz, eigh
 import matplotlib.pyplot as plt
 import time
 import os
+import Room_configuration as rc
 
+'''
 # -------------------------
 # Parameters (tune these)
 # -------------------------
@@ -153,6 +155,7 @@ def build_R_from_micset(mic_indices, x, IR, N, J):
     # R /= N 
     return R
 
+
 print("Building R_B (bright) and R_D (dark). This may take some time...")
 
 tstart = time.perf_counter()
@@ -164,10 +167,14 @@ print("R_B trace:", np.trace(R_B), "R_D trace:", np.trace(R_D))
 
 # Regularize R_D slightly to ensure pos-definite for generalized eigenproblem
 R_D_reg = R_D + reg_eps * np.eye(R_D.shape[0])
+'''
 
 def ACC_solution():
     # Solve generalized eigenproblem R_B q = gamma R_D q
     # The solution q is the eigenvector corresponding to the maximum eigenvalue (gamma)
+    R_B, R_D_reg, r_d = rc.build_R()
+    n_srcs = len(rc.sources)
+
     print("Solving generalized eigenvalue problem (this may take a while for large LJ)...")
     tstart = time.perf_counter()
     eigvals, eigvecs = eigh(R_B, R_D_reg)   # returns ascending eigenvalues
@@ -188,7 +195,7 @@ def ACC_solution():
     q_vec = q_vec / (np.max(np.abs(q_vec)) + 1e-12)
 
     # reshape q into per-source filters: (n_srcs, J)
-    q_matrix = q_vec.reshape(n_srcs, J)
+    q_matrix = q_vec.reshape(n_srcs, rc.J)
 
     print("q_matrix shape:", q_matrix.shape)
     return(q_vec, q_matrix)
@@ -249,14 +256,14 @@ if __name__ == "__main__":
     q_vec, q_matrix = ACC_solution()
     print("Computing pressure field (coarse grid for speed)...")
     # Use a short segment of the signal for visualization to speed up convolution
-    test_signal = wav[:fs_target//4] if len(wav) >= fs_target//4 else wav
+    test_signal = rc.wav[:rc.fs_target//4] if len(rc.wav) >= rc.fs_target//4 else rc.wav
     tstart = time.perf_counter()
     # Note: we pass the sources list and fs_target to the function for direct path calculation
-    Xg, Yg, P = pressure_field_from_q(q_matrix, IR, test_signal, sources, room_dim, fs_target, grid_res=grid_res, z_plane=z_plane)
+    Xg, Yg, P = pressure_field_from_q(q_matrix, rc.IR, test_signal, rc.sources, rc.room_dim, rc.fs_target, grid_res=rc.grid_res, z_plane=rc.z_plane)
     print("Pressure computed in {:.2f}s".format(time.perf_counter() - tstart))
 
     # Compute averages for bright/dark masks
-    bright_mask = Xg < (room_dim[0]/2)
+    bright_mask = Xg < (rc.room_dim[0]/2)
     dark_mask = ~bright_mask
     avg_bright = np.mean(P[bright_mask])
     avg_dark = np.mean(P[dark_mask])
@@ -267,10 +274,10 @@ if __name__ == "__main__":
     # Normalize to the maximum pressure on the grid for relative dB scale
     P_db = 20.0 * np.log10(P / (np.max(P) + 1e-12) + 1e-12)
     plt.figure(figsize=(8,6))
-    plt.imshow(P_db.T, origin='lower', extent=[0, room_dim[0], 0, room_dim[1]], cmap='inferno', aspect='auto')
+    plt.imshow(P_db.T, origin='lower', extent=[0, rc.room_dim[0], 0, rc.room_dim[1]], cmap='inferno', aspect='auto')
     plt.colorbar(label='Relative dB')
-    plt.scatter([s[0] for s in sources], [s[1] for s in sources], c='cyan', marker='*', s=100, edgecolors='k')
-    plt.title('Relative SPL (dB) at z={:.2f} m (Time-Domain MSIR)'.format(z_plane))
+    plt.scatter([s[0] for s in rc.sources], [s[1] for s in rc.sources], c='cyan', marker='*', s=100, edgecolors='k')
+    plt.title('Relative SPL (dB) at z={:.2f} m (Time-Domain MSIR)'.format(rc.z_plane))
     plt.xlabel('x (m)')
     plt.ylabel('y (m)')
     plt.tight_layout()
