@@ -13,7 +13,7 @@ pastel_green = "#D4E4BC"    # Contrast – pastel green
 # =========================================================
 # 1. Load VAST filter archive 
 # =========================================================
-archive_path = "PM_filter_archive.npy"
+archive_path = "ACC_filter_archive.npy"
 
 loaded = np.load(archive_path, allow_pickle=True)
 if loaded.ndim == 0:
@@ -130,7 +130,7 @@ plt.show()
 
 
 # ----------------------------------------
-# 9. Final clustering with best K and NUmber of Principal Components
+# 9. Final clustering with best K and Number of Principal Components
 # ----------------------------------------
 n_pc = 1
 K = 2
@@ -154,10 +154,19 @@ for key in medoid_keys:
 
 # Step 4: Optionally, extract their q_matrices and save
 medoid_dict = {key: configurations[key] for key in medoid_keys}
-np.save(f"PM_medoids_PCA{n_pc}_K{K}.npy", medoid_dict)
+np.save(f"ACC_medoids_PCA{n_pc}_K{K}.npy", medoid_dict)
 
-print(f"\nSaved medoids to 'PM_medoids_PCA{n_pc}_K{K}.npy'")
+print(f"\nSaved medoids to 'ACC_medoids_PCA{n_pc}_K{K}.npy'")
 
+# Get cluster labels for each configuration
+labels = model.labels_  # array of shape (num_configurations,)
+
+# Map configuration keys to their cluster index
+config_keys = list(configurations.keys())
+cluster_assignments = {
+    key: int(labels[i]) for i, key in enumerate(config_keys)
+}
+np.save(f"PM_cluster_assignments_PCA{n_pc}_K{K}.npy", cluster_assignments)
 if n_pc>=3:
     # ----------------------------------------
     # 9. Plot clusters using first 3 PCA components

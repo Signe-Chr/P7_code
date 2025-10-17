@@ -29,8 +29,8 @@ spatial_positions = [
 
 J = 1024
 N = 2000#len(wav)
-V = 1
-mu = 0
+V = J*3
+mu = 1
 fs_target=16000
 absorption=0.2
 max_order=10

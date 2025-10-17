@@ -14,7 +14,7 @@ pastel_green = "#D4E4BC"    # Contrast – pastel green
 # =========================================================
 # 1. Load VAST filter archive 
 # =========================================================
-archive_path = "ACC_filter_archive.npy"
+archive_path = "PM_filter_archive.npy"
 
 loaded = np.load(archive_path, allow_pickle=True)
 if loaded.ndim == 0:
@@ -100,12 +100,12 @@ print("Centroids (standardized space):", centroids_scaled.shape)
 
 centroids_original = scaler.inverse_transform(centroids_scaled)
 print("Centroids (original feature space):", centroids_original.shape)
-np.save(f"ACC_kmeans_centroids_scaled_K{best_K}.npy", centroids_scaled)
-np.save(f"ACC_kmeans_centroids_original_K{best_K}.npy", centroids_original)
+#np.save(f"PM_kmeans_centroids_scaled_K{best_K}.npy", centroids_scaled)
+#np.save(f"PM_kmeans_centroids_original_K{best_K}.npy", centroids_original)
 
 print(f"\n Saved centroids to:")
-print(f" - 'ACC_kmeans_centroids_scaled_K{best_K}.npy'  (standardized space)")
-print(f" - 'ACC_kmeans_centroids_original_K{best_K}.npy' (original feature space)")
+print(f" - 'PM_kmeans_centroids_scaled_K{best_K}.npy'  (standardized space)")
+print(f" - 'PM_kmeans_centroids_original_K{best_K}.npy' (original feature space)")
 
 # =========================================================
 # 1. Reduce data to 3D PCA space for visualization only
