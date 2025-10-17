@@ -291,31 +291,32 @@ H_time = H_time.to(q.dtype).detach()
 
 
 
-def L_1_loss(q_opt):
+def L_1_loss(q_opt, fcentres, M_B, H):
     g = torch.fft.fft(q_opt, axis = 0)
     target_pressure = torch.abs(g)*1.3 # revurderes
+    fd = 2**(1/6)
+    delta_f = vdg.fs_target/vdg.J
     L_1 = 0
 
-    for freq in fcentre:
-        fd = 2**(1/6)
+    for freq in fcentres:
         f_low = freq/fd
         f_high = freq*fd
-        delta_f = vdg.fs_target/vdg.J
 
         k_low = int(np.ceil(f_low/delta_f))
-
         k_high = int(np.ceil(f_high/delta_f))
 
         L_1_ = 0
 
-        for m in range(len(bright_zone_mics_index)):
-            temp_1 = 0
+        for m in range(M_B):
+            temp = 0
             for k in range(k_low, k_high):
-                H_B_slice_complex = H_B[:,:,k].to(g.dtype)
+                H_B_slice_complex = H[:,:,k].to(g.dtype)
                 H_B_tilde = torch.matmul(H_B_slice_complex, g)
-                temp_1 += (torch.linalg.norm(H_B_tilde[m,:], ord=1)-torch.linalg.norm(target_pressure[:,k], ord=1))**2
-            L_1_ += torch.sqrt(temp_1)
+                temp += (torch.linalg.norm(H_B_tilde[m,:], ord=1)-torch.linalg.norm(target_pressure[:,k], ord=1))**2
+            L_1_ += torch.sqrt(temp)
+            del temp
         L_1 += L_1_
+        del L_1_
     return L_1
 
 def C_i(AC_des, w_AC, AC_tilde):
@@ -351,12 +352,12 @@ def w_ac(center_frequencies: list, ref_frequency: float = 100.0,
     f_i = torch.asarray(center_frequencies)
     
     # Calculate the ratio raised to the power beta
-    weight_ratios = ((ref_frequency / f_i) ** beta).detach()
+    weight_ratios = ((ref_frequency / f_i) ** beta)
     
     # Ensure the weight never drops below the specified minimum weight
     w_ac = torch.maximum(weight_ratios, min_weight)
     
-    return w_ac.tolist()
+    return w_ac#.tolist()
 
 def AC_tilde(H_B, H_D, g, bright_zone_mics_index, dark_zone_mics_index):
     g_col = g.unsqueeze(-1)
@@ -503,9 +504,14 @@ def L_6_loss(q_opt):
         L_6 += np.sqrt(L_6_)
     return L_6
 
-#print(L_6_loss(q), L_5_loss(q), L_4_loss(q), L_3_loss(q), L_2_loss(q), L_1_loss(q))
+print("L_1", L_1_loss(q, fcentre, len(bright_zone_mics_index), H_B))
+print("L_2", L_2_loss(q))
+print("L_3", L_3_loss(q))
+print("L_4", L_4_loss(q))
+print("L_5", L_5_loss(q))
+print("L_6", L_6_loss(q))
 
-#exit()
+exit()
 
 def pressure_field_2d(room_dim, sources, q_opt, lyd_data, grid_res=50, z_plane=1.5, J=J, fs=16000):
     """
