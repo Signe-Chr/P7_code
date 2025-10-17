@@ -165,31 +165,33 @@ print("R_B trace:", np.trace(R_B), "R_D trace:", np.trace(R_D))
 # Regularize R_D slightly to ensure pos-definite for generalized eigenproblem
 R_D_reg = R_D + reg_eps * np.eye(R_D.shape[0])
 
-# Solve generalized eigenproblem R_B q = gamma R_D q
-# The solution q is the eigenvector corresponding to the maximum eigenvalue (gamma)
-print("Solving generalized eigenvalue problem (this may take a while for large LJ)...")
-tstart = time.perf_counter()
-eigvals, eigvecs = eigh(R_B, R_D_reg)   # returns ascending eigenvalues
-t_eig = time.perf_counter() - tstart
-print(f"Eigenproblem solved in {t_eig:.2f} s; number of eigvals = {len(eigvals)}")
+def ACC_solution():
+    # Solve generalized eigenproblem R_B q = gamma R_D q
+    # The solution q is the eigenvector corresponding to the maximum eigenvalue (gamma)
+    print("Solving generalized eigenvalue problem (this may take a while for large LJ)...")
+    tstart = time.perf_counter()
+    eigvals, eigvecs = eigh(R_B, R_D_reg)   # returns ascending eigenvalues
+    t_eig = time.perf_counter() - tstart
+    print(f"Eigenproblem solved in {t_eig:.2f} s; number of eigvals = {len(eigvals)}")
 
-# pick eigenvector with largest eigenvalue (highest acoustic contrast)
-idx = np.argmax(eigvals)
-gamma_max = eigvals[idx]
-q_vec = eigvecs[:, idx]
-print("Maximum Acoustic Contrast (gamma_max) =", gamma_max)
+    # pick eigenvector with largest eigenvalue (highest acoustic contrast)
+    idx = np.argmax(eigvals)
+    gamma_max = eigvals[idx]
+    q_vec = eigvecs[:, idx]
+    print("Maximum Acoustic Contrast (gamma_max) =", gamma_max)
 
-# q_vec may be complex if numerical issues; ensure real
-q_vec = np.real(q_vec)
+    # q_vec may be complex if numerical issues; ensure real
+    q_vec = np.real(q_vec)
 
-# scale / normalize q_vec to a sensible speaker amplitude level before plotting/simulation
-# Normalization: max absolute coefficient of the concatenated filter vector is 1
-q_vec = q_vec / (np.max(np.abs(q_vec)) + 1e-12)
+    # scale / normalize q_vec to a sensible speaker amplitude level before plotting/simulation
+    # Normalization: max absolute coefficient of the concatenated filter vector is 1
+    q_vec = q_vec / (np.max(np.abs(q_vec)) + 1e-12)
 
-# reshape q into per-source filters: (n_srcs, J)
-q_matrix = q_vec.reshape(n_srcs, J)
+    # reshape q into per-source filters: (n_srcs, J)
+    q_matrix = q_vec.reshape(n_srcs, J)
 
-print("q_matrix shape:", q_matrix.shape)
+    print("q_matrix shape:", q_matrix.shape)
+    return(q_vec, q_matrix)
 
 # -------------------------
 # Compute resulting pressure field (uses direct path approximation for visualization)
@@ -243,36 +245,38 @@ def pressure_field_from_q(q_matrix, IR, test_signal, sources, room_dim, fs_targe
             
     return X, Y, pressure_field
 
-print("Computing pressure field (coarse grid for speed)...")
-# Use a short segment of the signal for visualization to speed up convolution
-test_signal = wav[:fs_target//4] if len(wav) >= fs_target//4 else wav
-tstart = time.perf_counter()
-# Note: we pass the sources list and fs_target to the function for direct path calculation
-Xg, Yg, P = pressure_field_from_q(q_matrix, IR, test_signal, sources, room_dim, fs_target, grid_res=grid_res, z_plane=z_plane)
-print("Pressure computed in {:.2f}s".format(time.perf_counter() - tstart))
+if __name__ == "__main__":
+    q_vec, q_matrix = ACC_solution()
+    print("Computing pressure field (coarse grid for speed)...")
+    # Use a short segment of the signal for visualization to speed up convolution
+    test_signal = wav[:fs_target//4] if len(wav) >= fs_target//4 else wav
+    tstart = time.perf_counter()
+    # Note: we pass the sources list and fs_target to the function for direct path calculation
+    Xg, Yg, P = pressure_field_from_q(q_matrix, IR, test_signal, sources, room_dim, fs_target, grid_res=grid_res, z_plane=z_plane)
+    print("Pressure computed in {:.2f}s".format(time.perf_counter() - tstart))
 
-# Compute averages for bright/dark masks
-bright_mask = Xg < (room_dim[0]/2)
-dark_mask = ~bright_mask
-avg_bright = np.mean(P[bright_mask])
-avg_dark = np.mean(P[dark_mask])
-print(f"Average pressure (bright) = {avg_bright:.6f} ; (dark) = {avg_dark:.6f}")
-print("Contrast (bright/dark) [dB] =", 20.0 * np.log10((avg_bright + 1e-12) / (avg_dark + 1e-12)))
+    # Compute averages for bright/dark masks
+    bright_mask = Xg < (room_dim[0]/2)
+    dark_mask = ~bright_mask
+    avg_bright = np.mean(P[bright_mask])
+    avg_dark = np.mean(P[dark_mask])
+    print(f"Average pressure (bright) = {avg_bright:.6f} ; (dark) = {avg_dark:.6f}")
+    print("Contrast (bright/dark) [dB] =", 20.0 * np.log10((avg_bright + 1e-12) / (avg_dark + 1e-12)))
 
-# plot SPL-like plot (convert to relative dB)
-# Normalize to the maximum pressure on the grid for relative dB scale
-P_db = 20.0 * np.log10(P / (np.max(P) + 1e-12) + 1e-12)
-plt.figure(figsize=(8,6))
-plt.imshow(P_db.T, origin='lower', extent=[0, room_dim[0], 0, room_dim[1]], cmap='inferno', aspect='auto')
-plt.colorbar(label='Relative dB')
-plt.scatter([s[0] for s in sources], [s[1] for s in sources], c='cyan', marker='*', s=100, edgecolors='k')
-plt.title('Relative SPL (dB) at z={:.2f} m (Time-Domain MSIR)'.format(z_plane))
-plt.xlabel('x (m)')
-plt.ylabel('y (m)')
-plt.tight_layout()
-plt.show()
+    # plot SPL-like plot (convert to relative dB)
+    # Normalize to the maximum pressure on the grid for relative dB scale
+    P_db = 20.0 * np.log10(P / (np.max(P) + 1e-12) + 1e-12)
+    plt.figure(figsize=(8,6))
+    plt.imshow(P_db.T, origin='lower', extent=[0, room_dim[0], 0, room_dim[1]], cmap='inferno', aspect='auto')
+    plt.colorbar(label='Relative dB')
+    plt.scatter([s[0] for s in sources], [s[1] for s in sources], c='cyan', marker='*', s=100, edgecolors='k')
+    plt.title('Relative SPL (dB) at z={:.2f} m (Time-Domain MSIR)'.format(z_plane))
+    plt.xlabel('x (m)')
+    plt.ylabel('y (m)')
+    plt.tight_layout()
+    plt.show()
 
-# Save q to file
-out_q_path = "q_solution_td.npy"
-np.save(out_q_path, q_matrix)
-print("Saved q_matrix to", out_q_path)
+    # Save q to file
+    out_q_path = "q_solution_td.npy"
+    np.save(out_q_path, q_matrix)
+    print("Saved q_matrix to", out_q_path)
