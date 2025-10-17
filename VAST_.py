@@ -221,19 +221,21 @@ def compute_rB_sigma2(bright_mics, x, IR, d_B, N, J):
     return r_B, sigma_d_sq
 
 
-R_B, R_D, R_D_reg, r_d = rc.build_R()
-lambda_vals, U = eigh(R_B, R_D)  # generalized eigenvalue problem
+def build_eigenvalues():
+    R_B, R_D, R_D_reg, r_d = rc.build_R()
+    lambda_vals, U = eigh(R_B, R_D)  # generalized eigenvalue problem
 
-# Sort eigenvalues descending
-idx = np.argsort(-lambda_vals.real)
-lambda_vals = lambda_vals.real[idx]
-U = U[:, idx]
+    # Sort eigenvalues descending
+    idx = np.argsort(-lambda_vals.real)
+    lambda_vals = lambda_vals.real[idx]
+    U = U[:, idx]
 
-H_B = build_HB_time_series(rc.IR, rc.bright_zone_mics, rc.N)
+    H_B = build_HB_time_series(rc.IR, rc.bright_zone_mics, rc.N)
 
-d_B = np.ones((rc.N, len(rc.bright_zone_mics)))*0.3536
-# OBS: her brugte vi oprindeligt brigt_zone_mics_index - men tror ikke det har nogen betydning her
-r_B, sigma_d_sq = compute_rB_sigma2(rc.bright_zone_mics, rc.x, rc.IR, d_B, rc.N, rc.J)
+    d_B = np.ones((rc.N, len(rc.bright_zone_mics)))*0.3536
+    # OBS: her brugte vi oprindeligt brigt_zone_mics_index - men tror ikke det har nogen betydning her
+    r_B, sigma_d_sq = compute_rB_sigma2(rc.bright_zone_mics, rc.x, rc.IR, d_B, rc.N, rc.J)
+    return lambda_vals, U, r_B, sigma_d_sq
 
 
 def compute_SB_SD(V, mu, lambda_vals, U, r_B, sigma_d_sq):
