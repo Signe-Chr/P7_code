@@ -6,7 +6,6 @@ from scipy.io import wavfile
 from scipy.signal import lfilter
 import os
 import VAST_dictionary_generator as vdg
-from mpl_toolkits.mplot3d import Axes3D
 import VISUALIZE_q_matrix as vq
 import torch.nn.functional as F
 import torch
@@ -26,40 +25,136 @@ q = torch.tensor(vq.q[0])
 fcentre = torch.tensor([1000, 2000])
 J = vdg.J
 
-#plt.plot(lyd_data)
-#plt.show()
+data = vdg.NN_input(4)
+#[rir_tensor, rir_list, sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index]
 
-print(f"Sample rate: {fs} Hz, length: {len(lyd_data):.2f}")
+
+#print(f"Sample rate: {fs} Hz, length: {len(lyd_data):.2f}")
 
 # ----------------------
 # Room & array settings
 # ----------------------
 
-# Create a shoebox room
-room = pra.ShoeBox(
-    vdg.room_dim,
-    fs=vdg.fs_target,
-    materials=pra.Material(vdg.absorption),
-    max_order=vdg.max_order,
-)
 
-
-sources_position_list, mic_positions, bright_zone_mics_index, dark_zone_mics_index = vdg.sources_mics(vdg.R, vdg.spatial_positions[4], 12)
-
-
-room.add_microphone_array(pra.MicrophoneArray(np.array(mic_positions).T, room.fs))
-
-for s in sources_position_list:
-        room.add_source(s)
-
-room.compute_rir()  # fills room.rir [mic_index][source_index] -> array
 
 n_mics = len(mic_positions)
 n_srcs = len(sources_position_list)
 
-IR = room.rir
 
+def compute_H_matrix(room, n_fft=None):
+    """
+    Compute the frequency-domain transfer matrix H[k]
+    from the room impulse responses (RIRs) in a pyroomacoustics simulation.
 
+    Parameters
+    ----------
+    room : pra.ShoeBox
+        A pyroomacoustics room after calling room.compute_rir().
+        room.rir[m][s] must contain the RIR from source s to mic m.
+    n_fft : int, optional
+        FFT length. If None, it uses the next power of 2 greater than 
+        the longest RIR length. Defaults to 1024 if no RIRs are found.
+
+    Returns
+    -------
+    H : np.ndarray, shape (n_mics, n_srcs, n_freqs)
+        Frequency response matrix for all microphone–source pairs.
+    freqs : np.ndarray
+        Frequency vector corresponding to the frequency bins.
+    """
+
+    # We must check if the room RIRs have actually been computed
+    if not hasattr(room, 'rir') or not room.rir:
+        print("Warning: room.rir is empty. Ensure room.compute_rir() was called successfully.")
+        # Fallback to a safe FFT size and empty results
+        n_fft = n_fft if n_fft is not None else 1024
+        freqs = np.fft.rfftfreq(n_fft, 1 / room.fs)
+        return np.zeros((0, 0, len(freqs)), dtype=np.complex128), freqs
+
+    n_mics = len(room.mic_array.R[0]) if room.mic_array is not None else 0
+    n_srcs = len(room.sources)
+
+    # --- CORRECTION APPLIED HERE ---
+    # Find max RIR length across all mic–source pairs safely.
+    # The 'or [0]' ensures max() always has at least one element.
+    all_rir_lengths = [len(rir) for mic_rirs in room.rir for rir in mic_rirs]
+    max_len = max(all_rir_lengths) if all_rir_lengths else 0
+    
+    # If n_fft is not specified, calculate it
+    if n_fft is None:
+        if max_len == 0:
+            n_fft = 1024  # Default FFT length if no RIRs were found
+        else:
+            # Use the next power of 2 for efficient FFT
+            n_fft = 2 ** int(np.ceil(np.log2(max_len)))
+
+    n_freqs = n_fft // 2 + 1
+    
+    # Initialize frequency-domain matrix
+    H = np.zeros((n_mics, n_srcs, n_freqs), dtype=np.complex128)
+
+    # Compute FFT for each microphone–source pair
+    for m in range(n_mics):
+        for s in range(n_srcs):
+            # Check if the RIR list for this pair exists and is not empty
+            if m < len(room.rir) and s < len(room.rir[m]):
+                h = np.array(room.rir[m][s])
+                if len(h) > 0:
+                    # Use rfft which only computes the first half of the spectrum
+                    H[m, s, :] = np.fft.rfft(h, n=n_fft)
+
+    freqs = np.fft.rfftfreq(n_fft, 1 / room.fs)
+    return H, freqs
+
+def toeplitz_matrix(h: np.ndarray, block_len: int) -> np.ndarray:
+    """Helper to construct a single Toeplitz matrix."""
+    # Ensure h is a NumPy array with a standard float dtype
+    if not isinstance(h, np.ndarray):
+        h = np.array(h, dtype=np.float32)
+        
+    L = h.shape[0]
+    R = L + block_len - 1
+    C = block_len
+    
+    # Use h.dtype, which is now guaranteed to be a NumPy dtype
+    H_toeplitz = np.zeros((R, C), dtype=h.dtype)
+    
+    for i in range(C):
+        H_toeplitz[i:i + L, i] = h
+        
+    return H_toeplitz
+
+def compute_multi_toeplitz(rir_array: np.ndarray, block_len: int) -> np.ndarray:
+    """
+    Computes a 4D tensor containing the Toeplitz matrix for every
+    Mic-Source pair.
+
+    Shape: (Output_Time, Mic, Source, Input_Time/Delay_Index)
+    """
+    # CRITICAL FIX: Ensure input is a standard NumPy array with a native dtype.
+    # The warning "Casting complex values to real discards the imaginary part" 
+    # suggests your 'rir' variable might contain complex data or be a mix of types.
+    # We explicitly convert it to real, single-precision floats (np.float32).
+    if not isinstance(rir_array, np.ndarray) or rir_array.dtype != np.float32:
+         rir_array = np.array(rir_array, dtype=np.float32)
+
+    M, S, L = rir_array.shape
+    K = block_len
+    
+    output_len = L + K - 1
+    
+    # Now, rir_array.dtype is guaranteed to be np.float32, resolving the TypeError.
+    H_multi = np.zeros((output_len, M, S, K), dtype=rir_array.dtype)
+    
+    for m in range(M):
+        for s in range(S):
+            h_ms = rir_array[m, s, :]
+            # We pass the guaranteed clean NumPy array slice to the helper
+            H_ms_toeplitz = toeplitz_matrix(h_ms, K)
+            
+            H_multi[:, m, s, :] = H_ms_toeplitz
+            
+    return H_multi
 
 # Convert RIRs to a suitable tensor format for CNN input
 def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
@@ -87,10 +182,20 @@ def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
     
     return rir_tensor, np.array(rir_list)
 
-# Prepare the input tensor
-x_rir, rir = prepare_rir_input(IR, n_mics, n_srcs, max_length=J)
+
 
 rir = torch.Tensor(rir)
+
+H, freqs = compute_H_matrix(room)
+
+H_B = torch.from_numpy(H[bright_zone_mics_index])  # Bright zone microphones
+
+H_D = torch.from_numpy(H[dark_zone_mics_index])    # Dark zone microphones
+
+H_time = compute_multi_toeplitz(rir, len(q[0]))
+
+H_time = torch.Tensor(H_time)
+H_time = H_time.to(q.dtype).detach()
 
 class ILZ_CNN_RIR(nn.Module):
     """
@@ -162,132 +267,9 @@ scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=1)
 
 
 
-def compute_H_matrix(room, n_fft=None):
-    """
-    Compute the frequency-domain transfer matrix H[k]
-    from the room impulse responses (RIRs) in a pyroomacoustics simulation.
-
-    Parameters
-    ----------
-    room : pra.ShoeBox
-        A pyroomacoustics room after calling room.compute_rir().
-        room.rir[m][s] must contain the RIR from source s to mic m.
-    n_fft : int, optional
-        FFT length. If None, it uses the next power of 2 greater than 
-        the longest RIR length. Defaults to 1024 if no RIRs are found.
-
-    Returns
-    -------
-    H : np.ndarray, shape (n_mics, n_srcs, n_freqs)
-        Frequency response matrix for all microphone–source pairs.
-    freqs : np.ndarray
-        Frequency vector corresponding to the frequency bins.
-    """
-
-    # We must check if the room RIRs have actually been computed
-    if not hasattr(room, 'rir') or not room.rir:
-        print("Warning: room.rir is empty. Ensure room.compute_rir() was called successfully.")
-        # Fallback to a safe FFT size and empty results
-        n_fft = n_fft if n_fft is not None else 1024
-        freqs = np.fft.rfftfreq(n_fft, 1 / room.fs)
-        return np.zeros((0, 0, len(freqs)), dtype=np.complex128), freqs
-
-    n_mics = len(room.mic_array.R[0]) if room.mic_array is not None else 0
-    n_srcs = len(room.sources)
-
-    # --- CORRECTION APPLIED HERE ---
-    # Find max RIR length across all mic–source pairs safely.
-    # The 'or [0]' ensures max() always has at least one element.
-    all_rir_lengths = [len(rir) for mic_rirs in room.rir for rir in mic_rirs]
-    max_len = max(all_rir_lengths) if all_rir_lengths else 0
-    
-    # If n_fft is not specified, calculate it
-    if n_fft is None:
-        if max_len == 0:
-            n_fft = 1024  # Default FFT length if no RIRs were found
-        else:
-            # Use the next power of 2 for efficient FFT
-            n_fft = 2 ** int(np.ceil(np.log2(max_len)))
-
-    n_freqs = n_fft // 2 + 1
-    
-    # Initialize frequency-domain matrix
-    H = np.zeros((n_mics, n_srcs, n_freqs), dtype=np.complex128)
-
-    # Compute FFT for each microphone–source pair
-    for m in range(n_mics):
-        for s in range(n_srcs):
-            # Check if the RIR list for this pair exists and is not empty
-            if m < len(room.rir) and s < len(room.rir[m]):
-                h = np.array(room.rir[m][s])
-                if len(h) > 0:
-                    # Use rfft which only computes the first half of the spectrum
-                    H[m, s, :] = np.fft.rfft(h, n=n_fft)
-
-    freqs = np.fft.rfftfreq(n_fft, 1 / room.fs)
-    return H, freqs
-
-H, freqs = compute_H_matrix(room)
-
-H_B = torch.from_numpy(H[bright_zone_mics_index])  # Bright zone microphones
-
-H_D = torch.from_numpy(H[dark_zone_mics_index])    # Dark zone microphones
-
-def toeplitz_matrix(h: np.ndarray, block_len: int) -> np.ndarray:
-    """Helper to construct a single Toeplitz matrix."""
-    # Ensure h is a NumPy array with a standard float dtype
-    if not isinstance(h, np.ndarray):
-        h = np.array(h, dtype=np.float32)
-        
-    L = h.shape[0]
-    R = L + block_len - 1
-    C = block_len
-    
-    # Use h.dtype, which is now guaranteed to be a NumPy dtype
-    H_toeplitz = np.zeros((R, C), dtype=h.dtype)
-    
-    for i in range(C):
-        H_toeplitz[i:i + L, i] = h
-        
-    return H_toeplitz
-
-def compute_multi_toeplitz(rir_array: np.ndarray, block_len: int) -> np.ndarray:
-    """
-    Computes a 4D tensor containing the Toeplitz matrix for every
-    Mic-Source pair.
-
-    Shape: (Output_Time, Mic, Source, Input_Time/Delay_Index)
-    """
-    # CRITICAL FIX: Ensure input is a standard NumPy array with a native dtype.
-    # The warning "Casting complex values to real discards the imaginary part" 
-    # suggests your 'rir' variable might contain complex data or be a mix of types.
-    # We explicitly convert it to real, single-precision floats (np.float32).
-    if not isinstance(rir_array, np.ndarray) or rir_array.dtype != np.float32:
-         rir_array = np.array(rir_array, dtype=np.float32)
-
-    M, S, L = rir_array.shape
-    K = block_len
-    
-    output_len = L + K - 1
-    
-    # Now, rir_array.dtype is guaranteed to be np.float32, resolving the TypeError.
-    H_multi = np.zeros((output_len, M, S, K), dtype=rir_array.dtype)
-    
-    for m in range(M):
-        for s in range(S):
-            h_ms = rir_array[m, s, :]
-            # We pass the guaranteed clean NumPy array slice to the helper
-            H_ms_toeplitz = toeplitz_matrix(h_ms, K)
-            
-            H_multi[:, m, s, :] = H_ms_toeplitz
-            
-    return H_multi
-
-H_time = compute_multi_toeplitz(rir, len(q[0]))
 
 
-H_time = torch.Tensor(H_time)
-H_time = H_time.to(q.dtype).detach()
+
 
 
 

@@ -2,11 +2,9 @@ from VAST_function import design_vast_filter
 import numpy as np
 import os
 import scipy.io.wavfile as wavfile
-import pyroomacoustics as pra
 import VAST_function as vf
-
-
-
+import torch
+import pyroomacoustics as pra
 
 wav_path = "Signe_sang.wav"
 out_q_path = "PM_filter_archive.npy"
@@ -39,6 +37,8 @@ max_order=10
 reg_eps=1e-6
 target_amplitude = 0.080792
 R = 1.0
+N_mics = 13 - 1 #antal mics - 1
+n_srcs = 3
 
 def sources_mics(R, Center, N_mics):
     mic_positions_list = []
@@ -56,10 +56,6 @@ def sources_mics(R, Center, N_mics):
                              [Center[0]- 0.2, Center[1]+0.1, Center[2]],
                              [Center[0]- 0.2, Center[1], Center[2]+0.2]]
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index
-
-
-
-
 
 def rir_func(IR, n_mics, n_srcs, max_length=512):
     """
@@ -83,6 +79,59 @@ def rir_func(IR, n_mics, n_srcs, max_length=512):
 
     return np.array(rir_list)
 
+def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
+    """
+    Prepare RIR data as CNN input tensor
+    Shape: (batch_size, channels, n_mics, n_srcs, time)
+    """
+    # Create a tensor to hold all RIRs
+    rir_tensor = torch.zeros(1, 1, n_mics, n_srcs, max_length)
+    rir_list = []
+
+    for mic_idx in range(n_mics):
+        rir_temp = []
+        for src_idx in range(n_srcs):
+            rir = IR[mic_idx][src_idx]
+            # Truncate or zero-pad to max_length
+            if len(rir) > max_length:
+                rir = rir[:max_length]
+            else:
+                rir = np.pad(rir, (0, max_length - len(rir)))
+            rir_tensor[0, 0, mic_idx, src_idx, :] = torch.tensor(rir)
+            rir_temp.append(rir)
+        rir_list.append(rir_temp)
+
+    
+    return rir_tensor, np.array(rir_list)
+
+def get_rir_and_clear_room(room_dims, source_pos, mic_pos, fs=16000, max_order=max_order):
+
+    room = pra.ShoeBox(
+        room_dims,
+        fs=fs,
+        materials=pra.Material(absorption),
+        max_order=max_order)
+
+    room.add_microphone_array(pra.MicrophoneArray(np.array(mic_pos).T, room.fs))
+
+    for s in source_pos:
+        room.add_source(s)
+
+    room.compute_rir()
+
+    # The result is RIR[mic_idx][source_idx]
+    rir = room.rir
+
+    return rir
+
+def NN_input(N):
+    NN_INPUT = []
+    for i in spatial_positions[:N]:
+        sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index = sources_mics(R, i, N_mics)
+        IR = get_rir_and_clear_room(room_dim, sources_position_list, mic_positions_list, fs=16000, max_order=2)
+        rir_tensor, rir_list = prepare_rir_input(IR, N_mics, n_srcs, max_length=512)
+        NN_INPUT.append([rir_tensor, rir_list, sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index])
+    return NN_INPUT
 
 
 
