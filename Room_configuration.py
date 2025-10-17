@@ -19,8 +19,14 @@ grid_res = 50
 z_plane = 1.5
 reg_eps = 1e-6         # epsilon (regularization)
 xi = 0.9               # weighting for dark leakage (0 = ignore dark penalty)
+room_dim = [6.0, 3.0, 3.5]
+absorption = 0.2
+max_order = 10
 # desired target amplitude scaling
 target_amplitude = 1.0
+# VAST parameters
+V = 4
+mu = 0.5
 # -------------------------
 
 # -------------- Load signal --------------
@@ -99,7 +105,7 @@ dark_zone_mics   = [i for i,p in enumerate(mic_array) if p[0] >= room_dim[0]/2]
 print("Bright mics:", len(bright_zone_mics), "Dark mics:", len(dark_zone_mics))
 
 # -------------------------
-# helper: build U^{m,l} and U^m
+# Helper: build U^{m,l} and U^m
 # -------------------------
 def build_U_ml_single_from_u(u_ml, N, J):
     """Toeplitz convolution matrix from precomputed u = x * h_{m,l}.
@@ -177,7 +183,7 @@ def build_R():
     r_d = U_B.T @ d_B      # (LJ,)
     # Regularize R_D slightly to ensure pos-definite for generalized eigenproblem
     R_D_reg = R_D + reg_eps * np.eye(R_D.shape[0])
-    return R_B, R_D_reg, r_d
+    return R_B, R_D, R_D_reg, r_d
 
 
 

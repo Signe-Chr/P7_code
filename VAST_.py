@@ -7,24 +7,9 @@ import matplotlib.pyplot as plt
 import time
 from scipy.linalg import eig
 import os
+import Room_configuration as rc
 
-# -------------------------
-# Parameters 
-# -------------------------
-wav_path = "Signe_sang.wav"   # change if needed
-fs_target = 16000             # sampling rate used for room simulation
-J = 256                       # filter length to design per loudspeaker
-N = 2000                      # number of time samples (rows of U^m)
-grid_res = 50                 # visualization grid resolution
-z_plane = 1.5                 # height to visualize SPL
-reg_eps = 1e-6                # regularization for R_D (for numerical stability)
-V = 4
-mu = 0.5
-room_dim = [6.0, 3.0, 3.5]
-absorption = 0.2
-max_order = 10
-# -------------------------
-
+'''
 # -------------- Load signal --------------
 if not os.path.exists(wav_path):
     raise FileNotFoundError(f"{wav_path} not found - adjust path.")
@@ -156,7 +141,8 @@ def _generate_mic_grid(room_dim):
             idx += 1
 
     return mic_positions_list, bright_indices, dark_indices
-
+'''
+'''
 # --- Main Setup and Execution ---
 
 # Generate inputs
@@ -194,6 +180,7 @@ n_srcs = len(sources)
 # K is the maximum RIR length, which may vary slightly across mics/sources due to floating point math
 K = max(len(IR[m][s]) for m in range(n_mics) for s in range(n_srcs))
 print(f"Max RIR length K = {K}")
+'''
 
 def build_HB_time_series(IR, bright_mics, N):
     """
@@ -215,99 +202,26 @@ def build_HB_time_series(IR, bright_mics, N):
 
     return H_B
 
-# -------------------------
-# Helper: build U^{m,l} blocks and U^m
-# -------------------------
-def build_U_ml_single(x, h_ml, N, J):
-    """
-    Build U^{m,l} (N x J) for a single mic m and single speaker l.
-    This matrix represents the convolution of the excitation signal x with 
-    the RIR h_ml (mic m, speaker l). It is the Toeplitz matrix formed from 
-    the convolved signal, truncated to length N in time.
-    """
-    # u = x * h_ml (full conv), truncated to N samples
-    u = np.convolve(x, h_ml)[:N]
-    if u.shape[0] < N:
-        u = np.pad(u, (0, N - u.shape[0]))
-    
-    # Create the Toeplitz matrix (first column is u, first row is zeros of length J)
-    first_col = u
-    first_row = np.zeros(J)
-    U_ml = toeplitz(first_col, first_row)[:N, :J]
-    return U_ml
 
-def build_Um_for_mic(m_idx, x, IR, N, J):
-    """
-    Build U^m for microphone index m_idx by horizontally concatenating U^{m,l} for all l.
-    Returns U_m (N x (L*J))
-    """
-    U_blocks = []
-    for l in range(n_srcs):
-        h_ml = IR[m_idx][l]
-        U_ml = build_U_ml_single(x, h_ml, N, J)
-        U_blocks.append(U_ml)
-    U_m = np.hstack(U_blocks)   # (N, n_srcs*J)
-    return U_m
-
-# -------------------------
-# Build R_B and R_D (Acoustic Pressure Covariance Matrices)
-# -------------------------
-def build_R_from_micset(mic_indices, x, IR, N, J):
-    """
-    Compute R = (1/|M|) * sum_{m in M} U^m.T @ U^m 
-    where M is the set of microphones (bright or dark).
-    R is the average covariance matrix over the microphones in the set.
-    """
-    LJ = n_srcs * J
-    R = np.zeros((LJ, LJ), dtype=float)
-    
-    # Sum the contribution of each microphone's U^m matrix
-    for m in mic_indices:
-        U_m = build_Um_for_mic(m, x, IR, N, J)
-        R += U_m.T @ U_m
-        
-    # Average across mics (consistent scaling)
-    R /= max(1, len(mic_indices))
-    # Additionally divide by N for a proper covariance approximation
-    # R /= N 
-    return R
-
-def compute_q_vast(V, mu, lambda_vals, U, r_B):
-    q = np.zeros_like(r_B)
-    for v in range(V):
-        weight = lambda_vals[v] / (lambda_vals[v] + mu)
-        projection = np.dot(U[:, v].T, r_B)
-        q += weight * projection * U[:, v]
-    return q
 
 def compute_rB_sigma2(bright_mics, x, IR, d_B, N, J):
-    LJ = n_srcs * J
+    LJ = rc.n_srcs * J
     r_B = np.zeros((LJ,), dtype=float)
     sigma_d_sq = 0.0
 
     for mi, m in enumerate(bright_mics):
-        U_m = build_Um_for_mic(m, x, IR, N, J)  # (N, LJ)
+        U_m = rc.build_Um_for_mic(m, x, IR, N, J)  # (N, LJ)
         d_vec = d_B[:, mi]                     # (N,)
         r_B += U_m.T @ d_vec                   # (LJ,)
         sigma_d_sq += np.sum(d_vec ** 2)
 
     r_B /= (len(bright_mics) * N)
-    sigma_d_sq /= (len(dark_zone_mics) * N)
+    sigma_d_sq /= (len(rc.dark_zone_mics) * N)
 
     return r_B, sigma_d_sq
 
 
-print("Building R_B (bright) and R_D (dark). This may take some time...")
-
-tstart = time.perf_counter()
-R_B = build_R_from_micset(bright_zone_mics_index, x, IR, N, J)
-R_D = build_R_from_micset(dark_zone_mics_index, x, IR, N, J)
-print("Built R_B and R_D in {:.2f} s".format(time.perf_counter() - tstart))
-
-print("R_B trace:", np.trace(R_B), "R_D trace:", np.trace(R_D))
-# Regularize R_D slightly to ensure pos-definite for generalized eigenproblem
-R_D_reg = R_D + reg_eps * np.eye(R_D.shape[0])
-
+R_B, R_D, R_D_reg, r_d = rc.build_R()
 lambda_vals, U = eigh(R_B, R_D)  # generalized eigenvalue problem
 
 # Sort eigenvalues descending
@@ -315,15 +229,12 @@ idx = np.argsort(-lambda_vals.real)
 lambda_vals = lambda_vals.real[idx]
 U = U[:, idx]
 
-H_B = build_HB_time_series(IR, bright_zone_mics_index, N)
+H_B = build_HB_time_series(rc.IR, rc.bright_zone_mics, rc.N)
 
-d_B = np.ones((N, len(bright_zone_mics)))*0.3536
+d_B = np.ones((rc.N, len(rc.bright_zone_mics)))*0.3536
+# OBS: her brugte vi oprindeligt brigt_zone_mics_index - men tror ikke det har nogen betydning her
+r_B, sigma_d_sq = compute_rB_sigma2(rc.bright_zone_mics, rc.x, rc.IR, d_B, rc.N, rc.J)
 
-r_B, sigma_d_sq = compute_rB_sigma2(bright_zone_mics_index, x, IR, d_B, N, J)
-
-q_vec = compute_q_vast(V, mu, lambda_vals, U, r_B)
-
-q_matrix = q_vec.reshape(n_srcs, J)
 
 def compute_SB_SD(V, mu, lambda_vals, U, r_B, sigma_d_sq):
     SB = sigma_d_sq
@@ -334,7 +245,16 @@ def compute_SB_SD(V, mu, lambda_vals, U, r_B, sigma_d_sq):
         SD += (1 / (lambda_vals[v] + mu)**2) * proj_norm_sq
     return SB, SD
 
-SB, SD = compute_SB_SD(V, mu, lambda_vals, U, r_B, sigma_d_sq)
+SB, SD = compute_SB_SD(rc.V, rc.mu, lambda_vals, U, r_B, sigma_d_sq)
+
+def VAST_solution(V, mu, lambda_vals, U, r_B):
+    q_vec = np.zeros_like(r_B)
+    for v in range(V):
+        weight = lambda_vals[v] / (lambda_vals[v] + mu)
+        projection = np.dot(U[:, v].T, r_B)
+        q_vec += weight * projection * U[:, v]
+    q_matrix = q_vec.reshape(rc.n_srcs, rc.J)
+    return q_vec, q_matrix
 
 # -------------------------
 # Compute resulting pressure field (uses direct path approximation for visualization)
@@ -388,36 +308,39 @@ def pressure_field_from_q(q_matrix, IR, test_signal, sources, room_dim, fs_targe
             
     return X, Y, pressure_field
 
-#print("Computing pressure field (coarse grid for speed)...")
-# Use a short segment of the signal for visualization to speed up convolution
-test_signal = wav[:fs_target//4] if len(wav) >= fs_target//4 else wav
-tstart = time.perf_counter()
-# Note: we pass the sources list and fs_target to the function for direct path calculation
-Xg, Yg, P = pressure_field_from_q(q_matrix, IR, test_signal, sources, room_dim, fs_target, grid_res=grid_res, z_plane=z_plane)
-#print("Pressure computed in {:.2f}s".format(time.perf_counter() - tstart))
 
-# Compute averages for bright/dark masks
-bright_mask = Xg < (room_dim[0]/2)
-dark_mask = ~bright_mask
-avg_bright = np.mean(P[bright_mask])
-avg_dark = np.mean(P[dark_mask])
-print(f"Average pressure (bright) = {avg_bright:.6f} ; (dark) = {avg_dark:.6f}")
-print("Contrast (bright/dark) [dB] =", 20.0 * np.log10((avg_bright + 1e-12) / (avg_dark + 1e-12)))
+if __name__ == "__main__":
+    q_vec, q_matrix = VAST_solution(rc.V, rc.mu, lambda_vals, U, r_B)
+    #print("Computing pressure field (coarse grid for speed)...")
+    # Use a short segment of the signal for visualization to speed up convolution
+    test_signal = rc.wav[:rc.fs_target//4] if len(rc.wav) >= rc.fs_target//4 else rc.wav
+    tstart = time.perf_counter()
+    # Note: we pass the sources list and fs_target to the function for direct path calculation
+    Xg, Yg, P = pressure_field_from_q(q_matrix, rc.IR, test_signal, rc.sources, rc.room_dim, rc.fs_target, grid_res=rc.grid_res, z_plane=rc.z_plane)
+    #print("Pressure computed in {:.2f}s".format(time.perf_counter() - tstart))
 
-# plot SPL-like plot (convert to relative dB)
-# Normalize to the maximum pressure on the grid for relative dB scale
-P_db = 20.0 * np.log10(P / (np.max(P) + 1e-12) + 1e-12)
-plt.figure(figsize=(8,6))
-plt.imshow(P_db.T, origin='lower', extent=[0, room_dim[0], 0, room_dim[1]], cmap='inferno', aspect='auto')
-plt.colorbar(label='Relative dB')
-plt.scatter([s[0] for s in sources], [s[1] for s in sources], c='cyan', marker='*', s=100, edgecolors='k')
-plt.title('Relative SPL (dB) at z={:.2f} m (Time-Domain MSIR)'.format(z_plane))
-plt.xlabel('x (m)')
-plt.ylabel('y (m)')
-plt.tight_layout()
-plt.show()
+    # Compute averages for bright/dark masks
+    bright_mask = Xg < (rc.room_dim[0]/2)
+    dark_mask = ~bright_mask
+    avg_bright = np.mean(P[bright_mask])
+    avg_dark = np.mean(P[dark_mask])
+    print(f"Average pressure (bright) = {avg_bright:.6f} ; (dark) = {avg_dark:.6f}")
+    print("Contrast (bright/dark) [dB] =", 20.0 * np.log10((avg_bright + 1e-12) / (avg_dark + 1e-12)))
 
-# Save q to file
-out_q_path = "q_solution_td.npy"
-np.save(out_q_path, q_matrix)
-print("Saved q_matrix to", out_q_path)
+    # plot SPL-like plot (convert to relative dB)
+    # Normalize to the maximum pressure on the grid for relative dB scale
+    P_db = 20.0 * np.log10(P / (np.max(P) + 1e-12) + 1e-12)
+    plt.figure(figsize=(8,6))
+    plt.imshow(P_db.T, origin='lower', extent=[0, rc.room_dim[0], 0, rc.room_dim[1]], cmap='inferno', aspect='auto')
+    plt.colorbar(label='Relative dB')
+    plt.scatter([s[0] for s in rc.sources], [s[1] for s in rc.sources], c='cyan', marker='*', s=100, edgecolors='k')
+    plt.title('Relative SPL (dB) at z={:.2f} m (Time-Domain MSIR)'.format(rc.z_plane))
+    plt.xlabel('x (m)')
+    plt.ylabel('y (m)')
+    plt.tight_layout()
+    plt.show()
+
+    # Save q to file
+    out_q_path = "q_solution_td.npy"
+    np.save(out_q_path, q_matrix)
+    print("Saved q_matrix to", out_q_path)
