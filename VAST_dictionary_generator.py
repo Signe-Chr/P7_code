@@ -131,7 +131,7 @@ def NN_input(N):
     for i in spatial_positions[:N]:
         sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index = sources_mics(R, i, N_mics)
         IR = get_rir_and_clear_room(room_dim, sources_position_list, mic_positions_list, fs=16000, max_order=2)
-        rir_tensor, rir_list = prepare_rir_input(IR, N_mics, n_srcs, max_length=512)
+        rir_tensor, rir_list = prepare_rir_input(IR, n_mics, n_srcs, max_length=512)
         NN_INPUT.append([rir_tensor, rir_list])
         setup_information.append([sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index])
     return NN_INPUT, setup_information

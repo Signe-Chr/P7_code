@@ -92,8 +92,8 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=1e-4)  # 
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=1)
 
 
-NN_INPUT, setup_information = vdg.NN_input(4)
-sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index = setup_information[0], setup_information[1], setup_information[2], setup_information[3]
+NN_INPUT, setup_information = vdg.NN_input(5)
+sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index = setup_information[-1][0], setup_information[-1][1], setup_information[-1][2], setup_information[-1][3]
 #[rir_tensor, rir_list]
 # [sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index]
 
@@ -234,9 +234,9 @@ def L_1_loss(q_opt, fcentres, M_B, H):
 
 def C_i(AC_des, w_AC, AC_tilde):
     #print(np.real(AC_des * w_AC - AC_tilde))
-    return max(0, torch.real(AC_des * w_AC - AC_tilde))
+    return torch.max(torch.tensor(0), torch.real(AC_des * w_AC - AC_tilde))
     
-def w_ac(center_frequencies: list, ref_frequency: float = 100.0, 
+def w_ac(center_frequency, ref_frequency: float = 100.0, 
                 beta: float = 1.0, min_weight: float = 1.0) -> list:
     """
     Calculates the frequency-dependent weight function (w_AC) for acoustic contrast.
@@ -262,48 +262,47 @@ def w_ac(center_frequencies: list, ref_frequency: float = 100.0,
     """
     
     # Convert inputs to NumPy arrays for vectorized calculation
-    f_i = torch.asarray(center_frequencies)
+    #f_i = torch.asarray(center_frequencies)
     
     # Calculate the ratio raised to the power beta
-    weight_ratios = ((ref_frequency / f_i) ** beta)
+    weight_ratios = ((ref_frequency / center_frequency) ** beta)
     
     # Ensure the weight never drops below the specified minimum weight
-    w_ac = torch.maximum(weight_ratios, min_weight)
-    
+    w_ac = max(weight_ratios, min_weight)
+    #print(w_ac)
     return w_ac#.tolist()
 
-def AC_tilde(H_B, H_D, g, bright_zone_mics_index, dark_zone_mics_index):
+def AC_tilde(H_B, H_D, g, M_B, M_D):
     g_col = g.unsqueeze(-1)
-    H_B_d = H_B.to(g.dtype).detach()
-    H_D_d = H_D.to(g.dtype).detach()
+    H_B_d = H_B.to(g.dtype)#.detach()
+    H_D_d = H_D.to(g.dtype)#.detach()
     
     # Calculate Energy in Bright Zone (E_B = ||H_B * g||^2) and Dark Zone (E_D = ||H_D * g||^2)
     E_B = torch.sum(torch.matmul(H_B_d, g_col).abs().pow(2))
     E_D = torch.sum(torch.matmul(H_D_d, g_col).abs().pow(2))
 
-    return (len(dark_zone_mics_index) / len(bright_zone_mics_index)) * (E_B / E_D)
+    return (M_D / M_B) * (E_B / E_D)
 
-def L_2_loss(q_opt, H_B, H_D):
-    
+def L_2_loss(q_opt, fcentres, H_B, H_D, M_B, M_D):
+    fd = torch.tensor(2**(1/6))
+    delta_f = vdg.fs_target/vdg.J
     L_2 = 0
-    for freq in fcentre:
-        fd = torch.tensor(2**(1/6))
+    for freq in fcentres:
         f_low = freq/fd
         f_high = freq*fd
-        delta_f = vdg.fs_target/vdg.J
+        g = torch.fft.fft(q_opt, axis = 0)
+        AC_des = 10**(-50/10)#5.079192938063992e-07
 
         k_low = int(torch.ceil(f_low/delta_f))
-
         k_high = int(torch.ceil(f_high/delta_f))
-        L_2_ = torch.tensor(0)
+        L_2_ = 0
         for i in range(k_low, k_high):
-            g = torch.fft.fft(q_opt, axis = 0)
-            AC_sim = AC_tilde(H_B[:,:,i], H_D[:,:,i], g[:,i], bright_zone_mics_index, dark_zone_mics_index)
-            AC_des = 10**(-50/10)#5.079192938063992e-07
-            w_AC = w_ac([freq], ref_frequency=torch.tensor(100.0), beta=torch.tensor(1.0), min_weight=torch.tensor(1.0))[0]
+            AC_sim = AC_tilde(H_B[:,:,i], H_D[:,:,i], g[:,i], M_B, M_D)
+            w_AC = w_ac(freq, ref_frequency=100, beta=1, min_weight=1)
             C = C_i(AC_des, w_AC, AC_sim)
             L_2_ += C**2
         L_2 += torch.sqrt(L_2_)
+        del L_2_
     return L_2
 
 
@@ -417,14 +416,20 @@ def L_6_loss(q_opt, rir):
         L_6 += np.sqrt(L_6_)
     return L_6
 
+H, freqs = compute_H_matrix(NN_INPUT[-1][1])
+H_B = torch.from_numpy(H[bright_zone_mics_index])  # Bright zone microphones
+H_D = torch.from_numpy(H[dark_zone_mics_index])    # Dark zone microphones
+M_B = len(bright_zone_mics_index)
+M_D = len(dark_zone_mics_index)
 
+H_time = compute_multi_toeplitz(NN_INPUT[-1][1], len(q[0]))
 
-print("L_1", L_1_loss(q, fcentre, len(bright_zone_mics_index), H_B))
-print("L_2", L_2_loss(q))
-print("L_3", L_3_loss(q))
+print("L_1", L_1_loss(q, fcentre, M_B, H_B))
+print("L_2", L_2_loss(q, fcentre, H_B, H_D, M_B, M_D))
+print("L_3", L_3_loss(q, H_time))
 print("L_4", L_4_loss(q))
 print("L_5", L_5_loss(q))
-print("L_6", L_6_loss(q))
+print("L_6", L_6_loss(q, NN_INPUT[-1][1]))
 
 exit()
 
