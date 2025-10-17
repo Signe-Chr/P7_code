@@ -211,6 +211,7 @@ def pressure_field_from_q(q_matrix, IR, test_signal, room_dim, grid_res=50, z_pl
     return X, Y, pressure_field
 
 if __name__ == "__main__":
+    q_vec, q_matrix = PM_solution()
     print("Computing pressure field for visualization...")
     test_signal = wav[:fs_target//4] if len(wav) >= fs_target//4 else wav
     tstart = time.perf_counter()
