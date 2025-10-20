@@ -116,9 +116,9 @@ for RT60 in RT60s:
                 user_orientation = np.array([[np.cos(user_rotation), -np.sin(user_rotation), 0],
                                              [np.sin(user_rotation),  np.cos(user_rotation), 0],
                                              [              0,                0,             1]]) #Add roation around z-axis for bright zone ear mic til JORD
-                print(room.mic_array.set_directivity(mic_directions[:-1]+[pra.directivities.HyperCardioid(
+                room.mic_array.set_directivity(mic_directions[:-1]+[pra.directivities.HyperCardioid(
                      pra.directivities.DirectionVector(user_rotation-np.pi/2)
-                )]))
+                )])
                 orientation_source_temp = np.matmul(user_orientation, np.array(s))
                 for tilt_rotation in tilt_rotations_radians:
                     rotation_x = np.array([[1,                     0,                      0],
