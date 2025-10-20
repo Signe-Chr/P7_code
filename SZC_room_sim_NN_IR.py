@@ -419,11 +419,11 @@ def L_6_loss(q_opt, rir):
 
 
 
-print("L_1", L_1_loss(q, fcentre, len(bright_zone_mics_index), H_B))
-print("L_2", L_2_loss(q))
-print("L_3", L_3_loss(q))
-print("L_4", L_4_loss(q))
-print("L_5", L_5_loss(q))
+#print("L_1", L_1_loss(q, fcentre, len(bright_zone_mics_index), H_B))
+#print("L_2", L_2_loss(q))
+#print("L_3", L_3_loss(q))
+#print("L_4", L_4_loss(q))
+#print("L_5", L_5_loss(q))
 print("L_6", L_6_loss(q))
 
 exit()

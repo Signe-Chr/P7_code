@@ -64,7 +64,7 @@ q = load_q_matrix("ACC_filter_archive.npy", example_key)
 arpath = "ACC_filter_archive.npy"
 
 
-def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, center_pos, R_mic, grid_res=300, z_plane=5.0):
+def visualize_pressure_field(q_matrix, wav_path, fs_target, sources, room_dim, center_pos, R_mic, grid_res=100, z_plane=5.0):
     """
     Computes and plots the RMS pressure field using a direct-path approximation
     for visualization purposes, with zones correctly defined by the circular array.
