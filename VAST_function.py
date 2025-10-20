@@ -6,8 +6,9 @@ from scipy.linalg import toeplitz, eigh
 import matplotlib.pyplot as plt
 import time
 import os
+from Junk import Room_configuration as rc
 
-
+'''
 def setup_acoustic_scenario(sources, 
                             mic_positions_list, 
                             bright_zone_mics_index, 
@@ -105,14 +106,15 @@ def build_R_from_micset(mic_indices, x, IR, N, J, n_srcs, reg_eps=0):
         R += reg_eps * np.eye(LJ)
         
     return R
-
+'''
+    
 def compute_rB(bright_mics_index, x, IR, d_B, N, J, n_srcs):
     """ Compute the cross-correlation vector r_B = E[U_B^T d_B] """
     LJ = n_srcs * J
     r_B = np.zeros((LJ,), dtype=float)
 
     for mi, m in enumerate(bright_mics_index):
-        U_m = build_Um_for_mic(m, x, IR, N, J, n_srcs)  # (N, LJ)
+        U_m = rc.build_Um_for_mic(m, x, IR, N, J)       # (N, LJ)
         d_vec = d_B[:, mi]                              # (N,)
         r_B += U_m.T @ d_vec                            # (LJ,)
 
@@ -120,6 +122,7 @@ def compute_rB(bright_mics_index, x, IR, d_B, N, J, n_srcs):
     r_B /= (len(bright_mics_index) * N)
 
     return r_B
+
 
 def compute_q_vast(V, mu, lambda_vals, U, r_B):
     """ Compute the VAST filter vector q """
@@ -132,10 +135,9 @@ def compute_q_vast(V, mu, lambda_vals, U, r_B):
 
 # --- 2. MAIN DESIGN FUNCTION ---
 
-def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                          wav_path, fs_target=16000, J=256, N=2000, 
-                          V=4, mu=0.5, room_dim=[8.12, 7.35, 3.00], absorption=0.2, 
-                          max_order=10, reg_eps=1e-6, target_amplitude=0.3536):
+def VAST_solution(sources, mic_positions_list,
+                          wav_path, fs_target, J, N, 
+                          V, mu, reg_eps, target_amplitude=0.3536):
     """
     Designs the VAST Time-Domain filter coefficients (q_matrix) and saves them.
 
@@ -185,19 +187,18 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     n_srcs = len(sources)
     n_mics = len(mic_positions_list)
     
-    IR, M_b, M_d = setup_acoustic_scenario(
-        sources=sources, 
-        mic_positions_list=mic_positions_list, 
-        bright_zone_mics_index=bright_zone_mics_index, 
-        dark_zone_mics_index=dark_zone_mics_index,
-        fs_target=fs_target, room_dim=room_dim, absorption=absorption, max_order=max_order
-    )
+    IR = rc.IR
+    M_b = len(rc.bright_zone_mics)
+    M_d = len(rc.dark_zone_mics)
+    #IR, M_b, M_d = setup_acoustic_scenario(
+    #    sources=sources, 
+    #    mic_positions_list=mic_positions_list, 
+    #    bright_zone_mics_index=bright_zone_mics_index, 
+    #    dark_zone_mics_index=dark_zone_mics_index,
+    #    fs_target=fs_target, room_dim=room_dim, absorption=absorption, max_order=max_order)
     
     # --- Compute Covariance Matrices R_B and R_D ---
-    tstart = time.perf_counter()
-    R_B = build_R_from_micset(bright_zone_mics_index, x, IR, N, J, n_srcs, reg_eps=0)
-    R_D = build_R_from_micset(dark_zone_mics_index, x, IR, N, J, n_srcs, reg_eps=reg_eps)
-    print("Built R_B and R_D in {:.2f} s".format(time.perf_counter() - tstart))
+    R_D, R_B, R_D_reg, r_d = rc.build_R()
 
     # --- Solve Generalized Eigenvalue Problem (GEP) ---
     print("Solving Generalized Eigenvalue Problem...")
@@ -216,9 +217,7 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     
     # Define desired signal d_B (constant amplitude across time/mics)
     d_B = np.ones((N, M_b)) * target_amplitude
-    
-    r_B = compute_rB(bright_zone_mics_index, x, IR, d_B, N, J, n_srcs)
-    
+    r_B = compute_rB(rc.bright_zone_mics, x, IR, d_B, N, J, n_srcs)
     q_vec = compute_q_vast(V, mu, lambda_vals, U, r_B)
     
     # Reshape q vector into a matrix (Loudspeakers x Taps)
@@ -227,8 +226,20 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     # --- Save Coefficients ---
     #np.save(out_q_path, q_matrix)
     #print(f"Successfully designed filter and saved q_matrix to {out_q_path} in {time.perf_counter() - t_start_total:.2f} s")
+    return q_vec, q_matrix
 
-    
-    
-    return q_matrix
+if __name__ == "__main__":
+    q_vec, q_matrix = VAST_solution(
+        sources=rc.sources,
+        mic_positions_list=rc.mic_positions_list,
+        wav_path=rc.wav_path,
+        fs_target=rc.fs_target,
+        J=rc.J,
+        N=rc.N,
+        V=rc.V,
+        mu=rc.mu,
+        reg_eps=rc.reg_eps,
+        target_amplitude=rc.target_amplitude
+    )
+    print(q_vec, q_matrix)
 

@@ -1,6 +1,6 @@
 from PM import PM_solution
 from ACC import ACC_solution
-from VAST_ import VAST_solution
+from VAST_function import VAST_solution
 import Room_configuration as rc
 import numpy as np
 import os
