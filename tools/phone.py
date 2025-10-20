@@ -2,7 +2,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 class Phone:
-    def __init__(self, position: list | np.ndarray = [0,0,0], orientation: list | np.ndarray = [0,0,0], unit: str = "mm"):
+    def __init__(self, position = [0,0,0], orientation = [0,0,0], unit: str = "mm"):
         """
         Initialize a phone speaker system.
         
@@ -34,7 +34,7 @@ class Phone:
         self.phone_center = self.phone_dimensions / 2
         
         # Compute rotation matrix
-        self.rotation_matrix = Rotation.from_euler('xyz', self.orientation).as_matrix()  # 3x3 matrix
+        self.rotation_matrix = Rotation.from_euler('xyz', self.orientation).as_dcm()  # 3x3 matrix
 
         # Generate speaker and microphone positions
         self.speaker_array = self._generate_speaker_positions()

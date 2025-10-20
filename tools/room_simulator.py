@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class RoomSimulator:
     def __init__(
         self,
-        seed: int | None = None,
+        seed = None,
     ):
         """Simulate room :)
 
@@ -29,14 +29,14 @@ class RoomSimulator:
         fs: int,
         n_mics: int = 12,
         mic_radius: float = 0.5,
-        phone_rotation: np.ndarray = np.array([0, -90, 0]),
-        signal: np.ndarray | None = None,
+        phone_rotation= np.array([0, -90, 0]),
+        signal: None = None,
         shape: str = "shoebox",
-        desired_rt60: float | None = None,
-        material_properties_bounds: dict | None = None,
-        ray_tracing_params: dict | None = None,
+        desired_rt60 = None,
+        material_properties_bounds = None,
+        ray_tracing_params = None,
         generate_new_room: bool = True,
-        room_bounds: dict | None = None,
+        room_bounds = None,
     ):
         """Generate a room with Phone and Microphone Circle
             Sets the `self.room` and `self.room_dims` variables
@@ -172,7 +172,7 @@ class RoomSimulator:
         # If RT60 is not requested, return only the RIRs
         return self.room.rir  # [mic, source, samples]
 
-    def get_zones(self, rirs, rt60: list | None = None):
+    def get_zones(self, rirs, rt60 = None):
         """Splits the RIRs into dark and bright zones and RT60 times if passed.
 
         Args:
@@ -201,7 +201,7 @@ class RoomSimulator:
             dz_rir,
         )  # TODO: Should this also return a second (None, None) tuple?
 
-    def regularize_rir(self, rirs, rt60: list | None = None, dtype=np.float64):
+    def regularize_rir(self, rirs, rt60 = None, dtype=np.float64):
         """Regularize the RIR by cutting it to the longest RIR length or RT60 time if defined.
 
         Args:

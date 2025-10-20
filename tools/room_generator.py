@@ -3,6 +3,8 @@ import pyroomacoustics as pra
 import matplotlib.pyplot as plt
 import logging
 logger = logging.getLogger(__name__)
+from typing import Tuple
+
 
 class RoomGenerator:
     def __init__(self,
@@ -30,7 +32,7 @@ class RoomGenerator:
 
 
     # TODO: Needs a v2
-    def _compose_random_shoebox(self, np_random_generator: np.random.Generator, min_width = 3.0, max_width = 10.0, min_length = 3.0, max_length = 10.0, min_extrude = 2.0, max_extrude = 5.0, **kwargs) -> tuple[np.ndarray, float]:
+    def _compose_random_shoebox(self, np_random_generator: np.random.Generator, min_width = 3.0, max_width = 10.0, min_length = 3.0, max_length = 10.0, min_extrude = 2.0, max_extrude = 5.0, **kwargs) -> Tuple[np.ndarray, float]:
         """
         Compose a shoebox room.
         """
@@ -48,7 +50,7 @@ class RoomGenerator:
     
     
     # FIXME: Make this
-    def _compose_random_troom(self,) -> tuple[np.ndarray, float]:
+    def _compose_random_troom(self,) -> Tuple[np.ndarray, float]:
         """
         Compose a T-shaped room.
         """
@@ -57,7 +59,7 @@ class RoomGenerator:
     
     
     # FIXME: Make this
-    def _compose_random_lroom(self,) -> tuple[np.ndarray, float]:
+    def _compose_random_lroom(self,) -> Tuple[np.ndarray, float]:
         """
         Compose a L-shaped room.
         """
@@ -65,7 +67,7 @@ class RoomGenerator:
         return corners, extrude_height
     
     
-    def generate_room(self, seed=None, room_bounds=None) -> tuple[pra.Room, dict]:
+    def generate_room(self, seed=None, room_bounds=None) -> Tuple[pra.Room, dict]:
         """
         Generate a random room with the specified room_bounds.
         """

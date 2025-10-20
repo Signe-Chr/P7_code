@@ -1,7 +1,7 @@
 import numpy as np
 
 class MicrophoneCircle:
-    def __init__(self, center: list | np.ndarray, radius: float, n_mics: int, sphere=False) -> np.ndarray:
+    def __init__(self, center, radius: float, n_mics: int, sphere=False) -> np.ndarray:
         """
         Initialize a circle of microphones around a defined center.
 

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class DatasetGenerator:
-    def __init__(self, dataset_params: dict | None = None):
+    def __init__(self, dataset_params = None):
         """
         Initialize the DatasetGenerator.
         """
@@ -61,7 +61,7 @@ class DatasetGenerator:
 
         self.shape: str = self.room_params["shape"]
         self.root: Path = Path(kwargs.get("root", "dataset")) / self.shape / self.name
-        self.root.mkdir(parents=True, exist_ok=False)
+        self.root.mkdir(parents=True, exist_ok=True)
 
         self.regularizer: str = kwargs.get("regularizer", "rt60")
         # Ensure regularizer is valid
@@ -71,7 +71,7 @@ class DatasetGenerator:
         ], "Regularizing must be either 'rt60' or 'maxlen'"
 
         self.dtype: type = kwargs.get("dtype", np.float32)
-        self.seed: int | None = kwargs.get("seed", None)
+        self.seed= kwargs.get("seed", None)
         return True
 
     def save_params(self, params: dict):
@@ -93,10 +93,10 @@ class DatasetGenerator:
         room_params,
         regularizer: str,
         num_phone_pos: int = 1,
-        save_dir: Path | None = None,
+        save_dir = None,
         dtype=np.float32,
         plot=False,
-        seed: int | None = None,
+        seed = None,
     ):
         """
         Simulate the room using the RoomSimulator class.
