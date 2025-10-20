@@ -11,7 +11,7 @@ import time, os
 # -------------------------
 # Parameters (tune these)
 # -------------------------
-wav_path = "Signe_sang.wav"
+wav_path = "Junk/Signe_sang.wav"
 fs_target = 16000
 J = 256                # filter length per loudspeaker
 N = 2000               # number of time rows in U^m (samples)
