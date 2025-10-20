@@ -6,7 +6,7 @@ from scipy.linalg import toeplitz, eigh
 import matplotlib.pyplot as plt
 import time
 import os
-import Room_configuration as rc
+from Junk import Room_configuration as rc
 
 '''
 def setup_acoustic_scenario(sources, 
