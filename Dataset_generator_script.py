@@ -20,7 +20,7 @@ target_amplitude = 0.080792
 dark_mic_radius = 1.0
 room_dim = [10,10,10]
 z_height=1.7
-RT60s = [0.5*i for i in range(10)]
+RT60s = [0.5*i for i in range(5, 10)]
 N_mics=12
 wav_path="relaxing-guitar-loop-v5-245859.wav"
 
@@ -42,14 +42,22 @@ def room_generator(room_dim, rt60, fs):
 
 def sources_mics(R, Center, N_mics):
     mic_positions_list = []
+    direction_list = []
     dark_zone_mics_index = []
     for i in range(N_mics):
-        mic_positions_list.append([R * np.cos(2 * np.pi * i / N_mics) + Center[0],
-                                   R * np.sin(2 * np.pi * i / N_mics) + Center[1],
+        angle = 2 * np.pi * i / N_mics
+        mic_positions_list.append([R * np.cos(angle) + Center[0],
+                                   R * np.sin(angle) + Center[1],
                                    Center[2]])
+        direction_list.append(pra.directivities.HyperCardioid(
+             pra.directivities.DirectionVector(np.pi-angle, degrees=False)
+        ))
         dark_zone_mics_index.append(i)
     
     mic_positions_list.append([Center[0], Center[1], Center[2]+0.5])
+    direction_list.append(pra.directivities.HyperCardioid(
+         pra.directivities.DirectionVector(-90)
+    ))
     bright_zone_mics_index = [N_mics]
 
     sources_position_list = [[Center[0] + 0.2, Center[1]-0.1, Center[2]],
@@ -103,18 +111,21 @@ tilt_rotations_radians=np.array(tilt_rotations_degree)*np.pi/180
 for RT60 in RT60s:
     for spatial_position in spatial_positions:
         room = room_generator(room_dim, RT60, fs_target)
-        sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index = sources_mics(dark_mic_radius, spatial_position, N_mics)
-        room.add_microphone_array(pra.MicrophoneArray(np.array(mic_positions_list).T, room.fs))
+        sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(dark_mic_radius, spatial_position, N_mics)
+        room.add_microphone_array(np.array(mic_positions_list).T, mic_directions)
         for s in sources_position_list:
             for user_rotation in user_rotations:
                 user_orientation = np.array([[np.cos(user_rotation), -np.sin(user_rotation), 0],
-                                [np.sin(user_rotation),  np.cos(user_rotation), 0],
-                                [              0,                0, 1]]) #Add roation around z-axis for bright zone ear mic til JORD
+                                             [np.sin(user_rotation),  np.cos(user_rotation), 0],
+                                             [              0,                0,             1]]) #Add roation around z-axis for bright zone ear mic til JORD
+                print(room.mic_array.set_directivity(mic_directions[:-1]+[pra.directivities.HyperCardioid(
+                     pra.directivities.DirectionVector(user_rotation-np.pi/2)
+                )]))
                 orientation_source_temp = np.matmul(user_orientation, np.array(s))
                 for tilt_rotation in tilt_rotations_radians:
-                    rotation_x = np.array([[1,               0,                0],
-                            [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
-                            [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]])
+                    rotation_x = np.array([[1,                     0,                      0],
+                                           [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
+                                           [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]])
                     orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
                     room.add_source(orientation_source_final)
                     q = design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
