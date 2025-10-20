@@ -1,15 +1,16 @@
-from VAST_function import design_vast_filter
+from VAST_filter_coefficients import VAST_solution
 import numpy as np
 import os
 import scipy.io.wavfile as wavfile
 import VAST_function as vf
 import torch
 import pyroomacoustics as pra
+from VAST_filter_coefficients import design_vast_filter
 
 
 J = 1024
 N = 2000#len(wav)
-V = J*3
+V = J*3/2
 mu = 1
 fs_target=16000
 absorption=0.2
@@ -21,6 +22,7 @@ room_dim = [10,10,10]
 z_height=1.7
 RT60s = [0.5*i for i in range(10)]
 N_mics=12
+wav_path="relaxing-guitar-loop-v5-245859.wav"
 
 spatial_positions = [
     [room_dim[0]/2   , room_dim[1]/2   , z_height],  # 0 — Center
@@ -50,9 +52,9 @@ def sources_mics(R, Center, N_mics):
     mic_positions_list.append([Center[0], Center[1], Center[2]+0.5])
     bright_zone_mics_index = [N_mics]
 
-    sources_position_list = [[Center[0]- 0.2, Center[1]-0.1, Center[2]],
-                             [Center[0]- 0.2, Center[1]+0.1, Center[2]],
-                             [Center[0]- 0.2, Center[1], Center[2]+0.2]]
+    sources_position_list = [[Center[0] + 0.2, Center[1]-0.1, Center[2]],
+                             [Center[0] + 0.2, Center[1]+0.1, Center[2]],
+                             [Center[0] + 0.2, Center[1], Center[2]+0.2]]
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index
 
 def archive_q_matrix(q_matrix, archive_path, key_name, sources_position):
@@ -115,7 +117,10 @@ for RT60 in RT60s:
                             [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]])
                     orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
                     room.add_source(orientation_source_final)
-                    q = VAST_solution
+                    q = design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
+                        wav_path, fs_target, J, N, 
+                        V, mu, room_dim, absorption, 
+                        max_order, reg_eps, target_amplitude = 1000)
                     
 
                     
