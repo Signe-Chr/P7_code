@@ -79,8 +79,8 @@ def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, I
                 'bright_zone_mics_index': bright_zone_mics_index,
                 'dark_zone_mics_index': dark_zone_mics_index,
                 'RT60': rt60,
-                'User orientation': user_orientation,
-                'Phone Tilt': phone_tilt,
+                'User_orientation': user_orientation,
+                'Phone_tilt': phone_tilt,
                 'Spatial_position': spatial_position,
                 'R': R,
                 'IR': IR}
