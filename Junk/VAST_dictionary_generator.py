@@ -1,8 +1,8 @@
-from VAST_function import design_vast_filter
+from Junk.VAST_function import design_vast_filter
 import numpy as np
 import os
 import scipy.io.wavfile as wavfile
-import VAST_function as vf
+import Junk.VAST_function as vf
 import torch
 import pyroomacoustics as pra
 
