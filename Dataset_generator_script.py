@@ -1,17 +1,18 @@
-from VAST_filter_coefficients import VAST_solution
 import numpy as np
 import os
 import scipy.io.wavfile as wavfile
-import VAST_function as vf
 import torch
 import pyroomacoustics as pra
 from VAST_filter_coefficients import design_vast_filter
+from tqdm import tqdm
+
 
 
 J = 1024
 N = 2000#len(wav)
-V = J*3/2
+V = int(J*3/2)
 mu = 1
+reg_eps=1*10**(-6)
 fs_target=16000
 absorption=0.2
 max_order=10
@@ -22,23 +23,23 @@ room_dim = [10,10,10]
 z_height=1.7
 RT60s = [0.5*i for i in range(5, 10)]
 N_mics=12
-wav_path="relaxing-guitar-loop-v5-245859.wav"
+
+wav_path = "relaxing-guitar-loop-v5-245859.wav"
+
+out_q_path = "VAST_filter_archive.npy"
+
+fs_wav, wav = wavfile.read(wav_path)
+
+wav = np.mean(wav, axis=1)
+
+wav = wav[5*44100:7*44100]
+
 
 spatial_positions = [
     [room_dim[0]/2   , room_dim[1]/2   , z_height],  # 0 — Center
     [room_dim[0]/2   , room_dim[1]-1.1 , z_height],  # 1 — Up against one wall
     [room_dim[0]-1.1 , room_dim[1]-1.1 , z_height],  # 2 — Corner
 ]
-
-def room_generator(room_dim, rt60, fs):
-    e_absorption, max_order = pra.inverse_sabine(rt60, room_dim)
-    room = pra.ShoeBox(
-        room_dim,
-        fs=fs,
-        materials=pra.Material(e_absorption),
-        max_order=max_order)
-    
-    return room
 
 def sources_mics(R, Center, N_mics):
     mic_positions_list = []
@@ -63,13 +64,13 @@ def sources_mics(R, Center, N_mics):
     sources_position_list = [[Center[0] + 0.2, Center[1]-0.1, Center[2]],
                              [Center[0] + 0.2, Center[1]+0.1, Center[2]],
                              [Center[0] + 0.2, Center[1], Center[2]+0.2]]
-    return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index
+    return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, direction_list
 
-def archive_q_matrix(q_matrix, archive_path, key_name, sources_position):
+def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, IR, mic_positions, spatial_position, R,user_orientation,phone_tilt):
             dict_update = {
                 'q_matrix': q_matrix, 
-                'J': J,
-                'N': N,
+                'J': J, #Order of filter
+                'N': N, #Samples in wav file
                 'V': V,
                 'mu': mu,
                 'room_dim': room_dim,
@@ -77,7 +78,10 @@ def archive_q_matrix(q_matrix, archive_path, key_name, sources_position):
                 'mic_positions': mic_positions,
                 'bright_zone_mics_index': bright_zone_mics_index,
                 'dark_zone_mics_index': dark_zone_mics_index,
-                'Center': Center,
+                'RT60': rt60,
+                'User orientation': user_orientation,
+                'Phone Tilt': phone_tilt,
+                'Spatial_position': spatial_position,
                 'R': R,
                 'IR': IR}
             
@@ -103,43 +107,36 @@ def archive_q_matrix(q_matrix, archive_path, key_name, sources_position):
             np.save(archive_path, archive_dict, allow_pickle=True)
             print(f"Archived filter under key '{key_name}' and saved updated archive to {archive_path}.")
 
+def compute_center(points):
+    points = np.asarray(points, dtype=float)    
+    center = np.mean(points, axis=0)
+    return center
 
+          
 
 user_rotations=[np.pi/2,np.pi,np.pi*3/2,2*np.pi]
-tilt_rotations_degree=[15,45,90]
-tilt_rotations_radians=np.array(tilt_rotations_degree)*np.pi/180
-for RT60 in RT60s:
-    for spatial_position in spatial_positions:
-        room = room_generator(room_dim, RT60, fs_target)
+tilt_rotations=[np.deg2rad(15),np.deg2rad(45),np.deg2rad(75)]
+
+for i,RT60 in enumerate(RT60s):
+    for ii,spatial_position in enumerate(spatial_positions):
         sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(dark_mic_radius, spatial_position, N_mics)
-        room.add_microphone_array(np.array(mic_positions_list).T, mic_directions)
-        for s in sources_position_list:
-            for user_rotation in user_rotations:
-                user_orientation = np.array([[np.cos(user_rotation), -np.sin(user_rotation), 0],
-                                             [np.sin(user_rotation),  np.cos(user_rotation), 0],
-                                             [              0,                0,             1]]) #Add roation around z-axis for bright zone ear mic til JORD
-                print(room.mic_array.set_directivity(mic_directions[:-1]+[pra.directivities.HyperCardioid(
-                     pra.directivities.DirectionVector(user_rotation-np.pi/2)
-                )]))
-                orientation_source_temp = np.matmul(user_orientation, np.array(s))
-                for tilt_rotation in tilt_rotations_radians:
-                    rotation_x = np.array([[1,                     0,                      0],
-                                           [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
-                                           [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]])
-                    orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
-                    room.add_source(orientation_source_final)
-                    q = design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                        wav_path, fs_target, J, N, 
-                        V, mu, room_dim, absorption, 
-                        max_order, reg_eps, target_amplitude = 1000)
-                    
-
-                    
-
-                    
-                    
-            
-
-            
-        
+        for iii,user_rotation in enumerate(user_rotations):
+            user_orientation = np.array([[np.cos(user_rotation), -np.sin(user_rotation), 0],
+                                            [np.sin(user_rotation),  np.cos(user_rotation), 0],
+                                            [              0,                0,             1]]) #Add roation around z-axis for bright zone ear mic til JORD
+            center_sources = np.mean(sources_position_list, axis=0)
+            orientation_source_temp = np.matmul(user_orientation, np.array(sources_position_list)-center_sources.T)
+            for iv,tilt_rotation in enumerate(tilt_rotations):
+                rotation_x = np.array([[1,                     0,                      0],
+                                        [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
+                                        [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]])
+                orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
+                orientation_source_final += center_sources.T
+                q, IR = design_vast_filter(orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
+                        wav_path, RT60, mic_directions, user_rotation, fs_target, J, N, 
+                        V, mu, room_dim, reg_eps, target_amplitude)
+                m = f"VAST_{i}_{ii}_{iii}_{iv}" #room,spatial position, user orientation, phone tilt
+                print(m)
+                archive_q_matrix(q, wav_path, m, 
+                                 orientation_source_final, RT60, IR, mic_positions_list, spatial_position, dark_mic_radius,user_rotation,tilt_rotation)
 

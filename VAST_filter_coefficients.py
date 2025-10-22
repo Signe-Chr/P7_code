@@ -5,7 +5,7 @@ from scipy.signal import fftconvolve
 from scipy.linalg import toeplitz, eigh
 import time
 import os
-
+import matplotlib.pyplot as plt
 
 def setup_acoustic_scenario(sources, 
                         mic_positions_list, 
@@ -13,8 +13,9 @@ def setup_acoustic_scenario(sources,
                         dark_zone_mics_index, 
                         fs_target, 
                         room_dim, 
-                        absorption, 
-                        max_order):
+                        rt60,
+                        mic_directions, 
+                        user_rotation):
     """
     Sets up a pyroomacoustics simulation environment (ShoeBox) and computes RIRs.
 
@@ -29,13 +30,13 @@ def setup_acoustic_scenario(sources,
     M_b, M_d = len(bright_zone_mics_index), len(dark_zone_mics_index)
 
     # Define Room
+    e_absorption, max_order = pra.inverse_sabine(rt60, room_dim)
     room = pra.ShoeBox(
         room_dim,
         fs=fs_target,
-        materials=pra.Material(absorption),
-        max_order=max_order,
-    )
-
+        materials=pra.Material(e_absorption),
+        max_order=max_order)
+    
     # Add Sources (Loudspeakers)
     for s in sources_list:
         room.add_source(s)
@@ -47,9 +48,15 @@ def setup_acoustic_scenario(sources,
         room.fs)
     room.add_microphone_array(mic_array)
 
+    room.mic_array.set_directivity(mic_directions[:-1]+[pra.directivities.HyperCardioid(
+                    pra.directivities.DirectionVector(user_rotation-np.pi/2)
+            )])
+
     # Compute RIRs
     print(f"Computing RIRs for {mic_positions.shape[1]} mics (Bright: {M_b}, Dark: {M_d}) and {len(sources_list)} sources...")
     room.compute_rir()
+
+
 
     # RIRs are stored in room.rir: room.rir[mic_index][source_index]
     IR = room.rir 
@@ -68,6 +75,8 @@ def build_U_ml_single(x, h_ml, N, J):
     first_row = np.zeros(J)
     U_ml = toeplitz(first_col, first_row)[:N, :J]
     return U_ml
+
+
 
 def build_Um_for_mic(m_idx, x, IR, N, J, n_srcs):
     """ 
@@ -125,10 +134,28 @@ def compute_q_vast(V, mu, lambda_vals, U, r_B):
         q += weight * projection * U[:, v]
     return q
 
+def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
+    rir_list = []
+
+    for mic_idx in range(n_mics):
+        rir_temp = []
+        for src_idx in range(n_srcs):
+            rir = IR[mic_idx][src_idx]
+            # Truncate or zero-pad to max_length
+            if len(rir) > max_length:
+                rir = rir[:max_length]
+            else:
+                rir = np.pad(rir, (0, max_length - len(rir)))
+            rir_temp.append(rir)
+        rir_list.append(rir_temp)
+
+    
+    return np.array(rir_list)
+
+
 def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                        wav_path, fs_target=16000, J=256, N=2000, 
-                        V=4, mu=0.5, room_dim=[8.12, 7.35, 3.00], absorption=0.2, 
-                        max_order=10, reg_eps=1e-6, target_amplitude=0.3536):
+                        wav_path, rt60, direction_list, user_rotation, fs_target, J, N, 
+                        V, mu, room_dim, reg_eps, target_amplitude):
 
     print("--- Starting VAST Time-Domain Filter Design ---")
     t_start_total = time.perf_counter()
@@ -157,7 +184,7 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
         mic_positions_list=mic_positions_list, 
         bright_zone_mics_index=bright_zone_mics_index, 
         dark_zone_mics_index=dark_zone_mics_index,
-        fs_target=fs_target, room_dim=room_dim, absorption=absorption, max_order=max_order
+        fs_target=fs_target, room_dim=room_dim, rt60=rt60, mic_directions=direction_list, user_rotation=user_rotation
     )
 
     # --- Compute Covariance Matrices R_B and R_D ---
@@ -195,4 +222,7 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     #np.save(out_q_path, q_matrix)
     #print(f"Successfully designed filter and saved q_matrix to {out_q_path} in {time.perf_counter() - t_start_total:.2f} s")
 
-    return q_matrix
+    IR = prepare_rir_input(IR, n_mics, n_srcs, max_length=512)
+
+    return q_matrix, IR
+
