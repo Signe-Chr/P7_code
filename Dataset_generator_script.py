@@ -5,9 +5,6 @@ import torch
 import pyroomacoustics as pra
 from VAST_filter_coefficients import design_vast_filter
 from tqdm import tqdm
-import time
-from numba import njit
-from VAST_Filter_Design_Module_Optimized import design_vast_filter as dvfo
 
 
 J = 1024
@@ -42,7 +39,7 @@ spatial_positions = [
     [room_dim[0]/2   , room_dim[1]-1.1 , z_height],  # 1 — Up against one wall
     [room_dim[0]-1.1 , room_dim[1]-1.1 , z_height],  # 2 — Corner
 ]
-@njit
+
 def sources_mics(R, Center, N_mics):
     mic_positions_list = []
     direction_list = []
@@ -67,8 +64,8 @@ def sources_mics(R, Center, N_mics):
                              [Center[0] + 0.2, Center[1]+0.1, Center[2]],
                              [Center[0] + 0.2, Center[1], Center[2]+0.2]]
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, direction_list
-@njit
-def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, IR, mic_positions, spatial_position, R,user_orientation,phone_tilt):
+
+def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, IR, mic_positions, spatial_position, R,user_orientation,phone_tilt,bright_zone_mics_index,dark_zone_mics_index):
             dict_update = {
                 'q_matrix': q_matrix, 
                 'J': J, #Order of filter
@@ -81,8 +78,8 @@ def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, I
                 'bright_zone_mics_index': bright_zone_mics_index,
                 'dark_zone_mics_index': dark_zone_mics_index,
                 'RT60': rt60,
-                'User orientation': user_orientation,
-                'Phone Tilt': phone_tilt,
+                'User_orientation': user_orientation,
+                'Phone_tilt': phone_tilt,
                 'Spatial_position': spatial_position,
                 'R': R,
                 'IR': IR}
@@ -108,13 +105,13 @@ def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, I
             # Save the updated dictionary back, overwriting the old file
             np.save(archive_path, archive_dict, allow_pickle=True)
             print(f"Archived filter under key '{key_name}' and saved updated archive to {archive_path}.")
-@njit
+
 def compute_center(points):
     points = np.asarray(points, dtype=float)    
     center = np.mean(points, axis=0)
     return center
 
-@njit     
+
 def run_main():
     user_rotations=[np.pi/2,np.pi,np.pi*3/2,2*np.pi]
     tilt_rotations=[np.deg2rad(15),np.deg2rad(45),np.deg2rad(75)]
@@ -139,6 +136,8 @@ def run_main():
                             V, mu, room_dim, reg_eps, target_amplitude)
                     m = f"VAST_{i}_{ii}_{iii}_{iv}" #room,spatial position, user orientation, phone tilt
                     print(m)
-                    archive_q_matrix(q, wav_path, m, 
+                    archive_q_matrix(q, out_q_path, m, 
                                     orientation_source_final, RT60, IR, mic_positions_list,
-                                    spatial_position, dark_mic_radius,user_rotation,tilt_rotation)
+                                    spatial_position, dark_mic_radius,user_rotation,tilt_rotation,bright_zone_mics_index,dark_zone_mics_index)
+            
+run_main()

@@ -16,7 +16,7 @@ dummy_input = np.array([0.2,    # Reverberation, float
 dummy_q = np.zeros(L*J)
 
 # ---- 1. Load data
-data = np.load("Junk/VAST_filter_archive.npy", allow_pickle=True).item()
+data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
 
 X_list, y_list = [], []
 
