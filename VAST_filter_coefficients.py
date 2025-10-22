@@ -53,7 +53,7 @@ def setup_acoustic_scenario(sources,
             )])
 
     # Compute RIRs
-    print(f"Computing RIRs for {mic_positions.shape[1]} mics (Bright: {M_b}, Dark: {M_d}) and {len(sources_list)} sources...")
+    #print(f"Computing RIRs for {mic_positions.shape[1]} mics (Bright: {M_b}, Dark: {M_d}) and {len(sources_list)} sources...")
     room.compute_rir()
 
 
@@ -157,7 +157,7 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
                         wav_path, rt60, direction_list, user_rotation, fs_target, J, N, 
                         V, mu, room_dim, reg_eps, target_amplitude):
 
-    print("--- Starting VAST Time-Domain Filter Design ---")
+    #print("--- Starting VAST Time-Domain Filter Design ---")
     t_start_total = time.perf_counter()
 
     # --- Load and Prepare Signal (x) ---
@@ -167,7 +167,8 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
 
 
     if fs_wav != fs_target:
-        print(f"Warning: wav sample rate {fs_wav} != target {fs_target}. This implementation does not resample.")
+        pass
+        #print(f"Warning: wav sample rate {fs_wav} != target {fs_target}. This implementation does not resample.")
 
     wav = np.array(wav, dtype=float)
     if wav.ndim > 1:
@@ -191,10 +192,10 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     tstart = time.perf_counter()
     R_B = build_R_from_micset(bright_zone_mics_index, x, IR, N, J, n_srcs, reg_eps=0)
     R_D = build_R_from_micset(dark_zone_mics_index, x, IR, N, J, n_srcs, reg_eps=reg_eps)
-    print("Built R_B and R_D in {:.2f} s".format(time.perf_counter() - tstart))
+    #print("Built R_B and R_D in {:.2f} s".format(time.perf_counter() - tstart))
 
     # --- Solve Generalized Eigenvalue Problem (GEP) ---
-    print("Solving Generalized Eigenvalue Problem...")
+    #print("Solving Generalized Eigenvalue Problem...")
     lambda_vals, U = eigh(R_B, R_D)
 
     # Sort eigenvalues descending
@@ -204,7 +205,7 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
 
     # Check V (number of modes) vs total modes
     V = min(V, len(lambda_vals))
-    print(f"Using V={V} modes for VAST solution.")
+    #print(f"Using V={V} modes for VAST solution.")
 
     # --- Compute VAST Filter Vector (q) ---
 

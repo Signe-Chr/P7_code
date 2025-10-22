@@ -95,17 +95,19 @@ def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, I
                     if loaded_data.ndim == 0:
                         archive_dict = loaded_data.item()
                     else:
+                        pass
                         # Handle case where file might contain a single raw array
-                        print(f"Warning: Existing file at {archive_path} does not look like a dictionary archive. Starting new archive.")
+                        #print(f"Warning: Existing file at {archive_path} does not look like a dictionary archive. Starting new archive.")
                 except Exception as e:
-                    print(f"Warning: Could not load existing archive at {archive_path} due to error: {e}. Starting new archive.")
+                    pass
+                    #print(f"Warning: Could not load existing archive at {archive_path} due to error: {e}. Starting new archive.")
             
             # Update the dictionary with the new matrix
             archive_dict[key_name] = dict_update
             
             # Save the updated dictionary back, overwriting the old file
             np.save(archive_path, archive_dict, allow_pickle=True)
-            print(f"Archived filter under key '{key_name}' and saved updated archive to {archive_path}.")
+            #print(f"Archived filter under key '{key_name}' and saved updated archive to {archive_path}.")
 
 def compute_center(points):
     points = np.asarray(points, dtype=float)    
@@ -117,26 +119,34 @@ def compute_center(points):
 user_rotations=[np.pi/2,np.pi,np.pi*3/2,2*np.pi]
 tilt_rotations=[np.deg2rad(15),np.deg2rad(45),np.deg2rad(75)]
 
-for i,RT60 in enumerate(RT60s):
-    for ii,spatial_position in enumerate(spatial_positions):
+RT_loop = tqdm(enumerate(RT60s), total=len(RT60s), position=0)
+for i,RT60 in RT_loop:
+    RT_loop.set_description(f"RT60 = {RT60}")
+    position_loop = tqdm(enumerate(spatial_positions), total=len(spatial_positions), position=1, leave=False)
+    for ii,spatial_position in position_loop:
+        position_loop.set_description(f"Spatial position = {spatial_position}")
         sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(dark_mic_radius, spatial_position, N_mics)
-        for iii,user_rotation in enumerate(user_rotations):
+        rotation_loop = tqdm(enumerate(user_rotations), total=len(user_rotations), position=2, leave=False)
+        for iii,user_rotation in rotation_loop:
+            rotation_loop.set_description(f"User rotation = {round(user_rotation/np.pi*180, 2)} degrees")
             user_orientation = np.array([[np.cos(user_rotation), -np.sin(user_rotation), 0],
-                                            [np.sin(user_rotation),  np.cos(user_rotation), 0],
-                                            [              0,                0,             1]]) #Add roation around z-axis for bright zone ear mic til JORD
+                                         [np.sin(user_rotation),  np.cos(user_rotation), 0],
+                                         [                    0,                      0, 1]]) #Add roation around z-axis for bright zone ear mic til JORD
             center_sources = np.mean(sources_position_list, axis=0)
             orientation_source_temp = np.matmul(user_orientation, np.array(sources_position_list)-center_sources.T)
-            for iv,tilt_rotation in enumerate(tilt_rotations):
+            tilt_loop = tqdm(enumerate(tilt_rotations), total=len(tilt_rotations), position=3, leave=False)
+            for iv,tilt_rotation in tilt_loop:
+                tilt_loop.set_description(f"Phone tilt = {round(tilt_rotation/np.pi*180, 2)} degrees")
                 rotation_x = np.array([[1,                     0,                      0],
-                                        [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
-                                        [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]])
+                                       [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
+                                       [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]])
                 orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
                 orientation_source_final += center_sources.T
                 q, IR = design_vast_filter(orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
                         wav_path, RT60, mic_directions, user_rotation, fs_target, J, N, 
                         V, mu, room_dim, reg_eps, target_amplitude)
                 m = f"VAST_{i}_{ii}_{iii}_{iv}" #room,spatial position, user orientation, phone tilt
-                print(m)
+                #print(m)
                 archive_q_matrix(q, wav_path, m, 
                                  orientation_source_final, RT60, IR, mic_positions_list, spatial_position, dark_mic_radius,user_rotation,tilt_rotation)
 
