@@ -6,6 +6,9 @@ from scipy.linalg import toeplitz, eigh
 import time
 import os
 import matplotlib.pyplot as plt
+import time
+from numba import njit
+
 
 def setup_acoustic_scenario(sources, 
                         mic_positions_list, 
@@ -63,6 +66,7 @@ def setup_acoustic_scenario(sources,
 
     return IR, M_b, M_d
 
+
 def build_U_ml_single(x, h_ml, N, J):
     """ Build U^{m,l} (N x J) for a single mic m and single speaker l (Toeplitz matrix). """
     # u = x * h_ml (full conv), truncated to N samples
@@ -91,6 +95,7 @@ def build_Um_for_mic(m_idx, x, IR, N, J, n_srcs):
     U_m = np.hstack(U_blocks)
     return U_m
 
+
 def build_R_from_micset(mic_indices, x, IR, N, J, n_srcs, reg_eps=0):
     """
     Compute R = (1/|M|) * sum_{m in M} U^m.T @ U^m 
@@ -111,6 +116,7 @@ def build_R_from_micset(mic_indices, x, IR, N, J, n_srcs, reg_eps=0):
 
     return R
 
+
 def compute_rB(bright_mics_index, x, IR, d_B, N, J, n_srcs):
     """ Compute the cross-correlation vector r_B = E[U_B^T d_B] """
     LJ = n_srcs * J
@@ -126,6 +132,7 @@ def compute_rB(bright_mics_index, x, IR, d_B, N, J, n_srcs):
 
     return r_B
 
+
 def compute_q_vast(V, mu, lambda_vals, U, r_B):
     q = np.zeros_like(r_B)
     for v in range(V):
@@ -133,6 +140,7 @@ def compute_q_vast(V, mu, lambda_vals, U, r_B):
         projection = np.dot(U[:, v].T, r_B)
         q += weight * projection * U[:, v]
     return q
+
 
 def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
     rir_list = []

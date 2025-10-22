@@ -7,7 +7,6 @@ from VAST_filter_coefficients import design_vast_filter
 from tqdm import tqdm
 
 
-
 J = 1024
 N = 2000#len(wav)
 V = int(J*3/2)
@@ -66,7 +65,7 @@ def sources_mics(R, Center, N_mics):
                              [Center[0] + 0.2, Center[1], Center[2]+0.2]]
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, direction_list
 
-def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, IR, mic_positions, spatial_position, R,user_orientation,phone_tilt):
+def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, IR, mic_positions, spatial_position, R,user_orientation,phone_tilt,bright_zone_mics_index,dark_zone_mics_index):
             dict_update = {
                 'q_matrix': q_matrix, 
                 'J': J, #Order of filter
@@ -114,7 +113,7 @@ def compute_center(points):
     center = np.mean(points, axis=0)
     return center
 
-          
+
 
 user_rotations=[np.pi/2,np.pi,np.pi*3/2,2*np.pi]
 tilt_rotations=[np.deg2rad(15),np.deg2rad(45),np.deg2rad(75)]
@@ -147,6 +146,6 @@ for i,RT60 in RT_loop:
                         V, mu, room_dim, reg_eps, target_amplitude)
                 m = f"VAST_{i}_{ii}_{iii}_{iv}" #room,spatial position, user orientation, phone tilt
                 #print(m)
-                archive_q_matrix(q, wav_path, m, 
-                                 orientation_source_final, RT60, IR, mic_positions_list, spatial_position, dark_mic_radius,user_rotation,tilt_rotation)
+                archive_q_matrix(q, out_q_path, m, 
+                                 orientation_source_final, RT60, IR, mic_positions_list, spatial_position, dark_mic_radius,user_rotation,tilt_rotation,bright_zone_mics_index,dark_zone_mics_index)
 
