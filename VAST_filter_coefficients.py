@@ -205,7 +205,6 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     # --- Solve Generalized Eigenvalue Problem (GEP) ---
     #print("Solving Generalized Eigenvalue Problem...")
     lambda_vals, U = eigh(R_B, R_D)
-
     # Sort eigenvalues descending
     idx = np.argsort(-lambda_vals.real)
     lambda_vals = lambda_vals.real[idx]

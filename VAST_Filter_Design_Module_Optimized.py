@@ -1,192 +1,242 @@
 import numpy as np
 import pyroomacoustics as pra
-from scipy.linalg import toeplitz, eigh
+from scipy.io import wavfile
 import time
+import os
+import torch
+import torch.fft as tfft
 
-# --- Acoustic Setup Functions ---
+# ---------------------------
+# Helpers: device selection
+# ---------------------------
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#print("Using device:", device)
 
-def setup_acoustic_scenario(sources, 
-                            mic_positions_list, 
-                            fs_target, 
-                            room_dim, 
-                            rt60,
-                            mic_directions, 
-                            user_rotation):
-    """
-    Sets up a pyroomacoustics simulation environment (ShoeBox) and computes RIRs.
-    Returns: IR (list of lists)
-    """
-    # Define Room parameters
+# ---------------------------
+# Room setup (same as before)
+# ---------------------------
+def setup_acoustic_scenario(sources, mic_positions_list, bright_zone_mics_index,
+                            dark_zone_mics_index, fs_target, room_dim, rt60,
+                            mic_directions, user_rotation):
     e_absorption, max_order = pra.inverse_sabine(rt60, room_dim)
-    room = pra.ShoeBox(
-        room_dim,
-        fs=fs_target,
-        materials=pra.Material(e_absorption),
-        max_order=max_order)
-
-    # Add Sources (Loudspeakers)
+    room = pra.ShoeBox(room_dim, fs=fs_target, materials=pra.Material(e_absorption), max_order=max_order)
     for s in sources:
         room.add_source(s)
-
-    # Define and Add Microphone Grid
     mic_positions = np.array(mic_positions_list).T
-    mic_array = pra.MicrophoneArray(
-        mic_positions,
-        room.fs)
-    
-    # Apply directivity: The last mic is the bright zone mic, rotated by user_rotation
-    # The -np.pi/2 rotation aligns the primary axis with the user's forward view.
-    mic_array.set_directivity(mic_directions[:-1] + [
-        pra.directivities.HyperCardioid(
-            pra.directivities.DirectionVector(user_rotation - np.pi/2)
-        )
-    ])
-    
+    mic_array = pra.MicrophoneArray(mic_positions, room.fs)
     room.add_microphone_array(mic_array)
-
-    # Compute RIRs
+    try:
+        room.mic_array.set_directivity(
+            mic_directions[:-1] + [pra.directivities.HyperCardioid(
+                pra.directivities.DirectionVector(user_rotation - np.pi/2)
+            )]
+        )
+    except Exception:
+        pass
+    print(f"Computing RIRs for {mic_positions.shape[1]} mics and {len(sources)} sources...")
     room.compute_rir()
+    IR = room.rir
+    return IR, len(bright_zone_mics_index), len(dark_zone_mics_index)
 
-    # RIRs are stored in room.rir: room.rir[mic_index][source_index]
-    return room.rir
+# gpu_vast.py
+import numpy as np
+import time
 
-# --- VAST Matrix Construction Functions (Optimized for Reuse) ---
+try:
+    import cupy as cp
+    xp = cp
+    gpu_available = True
+except Exception:
+    cp = None
+    xp = np
+    gpu_available = False
 
-def build_U_l_single(x, N, J):
-    """ 
-    Build U^l (N x J) for a single speaker l (Toeplitz matrix) from the input signal x. 
-    This is independent of the RIRs or microphones.
+from scipy.linalg import toeplitz  # keep for fallback; we will reimplement with xp for GPU case
+from scipy.linalg import eigh as np_eigh  # fallback eigh
+# Note: if using CuPy, use cp.linalg.eigh
+
+# Utility: ensure arrays stay on correct device
+def as_xp_array(arr, dtype=xp.float32):
+    if xp is np:
+        return np.asarray(arr, dtype=dtype)
+    else:
+        return cp.asarray(arr, dtype=dtype)
+
+# --- GPU/NumPy-aware U builder ---
+def build_U_l_single_gpu(x, N, J, dtype=xp.float32):
     """
-    # Truncate/pad x to N samples
+    Build U^l (N x J) using sliding window view on xp (np or cupy).
+    For NumPy we use numpy.lib.stride_tricks.sliding_window_view; for CuPy we use cupy.lib.stride_tricks.sliding_window_view (available).
+    """
     x_vec = x[:N].copy() if len(x) >= N else np.pad(x, (0, N - len(x)))
+    x_vec = as_xp_array(x_vec, dtype=dtype)  # moves to device if cp
 
-    # The first column is x_vec, the first row are zeros (for causal filter)
-    first_col = x_vec
-    first_row = np.zeros(J)
-    
-    return toeplitz(first_col, first_row)[:N, :J]
+    # We want a Toeplitz where columns are x_vec shifted (causal): column j = x_vec shifted by j (zero-padded)
+    # Equivalent to building a sliding window of length J on a zero-padded x_vec
+    pad = xp.zeros(J - 1, dtype=dtype)
+    x_padded = xp.concatenate([x_vec, pad])  # length N + J -1
 
-def build_R_template(x, N, J, n_srcs):
+    # sliding_window_view produces shape (N, J) where row i = x_padded[i:i+J]
+    try:
+        from numpy.lib.stride_tricks import sliding_window_view as np_swv
+        # CuPy also has sliding_window_view under xp.lib for newer versions
+        swv = xp.lib.stride_tricks.sliding_window_view
+    except Exception:
+        # Fallback: build with explicit indexing (less efficient)
+        Np = x_padded.shape[0] - J + 1
+        U = xp.empty((N, J), dtype=dtype)
+        for j in range(J):
+            U[:, j] = x_padded[j:j+N]
+        return U
+
+    U = swv(x_padded, window_shape=J)[:N, :]  # shape (N, J)
+    return U
+
+# --- Build R_UU template ---
+def build_R_template_gpu(x, N, J, n_srcs, dtype=xp.float32):
     """
-    Optimization: Computes the common U^T @ U term only once.
-    Returns: 
-      - R_UU (LJ x LJ): The core U.T @ U matrix.
-      - U_l_blocks (list of N x J matrices): The individual U^l blocks.
+    Returns R_UU (LJ x LJ) and U_l_blocks (list of (N,J) xp arrays).
+    All on device if xp is cupy.
     """
-    
-    # 1. Build U^l blocks
-    U_l_blocks = [build_U_l_single(x, N, J) for _ in range(n_srcs)]
-
-    # 2. Assemble U_m_template = [U^1 | U^2 | ... | U^L]
-    U_m_template = np.hstack(U_l_blocks)
-    
-    # 3. Compute the core quadratic term
-    R_UU = U_m_template.T @ U_m_template
-
+    # build U_l blocks (identical for all sources if same x), but we still store references
+    U_single = build_U_l_single_gpu(x, N, J, dtype=dtype)  # (N, J)
+    # If n_srcs is large and U_single small, repeating horizontally is cheap:
+    U_l_blocks = [U_single] * n_srcs  # share same array (no copy)
+    U_m_template = xp.hstack([U_single for _ in range(n_srcs)])  # (N, LJ)
+    # Compute Gram matrix on device
+    R_UU = U_m_template.T @ U_m_template   # (LJ, LJ)
     return R_UU, U_l_blocks
 
-def build_R_from_template(R_UU, mic_indices, J, n_srcs, reg_eps=0):
-    """
-    Uses the pre-calculated R_UU template to compute R_B or R_D.
-    """
+# --- R builder (simple) ---
+def build_R_from_template_gpu(R_UU, mic_indices, J, n_srcs, reg_eps=0):
     LJ = n_srcs * J
-    
-    # R is the average over the microphone set
     R = R_UU / max(1, len(mic_indices))
-
-    # Apply regularization if needed (typically only for R_D)
     if reg_eps > 0:
-        R += reg_eps * np.eye(LJ)
-
+        R = R + reg_eps * xp.eye(LJ, dtype=R.dtype)
     return R
 
-def compute_rB(bright_mics_index, d_B, N, J, n_srcs, U_l_blocks):
-    """ Compute the cross-correlation vector r_B = E[U^T d] """
-    LJ = n_srcs * J
-    r_B = np.zeros((LJ,), dtype=float)
-
-    # U^m is the same template for all mics in the bright zone
-    U_m_template = np.hstack(U_l_blocks) # (N, LJ)
-
-    for mi, m in enumerate(bright_mics_index):
-        d_vec = d_B[:, mi]              # (N,)
-        
-        # r_B += U_m_template.T @ d_vec (The cross-correlation term)
-        r_B += U_m_template.T @ d_vec
-
-    # Normalize by the total number of data points (M_b * N)
-    r_B /= (len(bright_mics_index) * N)
-
+# --- r_B on GPU: do one matmul over all bright mics at once ---
+def compute_rB_gpu(bright_mics_index, d_B, N, J, n_srcs, U_l_blocks):
+    """
+    Compute r_B. Assumes d_B is (N, M_b) as NumPy or CuPy array.
+    We try to perform: r_B = (U_m_template.T @ D).sum(axis=1) / (M_b * N)
+    Equivalent to r_B = U_m_template.T @ (sum over m of d_B[:,m]) / (M_b * N)
+    """
+    U_single = U_l_blocks[0]  # xp array shape (N,J)
+    U_m_template = xp.hstack([U_single for _ in range(n_srcs)])  # (N, LJ)
+    # Move d_B to xp
+    d_B_xp = as_xp_array(d_B, dtype=U_single.dtype)  # (N, M_b)
+    # Sum across mics to get (N,) vector
+    s = d_B_xp.sum(axis=1)  # (N,)
+    r_B = U_m_template.T @ s  # (LJ,)
+    denom = (d_B_xp.shape[1] * N)
+    r_B = r_B / denom
     return r_B
 
-def compute_q_vast(V, mu, lambda_vals, U, r_B):
-    """ Computes the VAST filter vector q using the V dominant modes (eigenvectors). """
-    q = np.zeros_like(r_B, dtype=float)
-    
-    # Ensure components are real
-    lambda_vals = np.real(lambda_vals)
-    U = np.real(U)
-    r_B = np.real(r_B)
-    
-    for v in range(V):
-        # Regularized weighting factor
-        weight = lambda_vals[v] / (lambda_vals[v] + mu)
-        
-        # Projection onto the v-th eigenvector
-        projection = np.dot(U[:, v], r_B) 
-        
-        # Accumulate the weighted projection
-        q += weight * projection * U[:, v]
+# --- compute q using matrix ops (no loop) ---
+def compute_q_vast_gpu(V, mu, lambda_vals, U, r_B):
+    """
+    Use matrix formulation:
+      For selected V eigenvectors U_V (LJ x V) and lambda_vals_V (V,)
+      weight diag = lambda / (lambda + mu)
+      q = U_V @ ( diag(weight) @ (U_V.T @ r_B) )
+    This avoids per-eigenvector Python loops.
+    """
+    # Convert to xp arrays
+    lambda_vals = xp.asarray(xp.real(lambda_vals), dtype=r_B.dtype)
+    U = xp.asarray(xp.real(U), dtype=r_B.dtype)
+    r_B = xp.asarray(xp.real(r_B), dtype=r_B.dtype)
+
+    V = min(V, U.shape[1])
+    U_V = U[:, :V]               # (LJ, V)
+    lambda_V = lambda_vals[:V]   # (V,)
+
+    # compute intermediate: alpha = U_V.T @ r_B  => shape (V,)
+    alpha = U_V.T @ r_B          # (V,)
+    weights = lambda_V / (lambda_V + mu)  # (V,)
+    # weighted alpha
+    alpha_w = weights * alpha    # (V,)
+
+    q = U_V @ alpha_w            # (LJ,)
     return q
 
-# --- Main Design Function ---
+# --- eigen solver wrapper ---
+def generalized_eigh_gpu(R_B, R_D):
+    """
+    Solve generalized eigenproblem R_B x = lambda R_D x on xp (CuPy) if available,
+    otherwise fall back to scipy.linalg.eigh on CPU (converted back to np arrays).
+    """
+    if gpu_available:
+        # CuPy supports generalized eigen via cupy.linalg.eigh for generalized? 
+        # If not available, convert to dense standard problem: solve R_D^{-1} R_B
+        # But better: use cupy.linalg.eigh(R_B, R_D) if provided.
+        try:
+            lambda_vals, U = cp.linalg.eigh(R_B, R_D)
+            return lambda_vals, U
+        except Exception:
+            # fallback: compute R_D^{-1} @ R_B on device (careful about stability)
+            # Use cholesky of R_D: R_D = L L^H, solve L^{-1} R_B L^{-T} etc.
+            L = cp.linalg.cholesky(R_D)
+            invL = cp.linalg.inv(L)
+            C = invL @ R_B @ invL.T.conj()
+            lambda_vals, W = cp.linalg.eigh(C)
+            # transform eigenvectors back
+            U = invL.T.conj() @ W
+            return lambda_vals, U
+    else:
+        # CPU fallback: convert back to numpy
+        R_B_np = np.asarray(R_B)
+        R_D_np = np.asarray(R_D)
+        lambda_vals, U = np_eigh(R_B_np, R_D_np)
+        return lambda_vals, U
 
-def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                        x, rt60, direction_list, user_rotation, fs_target, J, N, 
-                        V, mu, room_dim, reg_eps, target_amplitude):
+# --- Top-level design function that uses GPU functions ---
+def design_vast_filter(sources, mic_positions_list,
+                           bright_zone_mics_index, dark_zone_mics_index,
+                           x, rt60, direction_list, user_rotation, fs_target, J, N,
+                           V, mu, room_dim, reg_eps, target_amplitude,
+                           dtype=xp.float32):
+    # Keep RIR generation on CPU (pyroomacoustics) because pyroomacoustics is CPU-only
+    # --- you can call your existing setup_acoustic_scenario to get IR on CPU ---
+    IR = setup_acoustic_scenario(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, fs_target, room_dim, rt60, direction_list, user_rotation)
+    #sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, fs_target, room_dim, rt60, mic_directions, user_rotation
 
     n_srcs = len(sources)
     M_b = len(bright_zone_mics_index)
-    
-    # 1. Setup Acoustic Scenario and Compute RIRs
-    IR = setup_acoustic_scenario(
-        sources=sources, 
-        mic_positions_list=mic_positions_list, 
-        fs_target=fs_target, room_dim=room_dim, rt60=rt60, mic_directions=direction_list, user_rotation=user_rotation
-    )
 
-    # 2. Compute Covariance Matrix Templates
-    tstart = time.perf_counter()
-    R_UU, U_l_blocks = build_R_template(x, N, J, n_srcs)
-    
-    # 3. Compute Covariance Matrices R_B and R_D
-    R_B = build_R_from_template(R_UU, bright_zone_mics_index, J, n_srcs, reg_eps=0)
-    R_D = build_R_from_template(R_UU, dark_zone_mics_index, J, n_srcs, reg_eps=reg_eps)
+    t0 = time.perf_counter()
+    R_UU, U_l_blocks = build_R_template_gpu(x, N, J, n_srcs, dtype=dtype)
+    t1 = time.perf_counter()
 
-    # 4. Solve Generalized Eigenvalue Problem (GEP)
-    lambda_vals, U = eigh(R_B, R_D)
+    R_B = build_R_from_template_gpu(R_UU, bright_zone_mics_index, J, n_srcs, reg_eps=0)
+    R_D = build_R_from_template_gpu(R_UU, dark_zone_mics_index, J, n_srcs, reg_eps=reg_eps)
 
-    # Sort eigenvalues descending (most important modes first)
-    idx = np.argsort(-lambda_vals.real)
-    lambda_vals = lambda_vals.real[idx]
-    U = U[:, idx]
+    # Solve GEP
+    lambda_vals, U = generalized_eigh_gpu(R_B, R_D)
 
-    # Check V (number of modes) vs total modes
+    # Sort descending
+    if gpu_available:
+        idx = cp.argsort(-lambda_vals.real)
+        lambda_vals = lambda_vals.real[idx]
+        U = U[:, idx]
+    else:
+        idx = np.argsort(-lambda_vals.real)
+        lambda_vals = lambda_vals.real[idx]
+        U = U[:, idx]
+
     V = min(V, len(lambda_vals))
 
-    # 5. Compute VAST Filter Vector (q)
-    
-    # Define desired signal d_B (constant amplitude across time/mics)
-    d_B = np.ones((N, M_b)) * target_amplitude
+    # desired signal
+    d_B = np.ones((N, M_b), dtype=np.float32) * target_amplitude
 
-    # Compute the cross-correlation term r_B
-    r_B = compute_rB(bright_zone_mics_index, d_B, N, J, n_srcs, U_l_blocks)
+    r_B = compute_rB_gpu(bright_zone_mics_index, d_B, N, J, n_srcs, U_l_blocks)
 
-    # Compute the final VAST filter vector q
-    q_vec = compute_q_vast(V, mu, lambda_vals, U, r_B)
+    # compute q
+    q_vec = compute_q_vast_gpu(V, mu, lambda_vals, U, r_B)
 
-    # Reshape q vector into a matrix (Loudspeakers x Taps)
+    # bring q back to host if on GPU
+    if gpu_available:
+        q_vec = cp.asnumpy(q_vec)
+
     q_matrix = q_vec.reshape(n_srcs, J)
-
-    # Return both the filter matrix and the RIRs (as requested by the main script)
     return q_matrix, IR
