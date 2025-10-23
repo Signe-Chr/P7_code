@@ -1,10 +1,12 @@
 import numpy as np
 import os
 import scipy.io.wavfile as wavfile
+import torch
 import pyroomacoustics as pra
-from VAST_filter_coefficients import design_vast_filter
-import datetime
-
+#from VAST_filter_coefficients import design_vast_filter
+from tqdm import tqdm
+from VAST_filter_coefficients_optimized_signe import design_vast_filter
+from alive_progress import alive_bar
 
 
 J = 1024
@@ -106,7 +108,7 @@ def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, I
             
             # Save the updated dictionary back, overwriting the old file
             np.save(archive_path, archive_dict, allow_pickle=True)
-            #print(f"Archived filter under key '{key_name}' and saved updated archive to {archive_path}.")
+            print(f"Archived filter under key '{key_name}' and saved updated archive to {archive_path}.")
 
 def compute_center(points):
     points = np.asarray(points, dtype=float)    
@@ -117,50 +119,57 @@ def compute_center(points):
 
 user_rotations=[np.pi/2,np.pi,np.pi*3/2,2*np.pi]
 tilt_rotations=[np.deg2rad(15),np.deg2rad(45),np.deg2rad(75)]
+
+
+
+# Outer loop: RT60
+# Compute the total number of iterations across all nested loops
 total_iterations = len(RT60s) * len(spatial_positions) * len(user_rotations) * len(tilt_rotations)
-for i, RT60 in enumerate(RT60s):
-    print(f"\nRT60 = {RT60}")
-    for ii, spatial_position in enumerate(spatial_positions):
-        print(f"  Spatial position = {spatial_position}")
-        sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(
-            dark_mic_radius, spatial_position, N_mics
-        )
 
-        for iii, user_rotation in enumerate(user_rotations):
-            print(f"    User rotation = {round(user_rotation / np.pi * 180, 2)} degrees")
-            user_orientation = np.array([
-                [np.cos(user_rotation), -np.sin(user_rotation), 0],
-                [np.sin(user_rotation),  np.cos(user_rotation), 0],
-                [                    0,                      0, 1]
-            ])  # rotation around z-axis for bright zone ear mic
+with alive_bar(total_iterations, title='Designing VAST Filters', spinner='dots_waves') as bar:
+    for i, RT60 in enumerate(RT60s):
+        for ii, spatial_position in enumerate(spatial_positions):
+            for iii, user_rotation in enumerate(user_rotations):
+                for iv, tilt_rotation in enumerate(tilt_rotations):
 
-            center_sources = np.mean(sources_position_list, axis=0)
-            orientation_source_temp = np.matmul(user_orientation, np.array(sources_position_list) - center_sources.T)
+                    # Compute sources and mic setup
+                    sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = \
+                        sources_mics(dark_mic_radius, spatial_position, N_mics)
 
-            for iv, tilt_rotation in enumerate(tilt_rotations):
-                print(f"      Phone tilt = {round(tilt_rotation / np.pi * 180, 2)} degrees")
-                rotation_x = np.array([
-                    [1,                     0,                      0],
-                    [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
-                    [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]
-                ])
+                    # Compute orientations
+                    center_sources = np.mean(sources_position_list, axis=0)
+                    user_orientation = np.array([
+                        [np.cos(user_rotation), -np.sin(user_rotation), 0],
+                        [np.sin(user_rotation),  np.cos(user_rotation), 0],
+                        [0, 0, 1]
+                    ])
+                    orientation_source_temp = np.matmul(user_orientation, np.array(sources_position_list) - center_sources.T)
+                    rotation_x = np.array([
+                        [1, 0, 0],
+                        [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
+                        [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]
+                    ])
+                    orientation_source_final = np.matmul(rotation_x, orientation_source_temp) + center_sources.T
 
-                orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
-                orientation_source_final += center_sources.T
-                q, IR = design_vast_filter(
-                    orientation_source_final, mic_positions_list,
-                    bright_zone_mics_index, dark_zone_mics_index,
-                    wav, RT60, mic_directions, user_rotation,
-                    fs_target, J, N, V, mu, room_dim, reg_eps, target_amplitude
-                )
+                    # Design the VAST filter
+                    q, IR = design_vast_filter(
+                        orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
+                        wav_path, RT60, mic_directions, user_rotation, fs_target, J, N,
+                        V, mu, room_dim, reg_eps, target_amplitude
+                    )
 
-                m = f"VAST_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
-                print(m, datetime.datetime.now())
-                print(f'Completed iteration {iv} out of {total_iterations}')
+                    # Archive the result
+                    m_key = f"VAST_{i}_{ii}_{iii}_{iv}"
+                    archive_q_matrix(q, out_q_path, m_key,
+                                     orientation_source_final, RT60, IR, mic_positions_list,
+                                     spatial_position, dark_mic_radius, user_rotation,
+                                     tilt_rotation, bright_zone_mics_index, dark_zone_mics_index)
 
-                archive_q_matrix(
-                    q, out_q_path, m,
-                    orientation_source_final, RT60, IR, mic_positions_list,
-                    spatial_position, dark_mic_radius, user_rotation, tilt_rotation,
-                    bright_zone_mics_index, dark_zone_mics_index
-                )
+                    # Update the alive-progress bar text
+                    bar.text = (
+                        f"RT60={RT60:.1f}, Pos={np.round(spatial_position, 1)}, "
+                        f"Rot={np.rad2deg(user_rotation):.0f}°, Tilt={np.rad2deg(tilt_rotation):.0f}°, "
+                        f"Key={m_key}"
+                    )
+                    bar()  # increment the progress bar
+
