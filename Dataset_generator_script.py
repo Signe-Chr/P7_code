@@ -3,9 +3,9 @@ import os
 import scipy.io.wavfile as wavfile
 import torch
 import pyroomacoustics as pra
-from VAST_filter_coefficients import design_vast_filter
+#from VAST_filter_coefficients import design_vast_filter
 from tqdm import tqdm
-
+from VAST_Filter_Design_Module_Optimized import design_vast_filter
 
 
 J = 1024
@@ -66,7 +66,7 @@ def sources_mics(R, Center, N_mics):
                              [Center[0] + 0.2, Center[1], Center[2]+0.2]]
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, direction_list
 
-def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, IR, mic_positions, spatial_position, R,user_orientation,phone_tilt):
+def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, IR, mic_positions, spatial_position, R, user_orientation,phone_tilt):
             dict_update = {
                 'q_matrix': q_matrix, 
                 'J': J, #Order of filter
@@ -137,6 +137,6 @@ for i,RT60 in enumerate(RT60s):
                         V, mu, room_dim, reg_eps, target_amplitude)
                 m = f"VAST_{i}_{ii}_{iii}_{iv}" #room,spatial position, user orientation, phone tilt
                 print(m)
-                archive_q_matrix(q, wav_path, m, 
+                archive_q_matrix(q, out_q_path, m, 
                                  orientation_source_final, RT60, IR, mic_positions_list, spatial_position, dark_mic_radius,user_rotation,tilt_rotation)
 
