@@ -6,6 +6,9 @@ from scipy.linalg import toeplitz, eigh
 import time
 import os
 import matplotlib.pyplot as plt
+import time
+from numba import njit
+
 
 def setup_acoustic_scenario(sources, 
                         mic_positions_list, 
@@ -53,7 +56,7 @@ def setup_acoustic_scenario(sources,
             )])
 
     # Compute RIRs
-    print(f"Computing RIRs for {mic_positions.shape[1]} mics (Bright: {M_b}, Dark: {M_d}) and {len(sources_list)} sources...")
+    #print(f"Computing RIRs for {mic_positions.shape[1]} mics (Bright: {M_b}, Dark: {M_d}) and {len(sources_list)} sources...")
     room.compute_rir()
 
 
@@ -62,6 +65,7 @@ def setup_acoustic_scenario(sources,
     IR = room.rir 
 
     return IR, M_b, M_d
+
 
 def build_U_ml_single(x, h_ml, N, J):
     """ Build U^{m,l} (N x J) for a single mic m and single speaker l (Toeplitz matrix). """
@@ -91,6 +95,7 @@ def build_Um_for_mic(m_idx, x, IR, N, J, n_srcs):
     U_m = np.hstack(U_blocks)
     return U_m
 
+
 def build_R_from_micset(mic_indices, x, IR, N, J, n_srcs, reg_eps=0):
     """
     Compute R = (1/|M|) * sum_{m in M} U^m.T @ U^m 
@@ -111,6 +116,7 @@ def build_R_from_micset(mic_indices, x, IR, N, J, n_srcs, reg_eps=0):
 
     return R
 
+
 def compute_rB(bright_mics_index, x, IR, d_B, N, J, n_srcs):
     """ Compute the cross-correlation vector r_B = E[U_B^T d_B] """
     LJ = n_srcs * J
@@ -126,6 +132,7 @@ def compute_rB(bright_mics_index, x, IR, d_B, N, J, n_srcs):
 
     return r_B
 
+
 def compute_q_vast(V, mu, lambda_vals, U, r_B):
     q = np.zeros_like(r_B)
     for v in range(V):
@@ -133,6 +140,7 @@ def compute_q_vast(V, mu, lambda_vals, U, r_B):
         projection = np.dot(U[:, v].T, r_B)
         q += weight * projection * U[:, v]
     return q
+
 
 def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
     rir_list = []
@@ -157,7 +165,7 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
                         wav_path, rt60, direction_list, user_rotation, fs_target, J, N, 
                         V, mu, room_dim, reg_eps, target_amplitude):
 
-    print("--- Starting VAST Time-Domain Filter Design ---")
+    #print("--- Starting VAST Time-Domain Filter Design ---")
     t_start_total = time.perf_counter()
 
     # --- Load and Prepare Signal (x) ---
@@ -167,7 +175,8 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
 
 
     if fs_wav != fs_target:
-        print(f"Warning: wav sample rate {fs_wav} != target {fs_target}. This implementation does not resample.")
+        pass
+        #print(f"Warning: wav sample rate {fs_wav} != target {fs_target}. This implementation does not resample.")
 
     wav = np.array(wav, dtype=float)
     if wav.ndim > 1:
@@ -191,12 +200,11 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     tstart = time.perf_counter()
     R_B = build_R_from_micset(bright_zone_mics_index, x, IR, N, J, n_srcs, reg_eps=0)
     R_D = build_R_from_micset(dark_zone_mics_index, x, IR, N, J, n_srcs, reg_eps=reg_eps)
-    print("Built R_B and R_D in {:.2f} s".format(time.perf_counter() - tstart))
+    #print("Built R_B and R_D in {:.2f} s".format(time.perf_counter() - tstart))
 
     # --- Solve Generalized Eigenvalue Problem (GEP) ---
-    print("Solving Generalized Eigenvalue Problem...")
+    #print("Solving Generalized Eigenvalue Problem...")
     lambda_vals, U = eigh(R_B, R_D)
-
     # Sort eigenvalues descending
     idx = np.argsort(-lambda_vals.real)
     lambda_vals = lambda_vals.real[idx]
@@ -204,7 +212,7 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
 
     # Check V (number of modes) vs total modes
     V = min(V, len(lambda_vals))
-    print(f"Using V={V} modes for VAST solution.")
+    #print(f"Using V={V} modes for VAST solution.")
 
     # --- Compute VAST Filter Vector (q) ---
 

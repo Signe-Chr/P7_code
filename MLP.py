@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from torchsummary import summary
 
 L = 3       # Loudspeaker
 J = 1024    # Filter order
@@ -17,16 +18,38 @@ dummy_q = np.zeros(L*J)
 
 # ---- 1. Load data
 data = np.load("Junk/VAST_filter_archive.npy", allow_pickle=True).item()
-
+for key, inner in data.items():
+    print(f"--- Key: {key} ---")
+    for field in inner:
+        value = inner[field]
+        if isinstance(value, np.ndarray):
+            print(f"{field}: numpy array, shape = {value.shape}")
+        elif isinstance(value, list):
+            print(f"{field}: list, length = {len(value)}")
+        else:
+            print(f"{field}: type = {type(value)}, value = {value}")
+    break
 X_list, y_list = [], []
 
+
 for key, inner in data.items():
-    # Input: flatten source positions (3x3 -> 9)
-    X = np.ravel(inner['sources_position'])
-
-    # Output: flatten q_matrix (3x1048 -> 3144)
-    y = np.ravel(inner['q_matrix'])
-
+    # Robust håndtering af input features
+    rt60 = inner.get('RT60', 0)                  # fallback til 0 hvis mangler
+    phone_tilt = inner.get('Phone Tilt', 0)
+    user_orient = inner.get('User orientation', 0)
+    spatial = inner.get('Spatial_position', [0,0,0])  # fallback 3D vektor
+    spatial = np.array(spatial).ravel()              # flad ud til 1D
+    
+    X = np.concatenate([
+        [rt60],
+        [phone_tilt],
+        [user_orient],
+        spatial
+    ])
+    
+    # Output: flatten q_matrix
+    y = np.ravel(inner.get('q_matrix', np.zeros(L*J)))
+    
     X_list.append(X)
     y_list.append(y)
 
@@ -66,6 +89,7 @@ class FilterNet(nn.Module):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = FilterNet(input_size=X.shape[1], output_size=y.shape[1]).to(device)
+summary(model, input_size=(X.shape[1],))
 
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
