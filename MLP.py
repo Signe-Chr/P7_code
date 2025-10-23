@@ -57,9 +57,9 @@ for key, inner in data.items():
 X = np.stack(X_list)
 y = np.stack(y_list)
 
-print(X)
-print("X shape:", X.shape)
-print("y shape:", y.shape)
+#print(X)
+#print("X shape:", X.shape)
+#print("y shape:", y.shape)
 
 # ---- 2. Train/test split and scaling
 scaler_X = StandardScaler()
@@ -91,7 +91,7 @@ class FilterNet(nn.Module):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = FilterNet(input_size=X.shape[1], output_size=y.shape[1]).to(device)
-summary(model, input_size=(X.shape[1],))
+#summary(model, input_size=(X.shape[1],))
 
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -121,12 +121,11 @@ def train(X, y, epochs, batch_size):
             print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
     return model
 
-train(X_train, y_train, epochs=200, batch_size=32)
-#torch.save(model.state_dict(), "filter_mlp_model.pth")
-#gemt_model = model.load_state_dict(torch.load("filter_mlp_model_full.pth"))
-torch.save(model, "filter_mlp_model_full.pth")
-#gemt_model = torch.load("filter_mlp_model_full.pth", weights_only=False)
-#model = gemt_model
+
+#train(X_train, y_train, epochs=200, batch_size=32)
+#torch.save(model, "filter_mlp_model_full.pth")
+gemt_model = torch.load("filter_mlp_model_full.pth", weights_only=False)
+model = gemt_model
 
 
 # ---- 5. Evaluation
