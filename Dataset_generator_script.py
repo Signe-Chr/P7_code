@@ -1,10 +1,8 @@
 import numpy as np
 import os
 import scipy.io.wavfile as wavfile
-import torch
 import pyroomacoustics as pra
 from VAST_filter_coefficients import design_vast_filter
-from tqdm import tqdm
 import datetime
 
 
