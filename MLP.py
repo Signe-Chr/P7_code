@@ -121,18 +121,18 @@ def train(X, y, epochs, batch_size):
             print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
     return model
 
-train(X_train, y_train, epochs=200, batch_size=32)
+#train(X_train, y_train, epochs=200, batch_size=32)
 #torch.save(model.state_dict(), "filter_mlp_model.pth")
 #gemt_model = model.load_state_dict(torch.load("filter_mlp_model_full.pth"))
-torch.save(model, "filter_mlp_model_full.pth")
+#torch.save(model, "filter_mlp_model_full.pth")
 gemt_model = torch.load("filter_mlp_model_full.pth", weights_only=False)
 
 model = gemt_model
 
-
+dummy_input = torch.randn(1, X.shape[1]).to(device)
 model.eval()
 with torch.no_grad():
-    Y = model(dumm)
+    Y = model(dummy_input)
 print(Y)
 
 # ---- 5. Evaluation
