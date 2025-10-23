@@ -191,7 +191,7 @@ def generalized_eigh_gpu(R_B, R_D):
         return lambda_vals, U
 
 # --- Top-level design function that uses GPU functions ---
-def design_vast_filter(sources, mic_positions_list,
+def design_vast_filter1(sources, mic_positions_list,
                            bright_zone_mics_index, dark_zone_mics_index,
                            x, rt60, direction_list, user_rotation, fs_target, J, N,
                            V, mu, room_dim, reg_eps, target_amplitude,
