@@ -117,6 +117,7 @@ def compute_center(points):
 
 user_rotations=[np.pi/2,np.pi,np.pi*3/2,2*np.pi]
 tilt_rotations=[np.deg2rad(15),np.deg2rad(45),np.deg2rad(75)]
+iteration_count=0
 total_iterations = len(RT60s) * len(spatial_positions) * len(user_rotations) * len(tilt_rotations)
 for i, RT60 in enumerate(RT60s):
     print(f"\nRT60 = {RT60}")
@@ -156,7 +157,7 @@ for i, RT60 in enumerate(RT60s):
 
                 m = f"VAST_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
                 print(m, datetime.datetime.now())
-                print(f'Completed iteration {iv} out of {total_iterations}')
+                
 
                 archive_q_matrix(
                     q, out_q_path, m,
@@ -164,3 +165,5 @@ for i, RT60 in enumerate(RT60s):
                     spatial_position, dark_mic_radius, user_rotation, tilt_rotation,
                     bright_zone_mics_index, dark_zone_mics_index
                 )
+                iteration_count += 1
+                print(f'Completed iteration {iteration_count} out of {total_iterations}')
