@@ -3,9 +3,8 @@ import os
 import scipy.io.wavfile as wavfile
 import torch
 import pyroomacoustics as pra
-#from VAST_filter_coefficients import design_vast_filter
+from VAST_filter_coefficients import design_vast_filter
 from tqdm import tqdm
-from VAST_Filter_Design_Module_Optimized import design_vast_filter
 import datetime
 
 
@@ -150,7 +149,6 @@ for i, RT60 in enumerate(RT60s):
 
                 orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
                 orientation_source_final += center_sources.T
-
                 q, IR = design_vast_filter(
                     orientation_source_final, mic_positions_list,
                     bright_zone_mics_index, dark_zone_mics_index,

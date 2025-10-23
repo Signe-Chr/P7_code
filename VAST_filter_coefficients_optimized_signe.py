@@ -7,7 +7,7 @@ import time
 import os
 import matplotlib.pyplot as plt
 import time
-from numba import njit
+from numba import njit, prange
 
 
 def setup_acoustic_scenario(sources, 
@@ -66,6 +66,18 @@ def setup_acoustic_scenario(sources,
 
     return IR, M_b, M_d
 
+@njit(parallel=False, fastmath=True)
+def toeplitz_block_numba(cross, center, J):
+    """Fast Toeplitz block builder using Numba instead of scipy.linalg.toeplitz.
+       cross: full cross-correlation vector (len = 2N-1)
+       center: index of zero-lag (N-1)
+       J: number of filter taps
+    """
+    out = np.empty((J, J), dtype=np.float64)
+    for i in range(J):
+        for j in range(J):
+            out[i, j] = cross[center + i - j]
+    return out
 
 def build_U_ml_single(x, h_ml, N, J):
     """ Build U^{m,l} (N x J) for a single mic m and single speaker l (Toeplitz matrix). """
@@ -97,25 +109,59 @@ def build_Um_for_mic(m_idx, x, IR, N, J, n_srcs):
 
 
 def build_R_from_micset(mic_indices, x, IR, N, J, n_srcs, reg_eps=0):
-    """
-    Compute R = (1/|M|) * sum_{m in M} U^m.T @ U^m 
-    R is the average covariance approximation over the microphones in the set.
-    """
+    """Compute R = (1/|M|) * sum_{m in M} U^m.T @ U^m, optimized with Numba Toeplitz blocks."""
     LJ = n_srcs * J
-    R = np.zeros((LJ, LJ), dtype=float)
+    R = np.zeros((LJ, LJ), dtype=np.float64)
+    center = N - 1
 
     for m in mic_indices:
-        U_m = build_Um_for_mic(m, x, IR, N, J, n_srcs)
-        R += U_m.T @ U_m
+        # Compute all u_{m,l}(t)
+        u_list = [fftconvolve(x, IR[m][l])[:N] for l in range(n_srcs)]
+        Rm = np.zeros((LJ, LJ), dtype=np.float64)
+
+        for l in range(n_srcs):
+            u_l = u_list[l]
+            for k in range(l, n_srcs):
+                u_k = u_list[k]
+                cross = fftconvolve(u_l, u_k[::-1])  # cross-correlation
+                block = toeplitz_block_numba(cross, center, J)
+                i0 = l * J
+                j0 = k * J
+                Rm[i0:i0 + J, j0:j0 + J] = block
+                if k != l:
+                    Rm[j0:j0 + J, i0:i0 + J] = block.T
+        R += Rm
 
     R /= max(1, len(mic_indices))
 
-    # Apply regularization if needed (for R_D)
     if reg_eps > 0:
         R += reg_eps * np.eye(LJ)
 
     return R
 
+@njit(fastmath=True)
+def compute_rB_numba(bright_mics_index, x, IR_list, d_B, N, J, n_srcs):
+    """Fast version of r_B computation using direct convolution and Numba."""
+    LJ = n_srcs * J
+    r_B = np.zeros(LJ, dtype=np.float64)
+    center = N - 1
+
+    for mi in range(len(bright_mics_index)):
+        m = bright_mics_index[mi]
+        d_vec = d_B[:, mi]
+        for l in range(n_srcs):
+            h_ml = IR_list[m][l]
+            u_ml = np.convolve(x, h_ml)[:N]
+            # Cross-correlate d_B with u_ml (equivalent to U_ml.T @ d_B)
+            cross = np.convolve(u_ml, d_vec[::-1])
+            start = center
+            r_seg = np.zeros(J)
+            for j in range(J):
+                r_seg[j] = cross[start + j]
+            r_B[l * J : (l + 1) * J] += r_seg
+
+    r_B /= (len(bright_mics_index) * N)
+    return r_B
 
 def compute_rB(bright_mics_index, x, IR, d_B, N, J, n_srcs):
     """ Compute the cross-correlation vector r_B = E[U_B^T d_B] """
@@ -168,6 +214,7 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     #print("--- Starting VAST Time-Domain Filter Design ---")
     t_start_total = time.perf_counter()
 
+
     wav = np.array(wav, dtype=float)
     if wav.ndim > 1:
         wav = wav[:, 0]
@@ -194,7 +241,11 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
 
     # --- Solve Generalized Eigenvalue Problem (GEP) ---
     #print("Solving Generalized Eigenvalue Problem...")
-    lambda_vals, U = eigh(R_B, R_D)
+    LJ = R_B.shape[0]
+    V_use = min(V, LJ)
+    # compute only the largest V eigenpairs of the generalized problem
+    # eigh returns ascending eigenvalues; subset_by_index=(LJ-V_use, LJ-1)
+    lambda_vals, U = eigh(R_B, R_D, subset_by_index=(LJ - V_use, LJ - 1))
     # Sort eigenvalues descending
     idx = np.argsort(-lambda_vals.real)
     lambda_vals = lambda_vals.real[idx]
@@ -208,8 +259,23 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
 
     # Define desired signal d_B (constant amplitude across time/mics)
     d_B = np.ones((N, M_b)) * target_amplitude
+    max_len = max(len(ir) for mic_ir in IR for ir in mic_ir)
+    n_mics = len(IR)
+    n_srcs = len(IR[0])
 
-    r_B = compute_rB(bright_zone_mics_index, x, IR, d_B, N, J, n_srcs)
+    # Pad each IR to the same length
+    IR_array = np.zeros((n_mics, n_srcs, max_len), dtype=np.float32)
+    for m in range(n_mics):
+        for s in range(n_srcs):
+            ir = IR[m][s]
+            L = len(ir)
+            IR_array[m, s, :L] = ir.astype(np.float32)
+
+    # Replace the old IR
+    IR = IR_array
+    x = np.array(x, dtype=np.float32)
+
+    r_B = compute_rB_numba(bright_zone_mics_index, x, IR, d_B, N, J, n_srcs)
 
     q_vec = compute_q_vast(V, mu, lambda_vals, U, r_B)
 
