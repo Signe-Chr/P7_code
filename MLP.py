@@ -14,10 +14,11 @@ dummy_input = np.array([0.2,    # Reverberation, float
                         0,      # Orientation,   degrees
                         15])    # Tilt,          degrees
 
-dummy_q = np.zeros(L*J)
+dumm = torch.tensor(dummy_input, dtype=torch.float32).unsqueeze(0)
+print(dumm, dummy_input)
 
 # ---- 1. Load data
-data = np.load("Junk/VAST_filter_archive.npy", allow_pickle=True).item()
+data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
 for key, inner in data.items():
     print(f"--- Key: {key} ---")
     for field in inner:
@@ -33,12 +34,12 @@ X_list, y_list = [], []
 
 
 for key, inner in data.items():
-    # Robust håndtering af input features
-    rt60 = inner.get('RT60', 0)                  # fallback til 0 hvis mangler
-    phone_tilt = inner.get('Phone Tilt', 0)
-    user_orient = inner.get('User orientation', 0)
-    spatial = inner.get('Spatial_position', [0,0,0])  # fallback 3D vektor
-    spatial = np.array(spatial).ravel()              # flad ud til 1D
+    # Robust håndtering af input features (fallback til 0 hvis mangler)
+    rt60 = inner.get('RT60', 0)                         # 2.5
+    phone_tilt = inner.get('Phone_tilt', 0)             # I radianer: 0.261, 0.785, 1.309
+    user_orient = inner.get('User_orientation', 0)      # I radianer: 0, 1.57, 3.14, 4.71
+    spatial = inner.get('Spatial_position', [0,0,0])    # (x, y, z): (5, 5 ,1.7) betyder i midten af rummet og i højde 1.7m
+    spatial = np.array(spatial).ravel()                 # flad ud til 1D
     
     X = np.concatenate([
         [rt60],
@@ -56,6 +57,7 @@ for key, inner in data.items():
 X = np.stack(X_list)
 y = np.stack(y_list)
 
+print(X)
 print("X shape:", X.shape)
 print("y shape:", y.shape)
 
@@ -94,31 +96,51 @@ summary(model, input_size=(X.shape[1],))
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
-# ---- 4. Training loop
-epochs = 200
-batch_size = 32
+# ---- 4. Train and save the model
+def train(X, y, epochs, batch_size):
+    
+    epochs = 200
+    batch_size = 32
 
-for epoch in range(epochs):
-    permutation = torch.randperm(X_train.size(0))
-    total_loss = 0.0
+    for epoch in range(epochs):
+        permutation = torch.randperm(X_train.size(0))
+        total_loss = 0.0
 
-    for i in range(0, X_train.size(0), batch_size):
-        idx = permutation[i:i + batch_size]
-        batch_X, batch_y = X_train[idx].to(device), y_train[idx].to(device)
+        for i in range(0, X_train.size(0), batch_size):
+            idx = permutation[i:i + batch_size]
+            batch_X, batch_y = X_train[idx].to(device), y_train[idx].to(device)
 
-        optimizer.zero_grad()
-        outputs = model(batch_X)
-        loss = criterion(outputs, batch_y)
-        loss.backward()
-        optimizer.step()
-        total_loss += loss.item()
+            optimizer.zero_grad()
+            outputs = model(batch_X)
+            loss = criterion(outputs, batch_y)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
 
-    if (epoch + 1) % 20 == 0:
-        print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
+        if (epoch + 1) % 20 == 0:
+            print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
+    return model
 
-# ---- 5. Evaluation
+train(X_train, y_train, epochs=200, batch_size=32)
+#torch.save(model.state_dict(), "filter_mlp_model.pth")
+#gemt_model = model.load_state_dict(torch.load("filter_mlp_model_full.pth"))
+torch.save(model, "filter_mlp_model_full.pth")
+gemt_model = torch.load("filter_mlp_model_full.pth", weights_only=False)
+
+model = gemt_model
+
+
 model.eval()
 with torch.no_grad():
-    preds = model(X_test.to(device)).cpu().numpy()
-    mse = np.mean((preds - y_test.numpy()) ** 2)
-print(f"\nTest MSE: {mse:.6f}")
+    Y = model(dumm)
+print(Y)
+
+# ---- 5. Evaluation
+#model.eval()
+#with torch.no_grad():
+#    preds = model(X_test.to(device)).cpu().numpy()
+#    mse = np.mean((preds - y_test.numpy()) ** 2)
+#print(f"\nTest MSE: {mse:.6f}")
+
+
+

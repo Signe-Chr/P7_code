@@ -162,21 +162,11 @@ def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
 
 
 def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                        wav_path, rt60, direction_list, user_rotation, fs_target, J, N, 
+                        wav, rt60, direction_list, user_rotation, fs_target, J, N, 
                         V, mu, room_dim, reg_eps, target_amplitude):
 
     #print("--- Starting VAST Time-Domain Filter Design ---")
     t_start_total = time.perf_counter()
-
-    # --- Load and Prepare Signal (x) ---
-    if not os.path.exists(wav_path):
-        raise FileNotFoundError(f"{wav_path} not found - adjust path.")
-    fs_wav, wav = wavfile.read(wav_path)
-
-
-    if fs_wav != fs_target:
-        pass
-        #print(f"Warning: wav sample rate {fs_wav} != target {fs_target}. This implementation does not resample.")
 
     wav = np.array(wav, dtype=float)
     if wav.ndim > 1:

@@ -1,54 +1,42 @@
 import numpy as np
 import pyroomacoustics as pra
-from scipy.linalg import toeplitz, eigh
+from scipy.io import wavfile
 import time
+import os
+import torch
+import torch.fft as tfft
 
-# --- Acoustic Setup Functions ---
+# ---------------------------
+# Helpers: device selection
+# ---------------------------
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#print("Using device:", device)
 
-def setup_acoustic_scenario(sources, 
-                            mic_positions_list, 
-                            fs_target, 
-                            room_dim, 
-                            rt60,
-                            mic_directions, 
-                            user_rotation):
-    """
-    Sets up a pyroomacoustics simulation environment (ShoeBox) and computes RIRs.
-    Returns: IR (list of lists)
-    """
-    # Define Room parameters
+# ---------------------------
+# Room setup (same as before)
+# ---------------------------
+def setup_acoustic_scenario(sources, mic_positions_list, bright_zone_mics_index,
+                            dark_zone_mics_index, fs_target, room_dim, rt60,
+                            mic_directions, user_rotation):
     e_absorption, max_order = pra.inverse_sabine(rt60, room_dim)
-    room = pra.ShoeBox(
-        room_dim,
-        fs=fs_target,
-        materials=pra.Material(e_absorption),
-        max_order=max_order)
-
-    # Add Sources (Loudspeakers)
+    room = pra.ShoeBox(room_dim, fs=fs_target, materials=pra.Material(e_absorption), max_order=max_order)
     for s in sources:
         room.add_source(s)
-
-    # Define and Add Microphone Grid
     mic_positions = np.array(mic_positions_list).T
-    mic_array = pra.MicrophoneArray(
-        mic_positions,
-        room.fs)
-    
-    # Apply directivity: The last mic is the bright zone mic, rotated by user_rotation
-    # The -np.pi/2 rotation aligns the primary axis with the user's forward view.
-    mic_array.set_directivity(mic_directions[:-1] + [
-        pra.directivities.HyperCardioid(
-            pra.directivities.DirectionVector(user_rotation - np.pi/2)
-        )
-    ])
-    
+    mic_array = pra.MicrophoneArray(mic_positions, room.fs)
     room.add_microphone_array(mic_array)
-
-    # Compute RIRs
+    try:
+        room.mic_array.set_directivity(
+            mic_directions[:-1] + [pra.directivities.HyperCardioid(
+                pra.directivities.DirectionVector(user_rotation - np.pi/2)
+            )]
+        )
+    except Exception:
+        pass
+    print(f"Computing RIRs for {mic_positions.shape[1]} mics and {len(sources)} sources...")
     room.compute_rir()
-
-    # RIRs are stored in room.rir: room.rir[mic_index][source_index]
-    return room.rir
+    IR = room.rir
+    return IR, len(bright_zone_mics_index), len(dark_zone_mics_index)
 
 # gpu_vast.py
 import numpy as np
@@ -203,15 +191,15 @@ def generalized_eigh_gpu(R_B, R_D):
         return lambda_vals, U
 
 # --- Top-level design function that uses GPU functions ---
-def design_vast_filter_gpu(sources, mic_positions_list,
+def design_vast_filter1(sources, mic_positions_list,
                            bright_zone_mics_index, dark_zone_mics_index,
                            x, rt60, direction_list, user_rotation, fs_target, J, N,
                            V, mu, room_dim, reg_eps, target_amplitude,
                            dtype=xp.float32):
     # Keep RIR generation on CPU (pyroomacoustics) because pyroomacoustics is CPU-only
-    from pyroomacoustics import Shoebox  # or import your setup function
     # --- you can call your existing setup_acoustic_scenario to get IR on CPU ---
-    IR = setup_acoustic_scenario(sources, mic_positions_list, fs_target, room_dim, rt60, direction_list, user_rotation)
+    IR = setup_acoustic_scenario(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, fs_target, room_dim, rt60, direction_list, user_rotation)
+    #sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, fs_target, room_dim, rt60, mic_directions, user_rotation
 
     n_srcs = len(sources)
     M_b = len(bright_zone_mics_index)
