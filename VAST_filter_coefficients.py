@@ -7,7 +7,6 @@ import time
 import os
 import matplotlib.pyplot as plt
 import time
-from numba import njit
 
 
 def setup_acoustic_scenario(sources, 
