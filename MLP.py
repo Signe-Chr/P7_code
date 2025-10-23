@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from torchsummary import summary
 
 L = 3       # Loudspeaker
 J = 1024    # Filter order
@@ -88,7 +89,7 @@ class FilterNet(nn.Module):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = FilterNet(input_size=X.shape[1], output_size=y.shape[1]).to(device)
-
+summary(model, input_size=(X.shape[1],))
 
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
