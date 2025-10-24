@@ -1,17 +1,11 @@
-import numpy as np
-import os
-import time
-import matplotlib.pyplot as plt
-import pesq
-import torch
-import scipy.io.wavfile as wavfile
-from scipy.signal import convolve
-import sys
-import os
-
-# Tilføj parent directory (P7-KODE) til Python-path
+import os, sys
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
+import numpy as np
+import matplotlib.pyplot as plt
+import pesq, torch
+import scipy.io.wavfile as wavfile
+from scipy.signal import convolve
 from MLP import FilterNet
 from scipy.signal import stft
 from VAST_filter_coefficients import setup_acoustic_scenario
@@ -33,8 +27,6 @@ spatial_position = np.array([5, 5, 1.7]).ravel()  # Spatial position (x, y, z): 
 
 sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(R= 1 , Center = spatial_position , N_mics=12)
 
-
-
 # -------------------------------------------------------------------------
 # 2. Generate necessary files
 # -------------------------------------------------------------------------
@@ -46,7 +38,7 @@ def generate_cut_input(start, stop):
     wav = wav[int(start * fs_orig):int(stop * fs_orig)].astype(np.float32)
     wav /= np.abs(wav).max()
     
-    original_path = "input_sound_cut.wav"
+    original_path = "Performance Evaluation/input_sound_cut.wav"
     wavfile.write(original_path, fs_orig, (wav * 32767).astype(np.int16))
     print(f'Saved: {original_path}')
     
@@ -60,13 +52,13 @@ def generate_IR():
     IR = setup_acoustic_scenario(sources=sources_position_list, mic_positions_list=mic_positions_list, bright_zone_mics_index=bright_zone_mics_index, 
                             dark_zone_mics_index=dark_zone_mics_index, fs_target=fs_target, room_dim=room_dim, 
                             rt60=rt60, mic_directions=mic_directions, user_rotation=user_rotation)[0]
-    torch.save(IR, "test_ir.pt")
+    torch.save(IR, "Performance Evaluation/test_ir.pt")
     return IR
 
 def generate_measured_path():
     '''
     Convolves original input with impulse responses and filter coefficients to get measured output.
-    Saves the file "reproduced_sound.wav" to save time in future runs.
+    Saves the file "Performance Evaluation/reproduced_sound.wav" to save time in future runs.
     '''
 
     X = np.concatenate([[rt60], [phone_tilt], [user_rotation], spatial_position])
@@ -85,8 +77,8 @@ def generate_measured_path():
         Y = model(dumm).cpu().numpy().squeeze()
     q_matrix = Y.reshape(L, J)
 
-    fs_orig, wav = wavfile.read("input_sound_cut.wav")
-    IR = torch.load("test_ir.pt", weights_only=False)
+    fs_orig, wav = wavfile.read("Performance Evaluation/input_sound_cut.wav")
+    IR = torch.load("Performance Evaluation/test_ir.pt", weights_only=False)
     outputs = []
     for i in range(L):
         RIR = IR[bright_zone_mics_index[0]][i]  # Select RIR for bright zone mic and first source
@@ -102,7 +94,7 @@ def generate_measured_path():
     # Normalize to avoid clipping
     outputs /= np.max(np.abs(outputs))
 
-    measured_path = "reproduced_sound.wav"
+    measured_path = "Performance Evaluation/reproduced_sound.wav"
     wavfile.write(measured_path, fs_orig, (outputs * 32767).astype(np.int16))
     print(f"Saved: {measured_path}")
     return measured_path
@@ -213,7 +205,7 @@ def analyze_audio(measured_path, original_path):
 
 
 update_all()
-original = "input_sound_cut.wav"
-measured = "reproduced_sound.wav"
+original = "Performance Evaluation/input_sound_cut.wav"
+measured = "Performance Evaluation/reproduced_sound.wav"
 analyze_audio(original, measured)
 
