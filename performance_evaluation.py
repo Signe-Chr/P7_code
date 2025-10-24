@@ -8,6 +8,8 @@ import scipy.io.wavfile as wavfile
 from scipy.signal import convolve
 from MLP import FilterNet
 from scipy.signal import stft
+from VAST_filter_coefficients import setup_acoustic_scenario
+from Dataset_generator_script import sources_mics, fs_target, room_dim, mic_directions, mic_positions_list, bright_zone_mics_index
 
 """ Other metrics:
     MSE or RMSE
@@ -17,39 +19,57 @@ from scipy.signal import stft
     Log-Spectral Distance (LSD)
 """
 
-wav_path = "relaxing-guitar-loop-v5-245859.wav"
-fs_wav, wav = wavfile.read(wav_path)
+
+
+# -------------------------------------------------------------------------
+# 1. Load original audio file for evaluation
+# -------------------------------------------------------------------------
+original_path = "relaxing-guitar-loop-v5-245859.wav"
+fs_wav, wav = wavfile.read(original_path)
 wav = np.mean(wav, axis=1)
 wav = wav[5*44100:7*44100]
 wav = wav.astype(np.float32)
 wav /= np.max(np.abs(wav))  # normalize
 
-input_size = 6   # adjust if you have 7 features
+
+# -----------------------------------------------------
+# 2. Generate reproduced audio using predicted filters
+# ------------------------------------------------------
+input_size = 6 
 L, J = 3, 1024
 output_size = L * J
+
+
+
+#Input features for prediction
+rt60 = 2.2                      # Reverberation, float: 2.5
+phone_tilt = 3.14               # Phone tilt, degrees i radianer: 0.261, 0.785, 1.309
+user_rotation = 1.57         # Orientation,  degrees I radianer: 0, 1.57, 3.14, 4.71
+spatial = [5, 5, 1.7]           # Spatial position (x, y, z): (5, 5 ,1.7) betyder i midten af rummet og i højde 1.7m
+spatial_position = np.array(spatial).ravel()                 # flad ud til 1D
+
+X = np.concatenate([
+    [rt60],
+    [phone_tilt],
+    [user_rotation],
+    spatial_position])
+
+dumm = torch.tensor(X, dtype=torch.float32)
 
 model = FilterNet(input_size, output_size)
 model.load_state_dict(torch.load("filter_mlp_weights.pth"))
 model.eval()
 
-dummy_input = np.array([2.2,    # Reverberation, float
-                        0.78,      # Phone tilt, degrees
-                        3.14,      # Orientation,  degrees
-                        5, 10, 1.7])    # Spatial position, (x, y, z)       
-dumm = torch.tensor(dummy_input, dtype=torch.float32)
-print(dumm, dummy_input)
-
 with torch.no_grad():
     Y = model(dumm).cpu().numpy().squeeze()
-print(f"Predicted filter vector length: {len(Y)}")
-
-
-# Reshape into L filters
-L = 3        # number of loudspeakers
-J = len(Y) // L  # filter order per loudspeaker
 q_matrix = Y.reshape(L, J)
-print(f"Filter matrix shape: {q_matrix.shape}")
 
+# Calculate impulse response
+sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, direction_list = sources_mics(R= 1 , Center = spatial_position , N_mics=12)
+
+IR = setup_acoustic_scenario(sources=L, mic_positions_list=mic_positions_list, bright_zone_mics_index=bright_zone_mics_index, 
+                            dark_zone_mics_index=dark_zone_mics_index, fs_target=fs_target, room_dim=room_dim, 
+                            rt60=rt60, mic_directions=mic_directions, user_rotation=user_rotation)
 
 # Convolve input with each filter
 outputs = []
@@ -66,25 +86,29 @@ outputs /= np.max(np.abs(outputs))
 
 
 # Save reproduced audio
-output_path = "reproduced_sound.wav"
-wavfile.write(output_path, fs_wav, (outputs * 32767).astype(np.int16))
-print(f"Saved: {output_path}")
+measured_path = "reproduced_sound.wav"
+wavfile.write(measured_path, fs_wav, (outputs * 32767).astype(np.int16))
+print(f"Saved: {measured_path}")
 
 
-# Evaluate PESQ (using mono reference)
-# Combine channels (mono mixdown)
-reproduced_mono = np.mean(outputs, axis=1)
-
-# Ensure same length as reference
-min_len = min(len(wav), len(reproduced_mono))
-ref = wav[:min_len]
-deg = reproduced_mono[:min_len]
-
-# Compute PESQ (narrow-band)
-pesq_score = pesq.pesq(16000, ref, deg, 'nb')
-print(f"PESQ score: {pesq_score:.3f}")
 
 #####################################################################################################
+def compute_pesq(original, measured):
+    # Evaluate PESQ (using mono reference)
+    # Combine channels (mono mixdown)
+    #reproduced_mono = np.mean(outputs, axis=1)
+    reproduced_mono = original
+
+    # Ensure same length as reference
+    min_len = min(len(wav), len(reproduced_mono))
+    ref = wav[:min_len]
+    deg = reproduced_mono[:min_len]
+
+    # Compute PESQ (narrow-band)
+    pesq_score = pesq.pesq(16000, ref, deg, 'nb')
+    print(f"PESQ score: {pesq_score:.3f}")
+
+
 
 def compute_psnr(original, measured):
     mse = np.mean((original - measured)**2)
@@ -145,4 +169,4 @@ def analyze_audio(original_path, measured_path):
     return psnr, lsd_mean
 
 # Then call:
-psnr_val, lsd_val = analyze_audio(wav_path, output_path)
+#psnr_val, lsd_val = analyze_audio(original_path, measured_path)
