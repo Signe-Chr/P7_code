@@ -15,65 +15,72 @@ from Dataset_generator_script import sources_mics, fs_target, room_dim#, #mic_di
 # -------------------------------------------------------------------------
 # 1. Load original audio file for evaluation
 # -------------------------------------------------------------------------
-original_path = "relaxing-guitar-loop-v5-245859.wav"
-fs_wav, wav = wavfile.read(original_path)
-wav = np.mean(wav, axis=1)
-wav = wav[5*44100:7*44100]
-wav = wav.astype(np.float32)
-wav /= np.max(np.abs(wav))  # normalize
+
+start = 1
+stop = 6
+
+def generate_cut_input(start, stop):
+
+    fs_orig, wav = wavfile.read("relaxing-guitar-loop-v5-245859.wav")
+    wav = np.mean(wav, axis=1)
+    wav = wav[int(start * fs_orig):int(stop * fs_orig)].astype(np.float32)
+    wav /= np.abs(wav).max()
+    
+    original_path = "input_sound_cut.wav"
+    wavfile.write(original_path, fs_orig, (wav * 32767).astype(np.int16))
+    print(f'Saved: {original_path}')
+    
+    return original_path
+
 
 
 # -----------------------------------------------------
 # 2. Generate reproduced audio using predicted filters
 # ------------------------------------------------------
-input_size = 6 
-L, J = 3, 1024
-output_size = L * J
+
 
 #Input features for prediction
 rt60 = 2.2                      # Reverberation, float: 2.5
 phone_tilt = 3.14               # Phone tilt, degrees i radianer: 0.261, 0.785, 1.309
 user_rotation = 1.57         # Orientation,  degrees I radianer: 0, 1.57, 3.14, 4.71
-spatial = [5, 5, 1.7]           # Spatial position (x, y, z): (5, 5 ,1.7) betyder i midten af rummet og i højde 1.7m
-spatial_position = np.array(spatial).ravel()                 # flad ud til 1D
-
-
-X = np.concatenate([
-    [rt60],
-    [phone_tilt],
-    [user_rotation],
-    spatial_position])
-
-dumm = torch.tensor(X, dtype=torch.float32)
-
-
-model = FilterNet(input_size, output_size)
-model.load_state_dict(torch.load("filter_mlp_weights.pth"))
-model.eval()
-
-with torch.no_grad():
-    Y = model(dumm).cpu().numpy().squeeze()
-q_matrix = Y.reshape(L, J)
-
-
+spatial_position = np.array([5, 5, 1.7]).ravel()           # Spatial position (x, y, z): (5, 5 ,1.7) betyder i midten af rummet og i højde 1.7m               # flad ud til 1D
 
 sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(R= 1 , Center = spatial_position , N_mics=12)
 
-def produce_IR(): 
+def generate_IR(): 
     '''
-    Generate impulse responses for the given scenario and save to "test_ir.pt".
+    Generate impulse responses for the given scenario and save to "test_ir.pt" to save time in future runs.
     '''
+    
     IR = setup_acoustic_scenario(sources=sources_position_list, mic_positions_list=mic_positions_list, bright_zone_mics_index=bright_zone_mics_index, 
                             dark_zone_mics_index=dark_zone_mics_index, fs_target=fs_target, room_dim=room_dim, 
                             rt60=rt60, mic_directions=mic_directions, user_rotation=user_rotation)[0]
     torch.save(IR, "test_ir.pt")
     return IR
 
-def produce_measured_path():
+def generate_measured_path():
     '''
-    Convolve original input with impulse responses and filter coefficients to get measured output.
-    Saves the file "reproduced_sound.wav".
+    Convolves original input with impulse responses and filter coefficients to get measured output.
+    Saves the file "reproduced_sound.wav" to save time in future runs.
     '''
+
+    X = np.concatenate([[rt60], [phone_tilt], [user_rotation], spatial_position])
+    dumm = torch.tensor(X, dtype=torch.float32)
+
+    
+    input_size = 6 
+    L, J = 3, 1024
+    output_size = L * J
+
+    model = FilterNet(input_size, output_size)
+    model.load_state_dict(torch.load("filter_mlp_weights.pth"))
+    model.eval()
+
+    with torch.no_grad():
+        Y = model(dumm).cpu().numpy().squeeze()
+    q_matrix = Y.reshape(L, J)
+
+    fs_orig, wav = wavfile.read("input_sound_cut.wav")
     IR = torch.load("test_ir.pt", weights_only=False)
     outputs = []
     for i in range(L):
@@ -91,7 +98,7 @@ def produce_measured_path():
     outputs /= np.max(np.abs(outputs))
 
     measured_path = "reproduced_sound.wav"
-    wavfile.write(measured_path, fs_wav, (outputs * 32767).astype(np.int16))
+    wavfile.write(measured_path, fs_orig, (outputs * 32767).astype(np.int16))
     print(f"Saved: {measured_path}")
     return measured_path
 
@@ -106,21 +113,11 @@ def produce_measured_path():
     RSRQ (SNR lignende)
     SNR, PSNR eller PSIR (peak-snr eller sir)
     Log-Spectral Distance (LSD)
+    Cosine similarity
 '''
 
 def compute_pesq(original, measured):
-    # Evaluate PESQ (using mono reference)
-    # Combine channels (mono mixdown)
-    #reproduced_mono = np.mean(outputs, axis=1)
-    reproduced_mono = original
-
-    # Ensure same length as reference
-    min_len = min(len(wav), len(reproduced_mono))
-    ref = wav[:min_len]
-    deg = reproduced_mono[:min_len]
-
-    # Compute PESQ (narrow-band)
-    pesq_score = pesq.pesq(16000, ref, deg, 'nb')
+    pesq_score = pesq.pesq(16000, original, measured, 'nb')
     print(f"PESQ score: {pesq_score:.3f}")
     return pesq_score
 
@@ -145,7 +142,22 @@ def compute_lsd(original, measured, fs, n_fft=1024, hop_length=512):
     lsd_frames = np.sqrt(np.mean((S_orig - S_meas)**2, axis=0))
     return np.mean(lsd_frames), lsd_frames  # gennemsnit og alle frames
 
-def analyze_audio(original_path, measured_path):
+def compute_CC(original, measured):
+    original_mean = np.mean(original)
+    measured_mean = np.mean(measured)
+    numerator = np.sum((original - original_mean) * (measured - measured_mean))
+    denominator = np.sqrt(np.sum((original - original_mean)**2) * np.sum((measured - measured_mean)**2))
+    cc = numerator / denominator
+    return cc
+
+def compute_cosine_similarity(original, measured):
+    dot_product = np.dot(original, measured)
+    norm_orig = np.linalg.norm(original)
+    norm_meas = np.linalg.norm(measured)
+    cosine_similarity = dot_product / (norm_orig * norm_meas)
+    return cosine_similarity
+
+def analyze_audio(measured_path, original_path):
     fs_orig, x = wavfile.read(original_path)
     fs_meas, y = wavfile.read(measured_path)
 
@@ -167,9 +179,16 @@ def analyze_audio(original_path, measured_path):
 
     psnr = compute_psnr(x, y)
     lsd_mean, lsd_frames = compute_lsd(x, y, fs_orig)
+    pesq_score = compute_pesq(x, y)
+    CC_score = compute_CC(x, y)
+    Cosine_sim = compute_cosine_similarity(x, y)
+
 
     print(f"PSNR: {psnr:.2f} dB")
     print(f"Log-Spectral Distance (LSD): {lsd_mean:.2f} dB")
+    print(f"PESQ: {pesq_score:.2f}")
+    print(f"Cross-Correlation (CC): {CC_score:.2f}")
+    print(f"Cosine Similarity: {Cosine_sim:.2f}")
 
     # Plot fejl over tid
     plt.figure(figsize=(10,4))
@@ -182,5 +201,12 @@ def analyze_audio(original_path, measured_path):
 
     return psnr, lsd_mean
 
+def update_all():
+    generate_cut_input(start, stop)
+    generate_IR()
+    generate_measured_path()
 # Then call:
 #psnr_val, lsd_val = analyze_audio(original_path, measured_path)
+#update_all()
+analyze_audio("reproduced_sound.wav", "input_sound_cut.wav")
+
