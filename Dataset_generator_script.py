@@ -3,6 +3,7 @@ import os
 import scipy.io.wavfile as wavfile
 import pyroomacoustics as pra
 from VAST_filter_coefficients import design_vast_filter
+#from VAST_Filter_Design_Module_Optimized import design_vast_filter
 import datetime
 
 
@@ -20,7 +21,9 @@ target_amplitude = 0.080792
 dark_mic_radius = 1.0
 room_dim = [10,10,10]
 z_height=1.7
-RT60s = [0.5*i for i in range(5, 10)]
+#RT60s = [0.5*i for i in range(5, 10)]
+RT60s = np.linspace(0.27, 0.7, 10)
+
 N_mics=12
 
 wav_path = "relaxing-guitar-loop-v5-245859.wav"
@@ -145,7 +148,7 @@ for i, RT60 in enumerate(RT60s):
                     [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
                     [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]
                 ])
-
+                
                 orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
                 orientation_source_final += center_sources.T
                 q, IR = design_vast_filter(
