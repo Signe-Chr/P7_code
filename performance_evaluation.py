@@ -9,16 +9,7 @@ from scipy.signal import convolve
 from MLP import FilterNet
 from scipy.signal import stft
 from VAST_filter_coefficients import setup_acoustic_scenario
-from Dataset_generator_script import sources_mics, fs_target, room_dim, mic_directions, mic_positions_list, bright_zone_mics_index
-
-""" Other metrics:
-    MSE or RMSE
-    Correlation, CC
-    RSRQ (SNR lignende)
-    SNR, PSNR eller PSIR (peak-snr eller sir)
-    Log-Spectral Distance (LSD)
-"""
-
+from Dataset_generator_script import sources_mics, fs_target, room_dim#, #mic_directions, mic_positions_list, bright_zone_mics_index
 
 
 # -------------------------------------------------------------------------
@@ -39,14 +30,13 @@ input_size = 6
 L, J = 3, 1024
 output_size = L * J
 
-
-
 #Input features for prediction
 rt60 = 2.2                      # Reverberation, float: 2.5
 phone_tilt = 3.14               # Phone tilt, degrees i radianer: 0.261, 0.785, 1.309
 user_rotation = 1.57         # Orientation,  degrees I radianer: 0, 1.57, 3.14, 4.71
 spatial = [5, 5, 1.7]           # Spatial position (x, y, z): (5, 5 ,1.7) betyder i midten af rummet og i højde 1.7m
 spatial_position = np.array(spatial).ravel()                 # flad ud til 1D
+
 
 X = np.concatenate([
     [rt60],
@@ -56,6 +46,7 @@ X = np.concatenate([
 
 dumm = torch.tensor(X, dtype=torch.float32)
 
+
 model = FilterNet(input_size, output_size)
 model.load_state_dict(torch.load("filter_mlp_weights.pth"))
 model.eval()
@@ -64,35 +55,59 @@ with torch.no_grad():
     Y = model(dumm).cpu().numpy().squeeze()
 q_matrix = Y.reshape(L, J)
 
-# Calculate impulse response
-sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, direction_list = sources_mics(R= 1 , Center = spatial_position , N_mics=12)
 
-IR = setup_acoustic_scenario(sources=L, mic_positions_list=mic_positions_list, bright_zone_mics_index=bright_zone_mics_index, 
+
+sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(R= 1 , Center = spatial_position , N_mics=12)
+
+def produce_IR(): 
+    '''
+    Generate impulse responses for the given scenario and save to "test_ir.pt".
+    '''
+    IR = setup_acoustic_scenario(sources=sources_position_list, mic_positions_list=mic_positions_list, bright_zone_mics_index=bright_zone_mics_index, 
                             dark_zone_mics_index=dark_zone_mics_index, fs_target=fs_target, room_dim=room_dim, 
-                            rt60=rt60, mic_directions=mic_directions, user_rotation=user_rotation)
+                            rt60=rt60, mic_directions=mic_directions, user_rotation=user_rotation)[0]
+    torch.save(IR, "test_ir.pt")
+    return IR
 
-# Convolve input with each filter
-outputs = []
-for l in range(L):
-    y = convolve(wav, q_matrix[l], mode='full')
-    outputs.append(y)
-
-# Align to same length
-min_len = min(len(y) for y in outputs)
-outputs = np.stack([y[:min_len] for y in outputs], axis=1)
-
-# Normalize to avoid clipping
-outputs /= np.max(np.abs(outputs))
-
-
-# Save reproduced audio
-measured_path = "reproduced_sound.wav"
-wavfile.write(measured_path, fs_wav, (outputs * 32767).astype(np.int16))
-print(f"Saved: {measured_path}")
+def produce_measured_path():
+    '''
+    Convolve original input with impulse responses and filter coefficients to get measured output.
+    Saves the file "reproduced_sound.wav".
+    '''
+    IR = torch.load("test_ir.pt", weights_only=False)
+    outputs = []
+    for i in range(L):
+        RIR = IR[bright_zone_mics_index[0]][i]  # Select RIR for bright zone mic and first source
+        y = convolve(wav, RIR, mode='full')
+        y2 = convolve(y, q_matrix[i], mode='full')
+        outputs.append(y2)
 
 
+    # Align to same length
+    min_len = min(len(y) for y in outputs)
+    outputs = np.stack([y[:min_len] for y in outputs], axis=1)
 
-#####################################################################################################
+    # Normalize to avoid clipping
+    outputs /= np.max(np.abs(outputs))
+
+    measured_path = "reproduced_sound.wav"
+    wavfile.write(measured_path, fs_wav, (outputs * 32767).astype(np.int16))
+    print(f"Saved: {measured_path}")
+    return measured_path
+
+
+
+# -------------------------------------------------------------------------
+# 3. Performance Evaluation
+# -------------------------------------------------------------------------
+''' Other metrics:
+    MSE or RMSE
+    Correlation, CC
+    RSRQ (SNR lignende)
+    SNR, PSNR eller PSIR (peak-snr eller sir)
+    Log-Spectral Distance (LSD)
+'''
+
 def compute_pesq(original, measured):
     # Evaluate PESQ (using mono reference)
     # Combine channels (mono mixdown)
@@ -107,8 +122,7 @@ def compute_pesq(original, measured):
     # Compute PESQ (narrow-band)
     pesq_score = pesq.pesq(16000, ref, deg, 'nb')
     print(f"PESQ score: {pesq_score:.3f}")
-
-
+    return pesq_score
 
 def compute_psnr(original, measured):
     mse = np.mean((original - measured)**2)
