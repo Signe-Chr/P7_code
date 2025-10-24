@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from torchsummary import summary
+import matplotlib.pyplot as plt
 
 # global parameters
 L=3
@@ -94,9 +95,6 @@ for epoch in range(100):
 model.eval()
 test_config = torch.FloatTensor([[0.1, 1, 45, 5, 5, 1.7]])  # adjust to your feature count!
 
-assert test_config.shape[1] == input_size, \
-    f"Expected {input_size} input features, got {test_config.shape[1]}"
-
 with torch.no_grad():
     predicted_filter, weights = model(test_config)
     probs = weights.squeeze().cpu().numpy()
@@ -118,8 +116,10 @@ print("Top 3 weights:", probs[top3_idx])
 predicted_filter_np = predicted_filter.squeeze().cpu().numpy()
 print(f"Predicted blended filter length: {len(predicted_filter_np)}")
 
-import matplotlib.pyplot as plt
 
+# ============================================
+# 8. Plot MSE
+# ============================================
 model.eval()
 
 # Get full outputs and weights for all training configs
