@@ -53,12 +53,14 @@ class SoftFilterNet(nn.Module):
     def __init__(self, input_size, num_filters, filter_dim, filters_tensor):
         super().__init__()
         self.fc1 = nn.Linear(input_size, 512)
-        self.fc2 = nn.Linear(512, num_filters)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, num_filters)
         self.register_buffer("filters", filters_tensor)  # fixed filters (not trainable)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        logits = self.fc2(x)
+        x = F.relu(self.fc2(x))
+        logits = self.fc3(x)
         weights = F.softmax(logits, dim=1)            # [batch, num_filters]
         combined = torch.matmul(weights, self.filters) # [batch, filter_dim]
         return combined, weights
@@ -90,17 +92,23 @@ for epoch in range(100):
         print(f"Epoch [{epoch+1}/100]  MSE: {loss.item():.6e}  Avg Entropy: {entropy:.3f}")
 
 # ============================================
-# 6. Evaluation on a new configuration
+# 6. Save model weights
+# ============================================
+torch.save(model.state_dict(), "mlp_weights.pth")
+print("Model weights saved to mlp_weights.pth")
+
+# ============================================
+# 7. Evaluation on a new configuration
 # ============================================
 model.eval()
-test_config = torch.FloatTensor([[0.1, 1, 45, 5, 5, 1.7]])  # adjust to your feature count!
+test_config = torch.FloatTensor([[0.27, 3.14, 1.57, 5, 5, 1.7]])  # adjust to your feature count!
 
 with torch.no_grad():
     predicted_filter, weights = model(test_config)
     probs = weights.squeeze().cpu().numpy()
 
 # ============================================
-# 7. Display results
+# 8. Display results
 # ============================================
 print("\n=== Test Prediction ===")
 print("Input config:", test_config.squeeze().numpy())
@@ -118,7 +126,7 @@ print(f"Predicted blended filter length: {len(predicted_filter_np)}")
 
 
 # ============================================
-# 8. Plot MSE
+# 9. Plot MSE
 # ============================================
 model.eval()
 
