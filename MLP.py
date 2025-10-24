@@ -9,30 +9,10 @@ from torchsummary import summary
 L = 3       # Loudspeaker
 J = 1024    # Filter order
 
-dummy_input = np.array([2.2,    # Reverberation, float
-                        0.78,      # Phone tilt, degrees
-                        3.14,      # Orientation,  degrees
-                        5, 10, 1.7])    # Spatial position, (x, y, z)       
-
-dumm = torch.tensor(dummy_input, dtype=torch.float32)
-print(dumm, dummy_input)
-
 # ---- 1. Load data
 data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
-for key, inner in data.items():
-    print(f"--- Key: {key} ---")
-    for field in inner:
-        value = inner[field]
-        if isinstance(value, np.ndarray):
-            print(f"{field}: numpy array, shape = {value.shape}")
-        elif isinstance(value, list):
-            print(f"{field}: list, length = {len(value)}")
-        else:
-            print(f"{field}: type = {type(value)}, value = {value}")
-    break
+
 X_list, y_list = [], []
-
-
 for key, inner in data.items():
     # Robust håndtering af input features (fallback til 0 hvis mangler)
     rt60 = inner.get('RT60', 0)                         # 2.5
@@ -121,22 +101,43 @@ def train(X, y, epochs, batch_size):
             print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
     return model
 
+if __name__ == "__main__":
+    for key, inner in data.items():
+        print(f"--- Key: {key} ---")
+        for field in inner:
+            value = inner[field]
+            if isinstance(value, np.ndarray):
+                print(f"{field}: numpy array, shape = {value.shape}")
+            elif isinstance(value, list):
+                print(f"{field}: list, length = {len(value)}")
+            else:
+                print(f"{field}: type = {type(value)}, value = {value}")
+        break
 
-#train(X_train, y_train, epochs=200, batch_size=32)
-#torch.save(model, "filter_mlp_model_full.pth")
-gemt_model = torch.load("filter_mlp_model_full.pth", weights_only=False)
-model = gemt_model
+    train(X_train, y_train, epochs=200, batch_size=32)
+    #torch.save(model, "filter_mlp_model_full.pth")
+    torch.save(model.state_dict(), "filter_mlp_weights.pth")
+    #gemt_model = torch.load("filter_mlp_model_full.pth", weights_only=False)
+    #model = gemt_model
 
 
-# ---- 5. Evaluation
-model.eval()
-with torch.no_grad():
-    Y = model(dumm)
-print(Y)
-with torch.no_grad():
-    preds = model(X_test.to(device)).cpu().numpy()
-    mse = np.mean((preds - y_test.numpy()) ** 2)
-print(f"\nTest MSE: {mse:.6f}")
+    # ---- 5. Evaluation
+    dummy_input = np.array([2.2,    # Reverberation, float
+                        0.78,      # Phone tilt, degrees
+                        3.14,      # Orientation,  degrees
+                        5, 10, 1.7])    # Spatial position, (x, y, z)       
+
+    dumm = torch.tensor(dummy_input, dtype=torch.float32)
+    print(dumm, dummy_input)
+
+    model.eval()
+    with torch.no_grad():
+        Y = model(dumm)
+    print(Y)
+    with torch.no_grad():
+        preds = model(X_test.to(device)).cpu().numpy()
+        mse = np.mean((preds - y_test.numpy()) ** 2)
+    print(f"\nTest MSE: {mse:.6f}")
 
 
 
