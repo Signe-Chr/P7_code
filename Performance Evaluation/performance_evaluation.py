@@ -7,6 +7,7 @@ import pesq, torch
 import scipy.io.wavfile as wavfile
 from scipy.signal import convolve
 from MLP import FilterNet
+from MLP_classification import SoftFilterNet
 from scipy.signal import stft
 from VAST_filter_coefficients import setup_acoustic_scenario
 from Dataset_generator_script import sources_mics, fs_target, room_dim#, #mic_directions, mic_positions_list, bright_zone_mics_index
@@ -69,8 +70,10 @@ def generate_measured_path():
     L, J = 3, 1024
     output_size = L * J
 
-    model = FilterNet(input_size, output_size)
-    model.load_state_dict(torch.load("filter_mlp_weights.pth"))
+    #model = FilterNet(input_size, output_size)
+    #model.load_state_dict(torch.load("filter_mlp_weights.pth"))
+    model = SoftFilterNet(input_size, output_size, L, J)
+    model.load_state_dict(torch.load("mlp_weights.pth"))
     model.eval()
 
     with torch.no_grad():
@@ -204,7 +207,8 @@ def analyze_audio(measured_path, original_path):
     return psnr, lsd_mean
 
 
-update_all()
+#update_all()
+generate_measured_path()
 original = "Performance Evaluation/input_sound_cut.wav"
 measured = "Performance Evaluation/reproduced_sound.wav"
 analyze_audio(original, measured)
