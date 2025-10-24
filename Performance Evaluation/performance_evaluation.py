@@ -6,6 +6,12 @@ import pesq
 import torch
 import scipy.io.wavfile as wavfile
 from scipy.signal import convolve
+import sys
+import os
+
+# Tilføj parent directory (P7-KODE) til Python-path
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(parent_dir)
 from MLP import FilterNet
 from scipy.signal import stft
 from VAST_filter_coefficients import setup_acoustic_scenario
@@ -13,11 +19,25 @@ from Dataset_generator_script import sources_mics, fs_target, room_dim#, #mic_di
 
 
 # -------------------------------------------------------------------------
-# 1. Load original audio file for evaluation
+# 1. Define scenario parameters
 # -------------------------------------------------------------------------
-
+# Choose segment of audio to evaluate
 start = 1
 stop = 6
+
+#Input features for prediction
+rt60 = 0.27                      # Reverberation, float: np.linspace(0.27, 0.7, 10)
+phone_tilt = 1                   # Phone tilt, degrees in radians: 0.261, 0.785, 1.309
+user_rotation = 1.57             # Orientation,  degrees in radians: 0, 1.57, 3.14, 4.71
+spatial_position = np.array([5, 5, 1.7]).ravel()  # Spatial position (x, y, z): (5, 5 ,1.7) betyder i midten af rummet og i højde 1.7m               # flad ud til 1D
+
+sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(R= 1 , Center = spatial_position , N_mics=12)
+
+
+
+# -------------------------------------------------------------------------
+# 2. Generate necessary files
+# -------------------------------------------------------------------------
 
 def generate_cut_input(start, stop):
 
@@ -31,21 +51,6 @@ def generate_cut_input(start, stop):
     print(f'Saved: {original_path}')
     
     return original_path
-
-
-
-# -----------------------------------------------------
-# 2. Generate reproduced audio using predicted filters
-# ------------------------------------------------------
-
-
-#Input features for prediction
-rt60 = 2.2                      # Reverberation, float: 2.5
-phone_tilt = 3.14               # Phone tilt, degrees i radianer: 0.261, 0.785, 1.309
-user_rotation = 1.57         # Orientation,  degrees I radianer: 0, 1.57, 3.14, 4.71
-spatial_position = np.array([5, 5, 1.7]).ravel()           # Spatial position (x, y, z): (5, 5 ,1.7) betyder i midten af rummet og i højde 1.7m               # flad ud til 1D
-
-sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(R= 1 , Center = spatial_position , N_mics=12)
 
 def generate_IR(): 
     '''
@@ -101,6 +106,11 @@ def generate_measured_path():
     wavfile.write(measured_path, fs_orig, (outputs * 32767).astype(np.int16))
     print(f"Saved: {measured_path}")
     return measured_path
+
+def update_all():
+    generate_cut_input(start, stop)
+    generate_IR()
+    generate_measured_path()
 
 
 
@@ -201,12 +211,9 @@ def analyze_audio(measured_path, original_path):
 
     return psnr, lsd_mean
 
-def update_all():
-    generate_cut_input(start, stop)
-    generate_IR()
-    generate_measured_path()
-# Then call:
-#psnr_val, lsd_val = analyze_audio(original_path, measured_path)
-#update_all()
-analyze_audio("reproduced_sound.wav", "input_sound_cut.wav")
+
+update_all()
+original = "input_sound_cut.wav"
+measured = "reproduced_sound.wav"
+analyze_audio(original, measured)
 
