@@ -8,7 +8,7 @@ np.random.seed(69420)
 # ---- 1. Load data from VAST archive
 data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
 
-X_list, filters_list = [], []
+X_list, filters_list,rt_60_list = [], [],[]
 
 for key, inner in data.items():
     # Robust handling of features
@@ -24,10 +24,13 @@ for key, inner in data.items():
     # q_matrix = target filter coefficients
     q = inner.get('q_matrix', np.zeros(3072, dtype=np.float32))
     filters_list.append(q.flatten())
+    
+    rt_60_list.append(rt60)
 
 # ---- 2. Prepare arrays and tensors
 X = np.stack(X_list).astype(np.float32)        # [N_total, num_features]
 filters = np.stack(filters_list).astype(np.float32)  # [N_total, filter_length]
+rt60_array=np.array(rt_60_list)
 
 num_total, input_size = X.shape
 filter_length = filters.shape[1]
@@ -39,11 +42,22 @@ print(f"Configs shape: {configs_tensor.shape}")
 print(f"Filters shape: {filters_tensor.shape}")
 
 # ---- 3. Split into train/test sets
-X_train, X_test, y_train, y_test = train_test_split(
-    configs_tensor, filters_tensor, test_size=0.5, random_state=42
-)
+unique_rooms = np.unique(rt60_array)
+print("All rooms (RT60 values):", unique_rooms)
+
+# Choose a test room
+test_room = unique_rooms[0]  # pick first room as test
+train_mask = rt60_array != test_room
+test_mask = rt60_array == test_room
+
+# Apply masks
+X_train = configs_tensor[train_mask]
+X_test = configs_tensor[test_mask]
+y_train = filters_tensor[train_mask]
+y_test = filters_tensor[test_mask]
+
 print("Training samples:", X_train.shape[0])
-print("Test samples:", X_test.shape[0])
+print("Test samples (unseen room):", X_test.shape[0])
 
 # ---- 4. Define model
 model = torch.nn.Sequential(
