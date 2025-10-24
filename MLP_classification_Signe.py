@@ -2,12 +2,10 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 from torchsummary import summary
-from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 np.random.seed(69420)
 # ---- 1. Load data from VAST archive
 data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
-
 X_list, filters_list,rt_60_list = [], [],[]
 
 for key, inner in data.items():
@@ -61,8 +59,14 @@ print("Test samples (unseen room):", X_test.shape[0])
 
 # ---- 4. Define model
 model = torch.nn.Sequential(
-    torch.nn.Linear(input_size, 512),
+    torch.nn.Linear(input_size, 128),
     torch.nn.ReLU(),
+    torch.nn.Linear(128,512),
+    torch.nn.ReLU(),
+    #torch.nn.Linear(128,256),
+    #torch.nn.ReLU(),
+    #torch.nn.Linear(256,512),
+    #torch.nn.ReLU(),
     torch.nn.Linear(512, num_total)  # output one weight per total filter
 )
 summary(model, input_size=(input_size,))
@@ -94,7 +98,17 @@ with torch.no_grad():
     # Compute logits and softmax for all test configs
     test_logits = model(X_test)               # [N_test, N_total]
     test_weights = F.softmax(test_logits, dim=1)  # [N_test, N_total]
-
+    train_logits = model(X_train)                 # [N_train, N_total]
+    train_weights = torch.softmax(train_logits, dim=1)  # softmax over filters
+    train_predicted = train_weights @ filters_tensor      # weighted sum
+    train_loss = torch.mean((train_predicted - y_train)**2)  # MSE
+    print(f"Training Loss: {train_loss.item():.6f}")
+    
+    test_logits = model(X_test)                  # [N_test, N_total]
+    test_weights = torch.softmax(test_logits, dim=1)
+    test_predicted = test_weights @ filters_tensor
+    test_loss = torch.mean((test_predicted - y_test)**2)
+    print(f"Test Loss: {test_loss.item():.6f}")
     for k in range(1, num_filters+1):
         mse_sum = 0.0
         for i in range(X_test.shape[0]):
