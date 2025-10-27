@@ -188,8 +188,9 @@ if __name__ == "__main__":
     total_iterations = len(RT60s) * len(rooms) * len(user_rotations) * len(tilt_rotations) * 3
     rooms_loop = tqdm(rooms, total=len(rooms))
     pool = mp.Pool(processes=mp.cpu_count()-1)
-    results = [pool.apply_async(main, (room, ), callback=rooms_loop.update(1)) for room in rooms]
+    results = [pool.apply_async(main, (room, ), callback=lambda _:rooms_loop.update(1)) for room in rooms]
     pool.close()
     pool.join()
     #for room_dim in rooms_loop:
     #    rooms_loop.set_description(f"Room dim = {room_dim}")
+    print("Done!")
