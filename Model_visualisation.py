@@ -47,7 +47,7 @@ print("\nLoaded SoftFilterNet model with weights from 'mlp_weights.pth'")
 # ================================================================
 # 3. 2D Pressure Field Visualization with Bright/Dark Zones
 # ================================================================
-def pressure_field_2d(room_dim, sources, q_opt, center, fs=16000, grid_res=40, J=1024, r_zone=1.0):
+def pressure_field_2d(room_dim, sources, q_opt, center, fs=16000, grid_res=40, J=1024, r_zone=dgs.dark_mic_radius):
     """
     Compute and visualize a 2D SPL field given filter coefficients,
     and compute contrast between bright and dark zones.
