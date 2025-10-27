@@ -5,166 +5,153 @@ import numpy as np
 from torchsummary import summary
 import matplotlib.pyplot as plt
 
-# global parameters
-L=3
-J=1024
+# Reproducibility
+np.random.seed(69420)
+torch.manual_seed(69420)
 
-# ============================================
-# 1. Load data
-# ============================================
+# ---- 1. Load data
 data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
 
-X_list, filters_list = [], []
+X_list, filters_list, rt60_list = [], [], []
 
 for key, inner in data.items():
-    rt60 = inner.get('RT60', 0)
-    phone_tilt = inner.get('Phone_tilt', 0)
-    user_orient = inner.get('User_orientation', 0)
-    spatial = np.array(inner.get('Spatial_position', [0, 0, 0])).ravel()
+    rt60 = inner.get('RT60', 0.0)
+    phone_tilt = inner.get('Phone_tilt', 0.0)
+    user_orient = inner.get('User_orientation', 0.0)
+    spatial = np.array(inner.get('Spatial_position', [0, 0, 0]), dtype=np.float32).ravel()
 
     X = np.concatenate([[rt60], [phone_tilt], [user_orient], spatial])
     X_list.append(X)
-    filters_list.append(inner.get('q_matrix', np.zeros(J*L)))
+    filters_list.append(inner.get('q_matrix', np.zeros(3072, dtype=np.float32)))
+    rt60_list.append(rt60)
 
-# Convert to numpy arrays 
-X = np.stack(X_list).astype(np.float32)  # [180,6]
-
-# Flattened list of q_matrix arrays
+# Convert to arrays
+X = np.stack(X_list).astype(np.float32)
 filters = np.stack(filters_list).astype(np.float32)
-filters = filters.reshape(filters.shape[0], -1)  # (180,3072)
+rt60_array = np.array(rt60_list)
 
-print(f"Input features shape: {X.shape}")
-print(f"Filter dictionary shape (flattened): {filters.shape}")
+num_samples, input_size = X.shape
+filter_dim = filters.shape[1]
 
-# ============================================
-# 2. Convert to torch tensors
-# ============================================
-configs_tensor = torch.from_numpy(X)            # [180, 6]
-filters_tensor = torch.from_numpy(filters)      # [180, 3072]
+print(f"Total samples: {num_samples}, Feature size: {input_size}, Filter length: {filter_dim}")
 
-input_size = configs_tensor.shape[1]
-num_filters = filters_tensor.shape[0]
-filter_dim = filters_tensor.shape[1]
+# ---- 2. Train/test split by RT60
+unique_rooms = np.unique(rt60_array)
+print("Unique RT60 values:", unique_rooms)
 
-# ============================================
-# 3. Model definition
-# ============================================
+test_room = unique_rooms[0]  # Pick one RT60 as unseen test room
+train_mask = rt60_array != test_room
+test_mask = rt60_array == test_room
+
+X_train, X_test = X[train_mask], X[test_mask]
+y_train, y_test = filters[train_mask], filters[test_mask]
+
+# Flatten filters (3×1024 → 3072)
+y_train = y_train.reshape(y_train.shape[0], -1)
+y_test = y_test.reshape(y_test.shape[0], -1)
+
+print(f"Train: {X_train.shape[0]} samples, Test: {X_test.shape[0]} samples (RT60={test_room})")
+
+# Convert to tensors
+X_train_t = torch.from_numpy(X_train)
+y_train_t = torch.from_numpy(y_train)
+X_test_t = torch.from_numpy(X_test)
+y_test_t = torch.from_numpy(y_test)
+
+# Create unique 2D filter dictionary
+filters_flat = torch.from_numpy(filters).view(filters.shape[0], -1)
+filters_tensor = torch.unique(filters_flat, dim=0)
+num_filters, filter_dim = filters_tensor.shape
+
+print(f"Filter dictionary shape: {filters_tensor.shape}")
+
+# ---- 3. Model
 class SoftFilterNet(nn.Module):
     def __init__(self, input_size, num_filters, filter_dim, filters_tensor):
         super().__init__()
         self.fc1 = nn.Linear(input_size, 512)
         self.fc2 = nn.Linear(512, 512)
         self.fc3 = nn.Linear(512, num_filters)
-        self.register_buffer("filters", filters_tensor)  # fixed filters (not trainable)
+        self.register_buffer("filters", filters_tensor)  # [num_filters, filter_dim]
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        logits = self.fc3(x)
-        weights = F.softmax(logits, dim=1)            # [batch, num_filters]
-        combined = torch.matmul(weights, self.filters) # [batch, filter_dim]
+        logits = self.fc3(x)                        # [batch, num_filters]
+        weights = F.softmax(logits, dim=1)          # [batch, num_filters]
+        combined = weights @ self.filters           # [batch, filter_dim]
         return combined, weights
 
-# Instantiate model
 model = SoftFilterNet(input_size, num_filters, filter_dim, filters_tensor)
 summary(model, input_size=(input_size,))
 
-# ============================================
-# 4. Training setup
-# ============================================
 criterion = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
 
-# ============================================
-# 5. Training loop
-# ============================================
+# ---- 4. Training loop
 model.train()
-for epoch in range(100):
-    outputs, weights = model(configs_tensor)            # [N, filter_dim]
-    loss = criterion(outputs, filters_tensor)           # [N, filter_dim] vs [N, filter_dim]
+for epoch in range(200):
+    predicted_filters, weights = model(X_train_t)  # two outputs
+    loss = criterion(predicted_filters, y_train_t)
 
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
 
-    if (epoch + 1) % 20 == 0:
-        entropy = -(weights * torch.log(weights + 1e-8)).sum(dim=1).mean().item()
-        print(f"Epoch [{epoch+1}/100]  MSE: {loss.item():.6e}  Avg Entropy: {entropy:.3f}")
+    if (epoch + 1) % 30 == 0:
+        print(f"Epoch [{epoch+1}/200], Loss: {loss.item():.6f}")
 
-# ============================================
-# 6. Save model weights
-# ============================================
 torch.save(model.state_dict(), "mlp_weights.pth")
 print("Model weights saved to mlp_weights.pth")
 
-# ============================================
-# 7. Evaluation on a new configuration
-# ============================================
+# ---- 5. Evaluation with top-k filter combination
 model.eval()
-test_config = torch.FloatTensor([[0.27, 3.14, 1.57, 5, 5, 1.7]])  # adjust to your feature count!
+num_filters = filters_tensor.shape[0]
+avg_mse_list = []
 
 with torch.no_grad():
-    predicted_filter, weights = model(test_config)
-    probs = weights.squeeze().cpu().numpy()
+    # ---- Compute training loss
+    train_predicted, _ = model(X_train_t)
+    train_loss = torch.mean((train_predicted - y_train_t) ** 2)
+    print(f"Training Loss: {train_loss.item():.6f}")
 
-# ============================================
-# 8. Display results
-# ============================================
-print("\n=== Test Prediction ===")
-print("Input config:", test_config.squeeze().numpy())
-print("Softmax probabilities (top 5):", np.sort(probs)[-5:])
-print("Sum of probabilities:", probs.sum())
-print("Predicted blended filter shape:", predicted_filter.shape)
+    # ---- Compute test loss
+    test_predicted, test_weights = model(X_test_t)
+    test_loss = torch.mean((test_predicted - y_test_t) ** 2)
+    print(f"Test Loss: {test_loss.item():.6f}")
 
-# Inspect top-3 contributing filters
-top3_idx = np.argsort(probs)[-3:][::-1]
-print("Top 3 contributing filter indices:", top3_idx)
-print("Top 3 weights:", probs[top3_idx])
+    # ---- Top-k analysis
+    for k in range(1, num_filters + 1):
+        mse_sum = 0.0
+        for i in range(X_test_t.shape[0]):
+            w = test_weights[i].cpu().numpy()
+            # top-k indices
+            topk_idx = np.argsort(w)[-k:][::-1]
+            topk_w = np.zeros_like(w)
+            topk_w[topk_idx] = w[topk_idx]
+            topk_w /= topk_w.sum()  # renormalize
 
-predicted_filter_np = predicted_filter.squeeze().cpu().numpy()
-print(f"Predicted blended filter length: {len(predicted_filter_np)}")
+            # compute weighted filter
+            pred_filter = torch.from_numpy(topk_w).unsqueeze(0) @ filters_tensor
+            mse = torch.mean((pred_filter - y_test_t[i].unsqueeze(0)) ** 2).item()
+            mse_sum += mse
 
+        avg_mse_list.append(mse_sum / X_test_t.shape[0])
 
-# ============================================
-# 9. Plot MSE
-# ============================================
-model.eval()
+# ---- 6. Find best k
+avg_mse_array = np.array(avg_mse_list)
+best_idx = np.argmin(avg_mse_array)
+best_k = best_idx + 1
+print(f"\nBest MSE = {avg_mse_array[best_idx]:.6f} occurs at k = {best_k} filters")
 
-# Get full outputs and weights for all training configs
-with torch.no_grad():
-    full_pred, full_weights = model(configs_tensor)  # [N, F], [N, num_filters]
-
-# Convert to CPU numpy
-full_weights_np = full_weights.cpu().numpy()  # [N, num_filters]
-filters_np = filters_tensor.cpu().numpy()     # [N, F]
-filter_dict = model.filters.cpu().numpy()     # [num_filters, F]
-N, num_filters = full_weights_np.shape
-
-mse_vs_k = []
-
-# Evaluate truncated reconstructions for increasing k
-for k in range(1, num_filters + 1):
-    total_mse = 0.0
-    for i in range(N):
-        w = full_weights_np[i]
-        # indices of top-k filters
-        topk_idx = np.argsort(w)[-k:]
-        topk_w = w[topk_idx]
-        topk_w /= topk_w.sum()  # renormalize to sum to 1
-        # recompute blended filter using only top-k
-        blended = np.dot(topk_w, filter_dict[topk_idx])
-        # MSE with ground-truth
-        mse = np.mean((blended - filters_np[i]) ** 2)
-        total_mse += mse
-    avg_mse = total_mse / N
-    mse_vs_k.append(avg_mse)
-
-# Plot MSE vs number of filters used
-plt.figure(figsize=(7,5))
-plt.plot(range(1, num_filters + 1), mse_vs_k, marker='o')
-plt.xlabel("Number of filters in linear combination (k)")
-plt.ylabel("Average MSE")
-plt.title("Reconstruction error vs. number of contributing filters")
+# ---- 7. Plot
+plt.figure(figsize=(8, 5))
+plt.plot(range(1, num_filters + 1), avg_mse_list, marker='o')
+plt.xlabel("Number of top-k filters used")
+plt.ylabel("Average MSE on test set")
+plt.title("Effect of number of filters on reconstruction error")
 plt.grid(True)
-plt.tight_layout()
 plt.show()
+
+if __name__== "__main__":
+    model = SoftFilterNet(input_size, num_filters, filter_dim, filters_tensor)
