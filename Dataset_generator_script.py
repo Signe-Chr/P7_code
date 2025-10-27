@@ -5,6 +5,7 @@ import pyroomacoustics as pra
 from VAST_filter_coefficients import design_vast_filter
 #from VAST_Filter_Design_Module_Optimized import design_vast_filter
 import datetime
+from tqdm import tqdm
 
 
 
@@ -18,11 +19,11 @@ absorption=0.2
 max_order=10
 reg_eps=1e-6
 target_amplitude = 0.080792
-dark_mic_radius = 1.0
+dark_mic_radius = 0.5
 widths = range(2, 11)
 depths = range(2, 11)
 heights = range(4, 13)
-rooms = [[width, depth, height/2] for width in widths for depth in depths for height in heights]+[[100, 100, 100]]
+rooms = [[width, depth, height/2] for width in widths for depth in depths for height in heights]+[[100, 100, 100]]  # if width<=depth (This code snippet can be added in the list loop if rooms like 2x10xz and 10x2xz are deemed equal)
 z_height=1.7
 #RT60s = [0.5*i for i in range(5, 10)]
 RT60s = np.linspace(0.6, 0.8, 3)
@@ -31,7 +32,7 @@ N_mics=12
 
 wav_path = "relaxing-guitar-loop-v5-245859.wav"
 
-out_q_path = "VAST_filter_archive_RT60_10.npy"
+out_q_path = "VAST_filter_archive_730.npy"
 
 fs_wav, wav = wavfile.read(wav_path)
 
@@ -119,27 +120,32 @@ if __name__ == "__main__":
     tilt_rotations=[np.deg2rad(15),np.deg2rad(45),np.deg2rad(75)]
     iteration_count=0
     total_iterations = len(RT60s) * len(rooms) * len(user_rotations) * len(tilt_rotations) * 3
-    for room_dim in rooms:
-        if 100 in room_dim and (room_dim != rooms[-1]):
-            continue
-        elif room_dim == rooms[-1]:
+    rooms_loop = tqdm(rooms, total=len(rooms), position=0)
+    for room_dim in rooms_loop:
+        rooms_loop.set_description(f"Room dim = {room_dim}")
+        if room_dim == rooms[-1]:
             spatial_positions = [[50, 50, z_height]]
         else:
             spatial_positions = [
-                    [room_dim[0]/2   , room_dim[1]/2   , z_height],  # 0 — Center
-                    [room_dim[0]/2   , room_dim[1]-0.5 , z_height],  # 1 — Up against one wall
-                    [room_dim[0]-0.5 , room_dim[1]-0.5 , z_height],  # 2 — Corner
+                    [room_dim[0]/2              , room_dim[1]/2              , z_height],   # 0 — Center
+                    [room_dim[0]/2              , room_dim[1]-dark_mic_radius, z_height],   # 1 — Up against one wall
+                    [room_dim[0]-dark_mic_radius, room_dim[1]-dark_mic_radius, z_height],   # 2 — Corner
                 ]
-        for i, RT60 in enumerate(RT60s):
-            print(f"\nRT60 = {RT60}")
-            for ii, spatial_position in enumerate(spatial_positions):
-                print(f"  Spatial position = {spatial_position}")
+        RT60_loop = tqdm(enumerate(RT60s), total=len(RT60s), leave=False, position=1)
+        for i, RT60 in RT60_loop:
+            RT60_loop.set_description(f"RT60 = {RT60}")
+            #print(f"\nRT60 = {RT60}")
+            spatial_loop = tqdm(enumerate(spatial_positions), total=len(spatial_positions), leave=False, position=2)
+            for ii, spatial_position in spatial_loop:
+                spatial_loop.set_description(f"Spatial pos = {spatial_position}")
+                #print(f"  Spatial position = {spatial_position}")
                 sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(
                     dark_mic_radius, spatial_position, N_mics
                 )
-
-                for iii, user_rotation in enumerate(user_rotations):
-                    print(f"    User rotation = {round(user_rotation / np.pi * 180, 2)} degrees")
+                rotation_loop = tqdm(enumerate(user_rotations), total=len(user_rotations), leave=False, position=3)
+                for iii, user_rotation in rotation_loop:
+                    rotation_loop.set_description(f"User rotation = {round(user_rotation/np.pi*180, 2)} deg")
+                    #print(f"    User rotation = {round(user_rotation / np.pi * 180, 2)} degrees")
                     user_orientation = np.array([
                         [np.cos(user_rotation), -np.sin(user_rotation), 0],
                         [np.sin(user_rotation),  np.cos(user_rotation), 0],
@@ -148,9 +154,10 @@ if __name__ == "__main__":
 
                     center_sources = np.mean(sources_position_list, axis=0)
                     orientation_source_temp = np.matmul(user_orientation, np.array(sources_position_list) - center_sources.T)
-
-                    for iv, tilt_rotation in enumerate(tilt_rotations):
-                        print(f"      Phone tilt = {round(tilt_rotation / np.pi * 180, 2)} degrees")
+                    tilt_loop = tqdm(enumerate(tilt_rotations), total=len(tilt_rotations), leave=False, position=4)
+                    for iv, tilt_rotation in tilt_loop:
+                        tilt_loop.set_description(f"Tilt = {round(tilt_rotation/np.pi*180, 2)} deg")
+                        #print(f"      Phone tilt = {round(tilt_rotation / np.pi * 180, 2)} degrees")
                         rotation_x = np.array([
                             [1,                     0,                      0],
                             [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
@@ -167,14 +174,14 @@ if __name__ == "__main__":
                         )
 
                         m = f"VAST_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
-                        print(m, datetime.datetime.now())
+                        #print(m, datetime.datetime.now())
                         
 
                         archive_q_matrix(
-                            q, out_q_path, m,
-                            orientation_source_final, RT60, IR, mic_positions_list,
+                            q, out_q_path, m, orientation_source_final,
+                            RT60, IR, mic_positions_list, room_dim,
                             spatial_position, dark_mic_radius, user_rotation, tilt_rotation,
                             bright_zone_mics_index, dark_zone_mics_index
                         )
                         iteration_count += 1
-                        print(f'Completed iteration {iteration_count} out of {total_iterations}')
+                        #print(f'Completed iteration {iteration_count} out of {total_iterations}')

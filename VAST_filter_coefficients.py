@@ -17,7 +17,8 @@ def setup_acoustic_scenario(sources,
                         room_dim, 
                         rt60,
                         mic_directions, 
-                        user_rotation):
+                        user_rotation,
+                        maxmax_order=20):
     """
     Sets up a pyroomacoustics simulation environment (ShoeBox) and computes RIRs.
 
@@ -33,6 +34,7 @@ def setup_acoustic_scenario(sources,
 
     # Define Room
     e_absorption, max_order = pra.inverse_sabine(rt60, room_dim)
+    max_order = min(max_order, maxmax_order)
     room = pra.ShoeBox(
         room_dim,
         fs=fs_target,
