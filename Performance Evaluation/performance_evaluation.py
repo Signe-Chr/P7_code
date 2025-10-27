@@ -7,10 +7,10 @@ import pesq, torch
 import scipy.io.wavfile as wavfile
 from scipy.signal import convolve
 from MLP_regression import FilterNet
-from MLP_classification import SoftFilterNet
+#from MLP_classification import SoftFilterNet
 from scipy.signal import stft
 from VAST_filter_coefficients import setup_acoustic_scenario
-from Dataset_generator_script import sources_mics, fs_target, room_dim#, #mic_directions, mic_positions_list, bright_zone_mics_index
+from Dataset_generator_script import sources_mics, fs_target, rooms #, #mic_directions, mic_positions_list, bright_zone_mics_index
 
 
 # -------------------------------------------------------------------------
@@ -32,6 +32,7 @@ sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mic
 # 2. Generate necessary files
 # -------------------------------------------------------------------------
 
+print(rooms)
 def generate_cut_input(start, stop):
 
     fs_orig, wav = wavfile.read("relaxing-guitar-loop-v5-245859.wav")
@@ -49,7 +50,7 @@ def generate_IR():
     '''
     Generate impulse responses for the given scenario and save to "test_ir.pt" to save time in future runs.
     '''
-    
+    room_dim = rooms[1]  # Vælg et rum fra listen
     IR = setup_acoustic_scenario(sources=sources_position_list, mic_positions_list=mic_positions_list, bright_zone_mics_index=bright_zone_mics_index, 
                             dark_zone_mics_index=dark_zone_mics_index, fs_target=fs_target, room_dim=room_dim, 
                             rt60=rt60, mic_directions=mic_directions, user_rotation=user_rotation)[0]
@@ -70,10 +71,10 @@ def generate_measured_path():
     L, J = 3, 1024
     output_size = L * J
 
-    #model = FilterNet(input_size, output_size)
-    #model.load_state_dict(torch.load("filter_mlp_weights.pth"))
-    model = SoftFilterNet(input_size, output_size, L, J)
-    model.load_state_dict(torch.load("mlp_weights.pth"))
+    model = FilterNet(input_size, output_size)
+    model.load_state_dict(torch.load("filter_mlp_weights.pth"))
+    #model = SoftFilterNet(input_size, output_size, L, J)
+    #model.load_state_dict(torch.load("mlp_weights.pth"))
     model.eval()
 
     with torch.no_grad():
@@ -208,8 +209,8 @@ def analyze_audio(measured_path, original_path):
 
 
 #update_all()
-generate_measured_path()
+#generate_measured_path()
 original = "Performance Evaluation/input_sound_cut.wav"
 measured = "Performance Evaluation/reproduced_sound.wav"
-analyze_audio(original, measured)
+#analyze_audio(original, measured)
 
