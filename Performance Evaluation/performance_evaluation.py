@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pesq, torch
 import scipy.io.wavfile as wavfile
 from scipy.signal import convolve
-from MLP import FilterNet
+from MLP_regression import FilterNet
 from MLP_classification import SoftFilterNet
 from scipy.signal import stft
 from VAST_filter_coefficients import setup_acoustic_scenario
