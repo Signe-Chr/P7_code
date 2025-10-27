@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 import pesq, torch
 import scipy.io.wavfile as wavfile
 from scipy.signal import convolve
-from MLP_regression import FilterNet
-#from MLP_classification import SoftFilterNet
+#from MLP_regression import FilterNet
+from MLP_classification import SoftFilterNet
 from scipy.signal import stft
 from VAST_filter_coefficients import setup_acoustic_scenario
 from Dataset_generator_script import sources_mics, fs_target, rooms #, #mic_directions, mic_positions_list, bright_zone_mics_index
@@ -32,7 +32,7 @@ sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mic
 # 2. Generate necessary files
 # -------------------------------------------------------------------------
 
-print(rooms)
+
 def generate_cut_input(start, stop):
 
     fs_orig, wav = wavfile.read("relaxing-guitar-loop-v5-245859.wav")
@@ -71,10 +71,18 @@ def generate_measured_path():
     L, J = 3, 1024
     output_size = L * J
 
-    model = FilterNet(input_size, output_size)
-    model.load_state_dict(torch.load("filter_mlp_weights.pth"))
-    #model = SoftFilterNet(input_size, output_size, L, J)
-    #model.load_state_dict(torch.load("mlp_weights.pth"))
+    #model = FilterNet(input_size, output_size)
+    #model.load_state_dict(torch.load("filter_mlp_weights.pth"))
+
+    # Load any needed tensors or metadata
+    filters_tensor = torch.load("filters_tensor.pt")  # if you saved it
+    input_size = 6  # whatever your input size was
+    num_filters = filters_tensor.shape[0]
+    filter_dim = filters_tensor.shape[1]
+
+    # Create model
+    model = SoftFilterNet(input_size, num_filters, filter_dim, filters_tensor)
+    model.load_state_dict(torch.load("mlp_weights.pth", map_location="cpu"))
     model.eval()
 
     with torch.no_grad():
@@ -212,5 +220,5 @@ def analyze_audio(measured_path, original_path):
 #generate_measured_path()
 original = "Performance Evaluation/input_sound_cut.wav"
 measured = "Performance Evaluation/reproduced_sound.wav"
-#analyze_audio(original, measured)
+analyze_audio(original, measured)
 
