@@ -6,6 +6,7 @@ from VAST_filter_coefficients import design_vast_filter
 #from VAST_Filter_Design_Module_Optimized import design_vast_filter
 import datetime
 from tqdm import tqdm
+import multiprocessing as mp
 
 
 
@@ -27,6 +28,9 @@ rooms = [[width, depth, height/2] for width in widths for depth in depths for he
 z_height=1.7
 #RT60s = [0.5*i for i in range(5, 10)]
 RT60s = np.linspace(0.6, 0.8, 3)
+
+user_rotations=[np.pi/2,np.pi,np.pi*3/2,2*np.pi]
+tilt_rotations=[np.deg2rad(15),np.deg2rad(45),np.deg2rad(75)]
 
 N_mics=12
 
@@ -114,74 +118,78 @@ def compute_center(points):
     center = np.mean(points, axis=0)
     return center
 
+def main(room_dim):
+    if room_dim == rooms[-1]:
+        spatial_positions = [[50, 50, z_height]]
+    else:
+        spatial_positions = [
+                [room_dim[0]/2              , room_dim[1]/2              , z_height],   # 0 — Center
+                [room_dim[0]/2              , room_dim[1]-dark_mic_radius, z_height],   # 1 — Up against one wall
+                [room_dim[0]-dark_mic_radius, room_dim[1]-dark_mic_radius, z_height],   # 2 — Corner
+            ]
+    #RT60_loop = tqdm(enumerate(RT60s), total=len(RT60s), leave=False)
+    for i, RT60 in enumerate(RT60s):
+        #RT60_loop.set_description(f"RT60 = {RT60}")
+        #print(f"\nRT60 = {RT60}")
+        #spatial_loop = tqdm(enumerate(spatial_positions), total=len(spatial_positions), leave=False)
+        for ii, spatial_position in enumerate(spatial_positions):
+            #spatial_loop.set_description(f"Spatial pos = {spatial_position}")
+            #print(f"  Spatial position = {spatial_position}")
+            sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(
+                dark_mic_radius, spatial_position, N_mics
+            )
+            #rotation_loop = tqdm(enumerate(user_rotations), total=len(user_rotations), leave=False)
+            for iii, user_rotation in enumerate(user_rotations):
+                #rotation_loop.set_description(f"User rotation = {round(user_rotation/np.pi*180, 2)} deg")
+                #print(f"    User rotation = {round(user_rotation / np.pi * 180, 2)} degrees")
+                user_orientation = np.array([
+                    [np.cos(user_rotation), -np.sin(user_rotation), 0],
+                    [np.sin(user_rotation),  np.cos(user_rotation), 0],
+                    [                    0,                      0, 1]
+                ])  # rotation around z-axis for bright zone ear mic
+
+                center_sources = np.mean(sources_position_list, axis=0)
+                orientation_source_temp = np.matmul(user_orientation, np.array(sources_position_list) - center_sources.T)
+                #tilt_loop = tqdm(enumerate(tilt_rotations), total=len(tilt_rotations), leave=False)
+                for iv, tilt_rotation in enumerate(tilt_rotations):
+                    #tilt_loop.set_description(f"Tilt = {round(tilt_rotation/np.pi*180, 2)} deg")
+                    #print(f"      Phone tilt = {round(tilt_rotation / np.pi * 180, 2)} degrees")
+                    rotation_x = np.array([
+                        [1,                     0,                      0],
+                        [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
+                        [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]
+                    ])
+                    
+                    orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
+                    orientation_source_final += center_sources.T
+                    q, IR = design_vast_filter(
+                        orientation_source_final, mic_positions_list,
+                        bright_zone_mics_index, dark_zone_mics_index,
+                        wav, RT60, mic_directions, user_rotation,
+                        fs_target, J, N, V, mu, room_dim, reg_eps, target_amplitude
+                    )
+
+                    m = f"VAST_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
+                    #print(m, datetime.datetime.now())
+                    
+
+                    archive_q_matrix(
+                        q, out_q_path, m, orientation_source_final,
+                        RT60, IR, mic_positions_list, room_dim,
+                        spatial_position, dark_mic_radius, user_rotation, tilt_rotation,
+                        bright_zone_mics_index, dark_zone_mics_index
+                    )
+                    #iteration_count += 1
+                    #print(f'Completed iteration {iteration_count} out of {total_iterations}')
+    pass
 
 if __name__ == "__main__":
-    user_rotations=[np.pi/2,np.pi,np.pi*3/2,2*np.pi]
-    tilt_rotations=[np.deg2rad(15),np.deg2rad(45),np.deg2rad(75)]
     iteration_count=0
     total_iterations = len(RT60s) * len(rooms) * len(user_rotations) * len(tilt_rotations) * 3
-    rooms_loop = tqdm(rooms, total=len(rooms), position=0)
-    for room_dim in rooms_loop:
-        rooms_loop.set_description(f"Room dim = {room_dim}")
-        if room_dim == rooms[-1]:
-            spatial_positions = [[50, 50, z_height]]
-        else:
-            spatial_positions = [
-                    [room_dim[0]/2              , room_dim[1]/2              , z_height],   # 0 — Center
-                    [room_dim[0]/2              , room_dim[1]-dark_mic_radius, z_height],   # 1 — Up against one wall
-                    [room_dim[0]-dark_mic_radius, room_dim[1]-dark_mic_radius, z_height],   # 2 — Corner
-                ]
-        RT60_loop = tqdm(enumerate(RT60s), total=len(RT60s), leave=False, position=1)
-        for i, RT60 in RT60_loop:
-            RT60_loop.set_description(f"RT60 = {RT60}")
-            #print(f"\nRT60 = {RT60}")
-            spatial_loop = tqdm(enumerate(spatial_positions), total=len(spatial_positions), leave=False, position=2)
-            for ii, spatial_position in spatial_loop:
-                spatial_loop.set_description(f"Spatial pos = {spatial_position}")
-                #print(f"  Spatial position = {spatial_position}")
-                sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(
-                    dark_mic_radius, spatial_position, N_mics
-                )
-                rotation_loop = tqdm(enumerate(user_rotations), total=len(user_rotations), leave=False, position=3)
-                for iii, user_rotation in rotation_loop:
-                    rotation_loop.set_description(f"User rotation = {round(user_rotation/np.pi*180, 2)} deg")
-                    #print(f"    User rotation = {round(user_rotation / np.pi * 180, 2)} degrees")
-                    user_orientation = np.array([
-                        [np.cos(user_rotation), -np.sin(user_rotation), 0],
-                        [np.sin(user_rotation),  np.cos(user_rotation), 0],
-                        [                    0,                      0, 1]
-                    ])  # rotation around z-axis for bright zone ear mic
-
-                    center_sources = np.mean(sources_position_list, axis=0)
-                    orientation_source_temp = np.matmul(user_orientation, np.array(sources_position_list) - center_sources.T)
-                    tilt_loop = tqdm(enumerate(tilt_rotations), total=len(tilt_rotations), leave=False, position=4)
-                    for iv, tilt_rotation in tilt_loop:
-                        tilt_loop.set_description(f"Tilt = {round(tilt_rotation/np.pi*180, 2)} deg")
-                        #print(f"      Phone tilt = {round(tilt_rotation / np.pi * 180, 2)} degrees")
-                        rotation_x = np.array([
-                            [1,                     0,                      0],
-                            [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
-                            [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]
-                        ])
-                        
-                        orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
-                        orientation_source_final += center_sources.T
-                        q, IR = design_vast_filter(
-                            orientation_source_final, mic_positions_list,
-                            bright_zone_mics_index, dark_zone_mics_index,
-                            wav, RT60, mic_directions, user_rotation,
-                            fs_target, J, N, V, mu, room_dim, reg_eps, target_amplitude
-                        )
-
-                        m = f"VAST_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
-                        #print(m, datetime.datetime.now())
-                        
-
-                        archive_q_matrix(
-                            q, out_q_path, m, orientation_source_final,
-                            RT60, IR, mic_positions_list, room_dim,
-                            spatial_position, dark_mic_radius, user_rotation, tilt_rotation,
-                            bright_zone_mics_index, dark_zone_mics_index
-                        )
-                        iteration_count += 1
-                        #print(f'Completed iteration {iteration_count} out of {total_iterations}')
+    rooms_loop = tqdm(rooms, total=len(rooms))
+    pool = mp.Pool(processes=mp.cpu_count()-1)
+    results = [pool.apply_async(main, (room, ), callback=rooms_loop.update(1)) for room in rooms]
+    pool.close()
+    pool.join()
+    #for room_dim in rooms_loop:
+    #    rooms_loop.set_description(f"Room dim = {room_dim}")
