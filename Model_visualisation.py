@@ -22,8 +22,8 @@ class SoftFilterNet(nn.Module):
         x = F.relu(self.fc2(x))
         logits = self.fc3(x)
         weights = F.softmax(logits, dim=1)
-        combined = weights @ self.filters
-        return combined, weights
+        predicted_filters = weights @ self.filters
+        return predicted_filters, weights
 
 
 # ================================================================
