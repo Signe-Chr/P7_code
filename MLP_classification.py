@@ -79,8 +79,8 @@ class SoftFilterNet(nn.Module):
         x = F.relu(self.fc2(x))
         logits = self.fc3(x)                        # [batch, num_filters]
         weights = F.softmax(logits, dim=1)          # [batch, num_filters]
-        combined = weights @ self.filters           # [batch, filter_dim]
-        return combined, weights
+        predicted_filters = weights @ self.filters           # [batch, filter_dim]
+        return predicted_filters, weights
 
 model = SoftFilterNet(input_size, num_filters, filter_dim, filters_tensor)
 summary(model, input_size=(input_size,))
@@ -88,22 +88,26 @@ summary(model, input_size=(input_size,))
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
 
+if __name__== "__main__":
 # ---- 4. Training loop
-model.train()
-for epoch in range(200):
-    predicted_filters, weights = model(X_train_t)  # two outputs
-    loss = criterion(predicted_filters, y_train_t)
+    model.train()
+    for epoch in range(200):
+        predicted_filters, weights = model(X_train_t)  # two outputs
+        loss = criterion(predicted_filters, y_train_t)
 
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
-    if (epoch + 1) % 30 == 0:
-        print(f"Epoch [{epoch+1}/200], Loss: {loss.item():.6f}")
+        if (epoch + 1) % 30 == 0:
+            print(f"Epoch [{epoch+1}/200], Loss: {loss.item():.6f}")
 
-torch.save(model.state_dict(), "mlp_weights.pth")
-print("Model weights saved to mlp_weights.pth")
+    torch.save(model.state_dict(), "mlp_weights.pth")
+    print("Model weights saved to mlp_weights.pth")
+    torch.save(filters_tensor, "filters_tensor.pt")
+    print("Filters saved to filters_tensor.pt")
 
+"""
 # ---- 5. Evaluation with top-k filter combination
 model.eval()
 num_filters = filters_tensor.shape[0]
@@ -152,6 +156,4 @@ plt.ylabel("Average MSE on test set")
 plt.title("Effect of number of filters on reconstruction error")
 plt.grid(True)
 plt.show()
-
-if __name__== "__main__":
-    model = SoftFilterNet(input_size, num_filters, filter_dim, filters_tensor)
+"""
