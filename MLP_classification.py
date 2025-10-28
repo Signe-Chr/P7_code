@@ -107,6 +107,26 @@ if __name__== "__main__":
     torch.save(filters_tensor, "filters_tensor.pt")
     print("Filters saved to filters_tensor.pt")
 
+
+           # ---- Test model output on specific input
+    model.eval()
+    with torch.no_grad():
+        test_input = np.concatenate([[0.6], [np.deg2rad(15)], [np.pi/2], [2, 2, 4]]).astype(np.float32)
+        test_input_t = torch.from_numpy(test_input).unsqueeze(0)  # [1, input_size]
+
+        pred_filter, pred_weights = model(test_input_t)
+
+        print(f"Predicted filter shape: {pred_filter.shape}")
+        print(f"Weights shape:          {pred_weights.shape}")
+
+        # Save all predicted filter coefficients to text file
+        np.savetxt("predicted_filter_1.txt", pred_filter.squeeze().cpu().numpy(), fmt="%.8f")
+        print(f"\nAll {pred_filter.numel()} predicted filter coefficients saved to 'predicted_filter.txt'")
+
+        # Optional: preview first few coefficients
+        print("\nFirst 10 predicted filter values:")
+        print(pred_filter[0, :10].cpu().numpy())
+
 """
 # ---- 5. Evaluation with top-k filter combination
 model.eval()

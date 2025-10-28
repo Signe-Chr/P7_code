@@ -32,6 +32,8 @@ RT60s = np.linspace(0.6, 0.8, 3)
 user_rotations=[np.pi/2,np.pi,np.pi*3/2,2*np.pi]
 tilt_rotations=[np.deg2rad(15),np.deg2rad(45),np.deg2rad(75)]
 
+np.concatenate([[0.5], [np.deg2rad(15)], [np.pi/2], [1,1,1]])
+
 N_mics=12
 
 wav_path = "relaxing-guitar-loop-v5-245859.wav"
@@ -131,7 +133,6 @@ def main(orientation_source_final, mic_positions_list, bright_zone_mics_index, d
     m = f"VAST_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
     #print(m, datetime.datetime.now())
     
-
     archive_q_matrix(
         q, out_q_path, m, orientation_source_final,
         RT60, IR, mic_positions_list, room_dim,
