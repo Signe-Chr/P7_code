@@ -33,7 +33,9 @@ data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
 filters_list = []
 for inner in data.values():
     q = inner.get("q_matrix", np.zeros((3, 1024), dtype=np.float32))
-    filters_list.append(q.reshape(-1))  # flatten
+    #print(np.shape(q.reshape(-1)),np.shape(np.ones(3*1024)))
+    filters_list.append(np.ones(3*1024))
+    #filters_list.append(q.reshape(-1))  # flatten
 filters_np = np.stack(filters_list).astype(np.float32)
 filters_tensor = torch.unique(torch.from_numpy(filters_np), dim=0)
 num_filters, filter_dim = filters_tensor.shape
