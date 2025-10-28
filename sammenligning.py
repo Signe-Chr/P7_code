@@ -149,7 +149,7 @@ def compare_models(file_path_a, file_path_b, tolerance=1e-5):
 if __name__ == '__main__':
     # Define file names
     FILE_A = 'mlp_weights.pth' # vægte til dictionary
-    FILE_B = 'regression_model_B.pth'
+    FILE_B = 'filter_mlp_weights.pth'
 
     # 1. Create the dummy files (A is baseline, B is 'trained')
     f_a, f_b = create_and_save_models(FILE_A, FILE_B)
