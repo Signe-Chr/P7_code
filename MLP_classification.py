@@ -79,8 +79,8 @@ class SoftFilterNet(nn.Module):
         x = F.relu(self.fc2(x))
         logits = self.fc3(x)                        # [batch, num_filters]
         weights = F.softmax(logits, dim=1)          # [batch, num_filters]
-        combined = weights @ self.filters           # [batch, filter_dim]
-        return combined, weights
+        predicted_filters = weights @ self.filters  # [batch, filter_dim]
+        return predicted_filters, weights
 
 model = SoftFilterNet(input_size, num_filters, filter_dim, filters_tensor)
 summary(model, input_size=(input_size,))

@@ -5,12 +5,12 @@ from scipy.signal import fftconvolve
 from scipy.io import wavfile
 from scipy.signal import lfilter
 import os
-import VAST_dictionary_generator as vdg
-import VISUALIZE_q_matrix as vq
+#import VAST_dictionary_generator as vdg
+#import VISUALIZE_q_matrix as vq
+import Dataset_generator_script as dgs
 import torch.nn.functional as F
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 # Get the directory where the script is located
@@ -21,84 +21,89 @@ fs, lyd_data = wavfile.read(file_path)
 lyd_data=list(np.array(lyd_data[0:fs*1])/max(lyd_data))
 
 
-q = torch.tensor(vq.q[0])
+#q = torch.tensor(vq.q[0])
 fcentre = torch.tensor([1000, 2000])
-J = vdg.J
+J = dgs.J
+
+INPUT_SIZE = 6 
+
+# Output Size (Filter Coefficients): Based on the provided filters_list data (3072 elements)
+FILTER_DIM = 3072 
+
+# Structure of the output filter: 3 Sources (S) * 1024 Taps (T) = 3072
+n_srcs = 3   # Number of Sources (or microphone channels to control)
+T = 1024 # Number of Filter Taps
+n_mics = dgs.N_mics
 
 
-class ILZ_CNN_RIR(nn.Module):
+class RegressionNet(nn.Module):
     """
-    CNN architecture for Source Zone Control (SZC) filter optimization.
+    A Deep Fully Connected network that regresses filter coefficients directly 
+    from a small set of acoustic and spatial metadata features.
 
-    Parameters:
-    M (int): Number of Microphones.
-    S (int): Number of Sources (Loudspeakers).
-    T (int): Number of filter coefficients per Loudspeaker (Filter length J).
-    K (int): Length of the RIR input (Time dimension L).
+    Input Shape: (Batch, 6) - [RT60, phone_tilt, user_orient, x, y, z]
+    Output Shape: (Batch, S, T) = (Batch, 3, 1024) - The filter coefficients 'q'
     """
-    def __init__(self, M, S, T, K):
-        super(ILZ_CNN_RIR, self).__init__()
-        self.M, self.S, self.T = M, S, T
+    def __init__(self, input_size, filter_dim, S, T):
+        super().__init__()
         
-        # NOTE: Input Shape: (Batch, 1, M, S, K)
+        self.S = S
+        self.T = T
         
-        # Layer 1: Aggregates across Mics (M)
-        self.conv1 = nn.Conv3d(
-            in_channels=1, out_channels=48, 
-            kernel_size=(M, 1, 1), # Consumes M dimension
-            padding=(0, 0, 0)
-        )
-        # Output shape after conv1: (Batch, 48, 1, S, K)
+        # Network to map small input features (6) to large output coefficients (3072).
+        self.fc1 = nn.Linear(input_size, 64)
+        self.fc2 = nn.Linear(64, 256)
+        self.fc3 = nn.Linear(256, 1024)
         
-        # Layer 2: Aggregates across Sources (S)
-        self.conv2 = nn.Conv3d(
-            in_channels=48, out_channels=24, 
-            kernel_size=(1, S, 1), # Consumes S dimension
-            padding=(0, 0, 0)
-        )
-        # Output shape after conv2: (Batch, 24, 1, 1, K)
+        # Final layer outputs the total number of filter coefficients (S * T = 3072)
+        self.fc_output = nn.Linear(1024, filter_dim)
         
-        # Calculate FC input size based on the remaining K dimension
-        self.fc_input_size = 24 * K # This K must match max_length used in preparation
+        # Standard activation for hidden layers
+        self.activation = nn.ReLU() 
+        
+        # HardTanh is used to constrain filter coefficients, typically to [-1.0, 1.0]
+        self.final_activation = nn.Hardtanh(min_val=-1.0, max_val=1.0)
 
-        # Fully Connected Layers
-        self.fc1 = nn.Linear(self.fc_input_size, 10)
-        self.fc2 = nn.Linear(10, S * T) # Final output size: S * T
 
-        # Activation Function
-        self.activation = nn.Hardtanh(min_val=-1.0, max_val=1.0)
-        
     def forward(self, x):
-        # Convolutional Block
-        x = self.activation(self.conv1(x))
-        x = self.activation(self.conv2(x))
+        B = x.size(0)
         
-        # Flatten for FC layers: (batch, 24 * K)
-        x = x.view(x.size(0), -1) 
-        
-        # Fully Connected Block
+        # 1. Feature Mapping
         x = self.activation(self.fc1(x))
-        x = self.fc2(x)
+        x = self.activation(self.fc2(x))
+        x = self.activation(self.fc3(x))
         
-        # Reshape output to (batch, S, T) -> Filter coefficients q
-        q = x.view(x.size(0), self.S, self.T)
+        # Final linear regression layer
+        predicted_filters_flat = self.fc_output(x) 
+        
+        # Apply final activation
+        predicted_filters_flat = self.final_activation(predicted_filters_flat)
+        
+        # 2. Reshape to Final Filter Tensor
+        # [B, 3072] -> [B, 3, 1024]
+        q = predicted_filters_flat.view(B, self.S, self.T)
         
         return q
 
-model = ILZ_CNN_RIR(M=vdg.n_mics, S=vdg.n_srcs, T=J, K=J)
+
+model = RegressionNet(
+    input_size=INPUT_SIZE, 
+    filter_dim=FILTER_DIM, 
+    S=n_srcs, 
+    T=T
+)
+
+print(f"MetadataRegressionNet instantiated.")
+print(f"  Input features: {INPUT_SIZE}")
+print(f"  Output filter shape: (Batch, {n_srcs}, {T}) -> {FILTER_DIM} coefficients total.")
+
+
 
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=1e-4)  # Lower learning rate
 #optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4) #lr: learning rate, weight_decay: L2 regularization
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=1)
 
 
-NN_INPUT, setup_information = vdg.NN_input(5)
-sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index = setup_information[-1][0], setup_information[-1][1], setup_information[-1][2], setup_information[-1][3]
-#[rir_tensor, rir_list]
-# [sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index]
-
-n_mics = len(mic_positions_list)
-n_srcs = len(sources_position_list)
 
 
 def compute_H_matrix(rir_array, fs=16000, n_fft=None):
@@ -199,11 +204,6 @@ def compute_multi_toeplitz(rir_array: np.ndarray, block_len: int) -> np.ndarray:
             
     return H_multi
 
-
-
-
-
-
 def L_1_loss(q_opt, fcentres, M_B, H):
     g = torch.fft.fft(q_opt, axis = 0)
     target_pressure = torch.abs(g)*1.3 # revurderes
@@ -285,7 +285,7 @@ def AC_tilde(H_B, H_D, g, M_B, M_D):
 
 def L_2_loss(q_opt, fcentres, H_B, H_D, M_B, M_D):
     fd = torch.tensor(2**(1/6))
-    delta_f = vdg.fs_target/vdg.J
+    delta_f = dgs.fs_target/dgs.J
     L_2 = 0
     for freq in fcentres:
         f_low = freq/fd
@@ -333,7 +333,7 @@ def energy(H_time, mic_index: int, speaker_index: int) -> torch.Tensor:
     
     return e_b
 
-def L_3_loss(q_opt, H_time, N_time_steps = vdg.N):
+def L_3_loss(q_opt, H_time, N_time_steps = dgs.N):
     L_3 = torch.tensor(0.0)
     
     for m in bright_zone_mics_index:

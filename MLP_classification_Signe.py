@@ -54,6 +54,9 @@ X_test = configs_tensor[test_mask]
 y_train = filters_tensor[train_mask]
 y_test = filters_tensor[test_mask]
 
+filters_train_dict = y_train
+filters_test_true = y_test
+
 print("Training samples:", X_train.shape[0])
 print("Test samples (unseen room):", X_test.shape[0])
 
@@ -67,7 +70,7 @@ model = torch.nn.Sequential(
     #torch.nn.ReLU(),
     #torch.nn.Linear(256,512),
     #torch.nn.ReLU(),
-    torch.nn.Linear(512, num_total)  # output one weight per total filter
+    torch.nn.Linear(512, y_train.shape[0])  # output one weight per total filter
 )
 summary(model, input_size=(input_size,))
 
@@ -79,7 +82,7 @@ model.train()
 for epoch in range(200):
     logits = model(X_train)                 # [N_train, N_total]
     weights = F.softmax(logits, dim=1)      # softmax weights over all filters
-    predicted_filters = weights @ filters_tensor  # [N_train, filter_length]
+    predicted_filters = weights @ y_train  # [N_train, filter_length]
 
     loss = criterion(predicted_filters, y_train)
     optimizer.zero_grad()
@@ -91,7 +94,7 @@ for epoch in range(200):
 
 # ---- 6. Evaluation with top-k filter combination
 model.eval()
-num_filters = filters_tensor.shape[0]  # total filters
+num_filters = y_train.shape[0]  # total filters
 avg_mse_list = []
 
 with torch.no_grad():
@@ -100,13 +103,13 @@ with torch.no_grad():
     test_weights = F.softmax(test_logits, dim=1)  # [N_test, N_total]
     train_logits = model(X_train)                 # [N_train, N_total]
     train_weights = torch.softmax(train_logits, dim=1)  # softmax over filters
-    train_predicted = train_weights @ filters_tensor      # weighted sum
+    train_predicted = train_weights @ y_train      # weighted sum
     train_loss = torch.mean((train_predicted - y_train)**2)  # MSE
     print(f"Training Loss: {train_loss.item():.6f}")
     
     test_logits = model(X_test)                  # [N_test, N_total]
     test_weights = torch.softmax(test_logits, dim=1)
-    test_predicted = test_weights @ filters_tensor
+    test_predicted = test_weights @ y_train
     test_loss = torch.mean((test_predicted - y_test)**2)
     print(f"Test Loss: {test_loss.item():.6f}")
     for k in range(1, num_filters+1):
@@ -120,7 +123,7 @@ with torch.no_grad():
             topk_w /= topk_w.sum()  # renormalize
 
             # compute weighted filter
-            pred_filter = torch.from_numpy(topk_w).unsqueeze(0) @ filters_tensor  # [1, filter_length]
+            pred_filter = torch.from_numpy(topk_w).unsqueeze(0) @ y_train  # [1, filter_length]
             mse = torch.mean((pred_filter - y_test[i].unsqueeze(0))**2).item()
             mse_sum += mse
 
@@ -158,7 +161,7 @@ avg_cum_prob = np.mean(cum_prob_array, axis=0)
 
 # Plot
 plt.figure(figsize=(8,5))
-plt.plot(range(1, num_total+1), avg_cum_prob, marker='o')
+plt.plot(range(1, y_train.shape[0] + 1), avg_cum_prob, marker='o')
 plt.xlabel("Top-k filters")
 plt.ylabel("Average cumulative softmax probability")
 plt.title("Average cumulative softmax probability vs top-k filters")
