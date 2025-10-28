@@ -57,9 +57,9 @@ class FilterNet(nn.Module):
     def __init__(self, input_size, output_size):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(input_size, 128),
+            nn.Linear(input_size, 512),
             nn.ReLU(),
-            nn.Linear(128, 256),
+            nn.Linear(512, 256),
             nn.ReLU(),
             nn.Linear(256, 512),
             nn.ReLU(),
@@ -73,12 +73,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = FilterNet(input_size=X.shape[1], output_size=y.shape[1]).to(device)
 #summary(model, input_size=(X.shape[1],))
 
-criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
 
 # ---- 4. Train and save the model
-def train(X, y, epochs, batch_size):
-    
+def train(X, y, epochs, batch_size, model):
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
     epochs = 200
     batch_size = 32
 
@@ -114,9 +115,9 @@ if __name__ == "__main__":
                 print(f"{field}: type = {type(value)}, value = {value}")
         break
 
-    train(X_train, y_train, epochs=200, batch_size=32)
+    train(X_train, y_train, epochs=200, batch_size=32, model=model)
     #torch.save(model, "filter_mlp_model_full.pth")
-    torch.save(model.state_dict(), "filter_mlp_weights.pth")
+    torch.save(model.state_dict(), "mlp_weights_r.pth")
     #gemt_model = torch.load("filter_mlp_model_full.pth", weights_only=False)
     #model = gemt_model
 
@@ -139,5 +140,25 @@ if __name__ == "__main__":
         mse = np.mean((preds - y_test.numpy()) ** 2)
     print(f"\nTest MSE: {mse:.6f}")
 
+    # ---- 5. Evaluation and saving coefficients
+    with torch.no_grad():
+        # ---- Custom input as requested
+        test_input = np.concatenate([[0.6], [np.deg2rad(15)], [np.pi/2], [2, 2, 4]]).astype(np.float32)
+        test_input_scaled = scaler_X.transform(test_input.reshape(1, -1))
+        test_tensor = torch.tensor(test_input_scaled, dtype=torch.float32).to(device)
 
+        predicted_filter = model(test_tensor).cpu().numpy().squeeze()
+
+        print(f"Predicted filter shape: {predicted_filter.shape}")
+        print("First 10 coefficients:", predicted_filter[:10])
+
+        # ---- Save coefficients
+        np.savetxt("predicted_filter_fnet_2.txt", predicted_filter, fmt="%.8f")
+        print(f"All {predicted_filter.size} coefficients saved to 'predicted_filter_fnet.txt'")
+
+    # ---- Optional: compute test set MSE
+    with torch.no_grad():
+        preds = model(X_test.to(device)).cpu().numpy()
+        mse = np.mean((preds - y_test.numpy()) ** 2)
+    print(f"\nTest MSE: {mse:.6f}")
 
