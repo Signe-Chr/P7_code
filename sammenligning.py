@@ -6,7 +6,7 @@ from scipy.fft import fft, fftfreq
 # ------------------------------------------------------------
 # 1. Load model predictions
 # ------------------------------------------------------------
-f1 = np.loadtxt("predicted_filter_1.txt")
+f1 = np.loadtxt("predicted_filter_top1.txt")
 f2 = np.loadtxt("predicted_filter_fnet_2.txt")
 
 print("=== Loaded Model Filters ===")

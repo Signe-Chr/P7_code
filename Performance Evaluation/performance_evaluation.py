@@ -3,7 +3,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 import numpy as np
 import matplotlib.pyplot as plt
-import pesq, torch
+import torch
 import scipy.io.wavfile as wavfile
 from scipy.signal import convolve
 #from MLP_regression import FilterNet
@@ -11,6 +11,7 @@ from MLP_classification import SoftFilterNet
 from scipy.signal import stft
 from VAST_filter_coefficients import setup_acoustic_scenario
 from Dataset_generator_script import sources_mics, fs_target, rooms #, #mic_directions, mic_positions_list, bright_zone_mics_index
+
 
 
 # -------------------------------------------------------------------------
@@ -130,10 +131,32 @@ def update_all():
     Cosine similarity
 '''
 
-def compute_pesq(original, measured):
-    pesq_score = pesq.pesq(16000, original, measured, 'nb')
-    print(f"PESQ score: {pesq_score:.3f}")
-    return pesq_score
+from torch_pesq import PesqLoss
+
+def calculate_pesq(reference: torch.Tensor, degraded: torch.Tensor, sample_rate: int = 44100, mode: float = 0.5):
+    """
+    Calculate the PESQ MOS score and loss between reference and degraded audio signals.
+
+    Parameters
+    ----------
+    reference : torch.Tensor
+        The reference clean audio signal (shape: [batch, samples]).
+    degraded : torch.Tensor
+        The degraded/noisy audio signal (shape: [batch, samples]).
+    sample_rate : int, optional
+        Sampling rate of the audio signals (default: 44100 Hz).
+    mode : float, optional
+        Weight parameter for PESQLoss (typically between 0 and 1, default: 0.5).
+
+    Returns
+    -------
+    tuple
+        (mos, loss) — both as torch.Tensors.
+    """
+    pesq = PesqLoss(mode, sample_rate=sample_rate)
+    mos = pesq.mos(reference, degraded)
+    loss = pesq(reference, degraded)
+    return mos, loss
 
 def compute_psnr(original, measured):
     mse = np.mean((original - measured)**2)
@@ -193,14 +216,15 @@ def analyze_audio(measured_path, original_path):
 
     psnr = compute_psnr(x, y)
     lsd_mean, lsd_frames = compute_lsd(x, y, fs_orig)
-    pesq_score = compute_pesq(x, y)
+    mos_score, pesq_score = calculate_pesq(torch.asarray(x),torch.asarray(y))
     CC_score = compute_CC(x, y)
     Cosine_sim = compute_cosine_similarity(x, y)
 
 
     print(f"PSNR: {psnr:.2f} dB")
     print(f"Log-Spectral Distance (LSD): {lsd_mean:.2f} dB")
-    print(f"PESQ: {pesq_score:.2f}")
+    print(f"PESQ: {pesq_score}")
+    print(f"MOS: {mos_score}")
     print(f"Cross-Correlation (CC): {CC_score:.2f}")
     print(f"Cosine Similarity: {Cosine_sim:.2f}")
 
@@ -215,10 +239,79 @@ def analyze_audio(measured_path, original_path):
 
     return psnr, lsd_mean
 
+import numpy as np
+from scipy.io import wavfile
+from scipy.signal import convolve
+
+def apply_filter_to_audio(filter_path, input_wav_path, output_wav_path=None, normalize=True):
+    """
+    Applies a FIR filter (from .txt file) to an input WAV file and saves the output.
+
+    Parameters
+    ----------
+    filter_path : str
+        Path to the .txt file containing the filter coefficients.
+    input_wav_path : str
+        Path to the input WAV file.
+    output_wav_path : str, optional
+        Path to save the filtered audio. If None, appends '_filtered.wav' to input filename.
+    normalize : bool, default=True
+        Whether to normalize output to prevent clipping.
+
+    Returns
+    -------
+    output_wav_path : str
+        The path of the saved filtered WAV file.
+    """
+
+    # ---- 1. Load filter coefficients ----
+    filt = np.loadtxt(filter_path, dtype=np.float32)
+    print(f"Loaded filter from '{filter_path}' with {len(filt)} coefficients.")
+
+    # ---- 2. Load input audio ----
+    fs, audio = wavfile.read(input_wav_path)
+    print(f"Loaded '{input_wav_path}' with sample rate {fs} Hz.")
+
+    # Convert stereo → mono if needed
+    if audio.ndim > 1:
+        audio = np.mean(audio, axis=1)
+
+    # Convert to float32 in [-1, 1]
+    if audio.dtype != np.float32:
+        audio = audio.astype(np.float32)
+        audio /= np.max(np.abs(audio))
+
+    # ---- 3. Apply convolution ----
+    filtered_audio = convolve(audio, filt, mode='full')
+
+    # ---- 4. Normalize ----
+    if normalize:
+        filtered_audio /= np.max(np.abs(filtered_audio))
+
+    # ---- 5. Save output ----
+    if output_wav_path is None:
+        base = input_wav_path.rsplit('.', 1)[0]
+        output_wav_path = f"{base}_filtered.wav"
+
+    wavfile.write(output_wav_path, fs, (filtered_audio * 32767).astype(np.int16))
+    print(f"Saved filtered audio to '{output_wav_path}'")
+
+    return output_wav_path
+
 
 #update_all()
 #generate_measured_path()
-original = "Performance Evaluation/input_sound_cut.wav"
-measured = "Performance Evaluation/reproduced_sound.wav"
-analyze_audio(original, measured)
+
+if __name__== "__main__":
+
+    filter1 = "predicted_filter_top1.txt"
+    filter2 = "predicted_filter_fnet_2.txt"
+
+    original = "relaxing-guitar-loop-v5-245859.wav"
+
+    output_wav_path = "relaxing-guitar-loop-v5-245859_filterd.wav"
+
+    measured = apply_filter_to_audio(filter2, original, output_wav_path)
+
+    analyze_audio(original, measured)
 
