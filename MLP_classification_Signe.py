@@ -62,16 +62,14 @@ print("Test samples (unseen room):", X_test.shape[0])
 
 # ---- 4. Define model
 model = torch.nn.Sequential(
-    torch.nn.Linear(input_size, 128),
-    torch.nn.ReLU(),
-    torch.nn.Linear(128,512),
-    torch.nn.ReLU(),
-    #torch.nn.Linear(128,256),
-    #torch.nn.ReLU(),
-    #torch.nn.Linear(256,512),
-    #torch.nn.ReLU(),
-    torch.nn.Linear(512, y_train.shape[0])  # output one weight per total filter
-)
+                        torch.nn.Linear(input_size, 512),
+                        torch.nn.ReLU(),
+                        torch.nn.Linear(512, 256),
+                        torch.nn.ReLU(),
+                        torch.nn.Linear(256, 512),
+                        torch.nn.ReLU(),
+                        torch.nn.Linear(512, y_train.shape[0])
+                    )
 summary(model, input_size=(input_size,))
 
 criterion = torch.nn.MSELoss()

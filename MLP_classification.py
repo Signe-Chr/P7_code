@@ -70,17 +70,19 @@ class SoftFilterNet(nn.Module):
     def __init__(self, input_size, num_filters, filter_dim, filters_tensor):
         super().__init__()
         self.fc1 = nn.Linear(input_size, 512)
-        self.fc2 = nn.Linear(512, 512)
-        self.fc3 = nn.Linear(512, num_filters)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 512)
+        self.fc4 = nn.Linear(512, num_filters)
         self.register_buffer("filters", filters_tensor)  # [num_filters, filter_dim]
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        logits = self.fc3(x)                        # [batch, num_filters]
+        x = F.relu(self.fc3(x))
+        logits = self.fc4(x)                        # [batch, num_filters]
         weights = F.softmax(logits, dim=1)          # [batch, num_filters]
-        predicted_filters = weights @ self.filters  # [batch, filter_dim]
-        return predicted_filters, weights
+        combined = weights @ self.filters           # [batch, filter_dim]
+        return combined, weights
 
 model = SoftFilterNet(input_size, num_filters, filter_dim, filters_tensor)
 summary(model, input_size=(input_size,))

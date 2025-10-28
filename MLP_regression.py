@@ -57,9 +57,9 @@ class FilterNet(nn.Module):
     def __init__(self, input_size, output_size):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(input_size, 128),
+            nn.Linear(input_size, 512),
             nn.ReLU(),
-            nn.Linear(128, 256),
+            nn.Linear(512, 256),
             nn.ReLU(),
             nn.Linear(256, 512),
             nn.ReLU(),
@@ -73,12 +73,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = FilterNet(input_size=X.shape[1], output_size=y.shape[1]).to(device)
 #summary(model, input_size=(X.shape[1],))
 
-criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
 
 # ---- 4. Train and save the model
-def train(X, y, epochs, batch_size):
-    
+def train(X, y, epochs, batch_size, model):
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
     epochs = 200
     batch_size = 32
 
@@ -114,9 +115,9 @@ if __name__ == "__main__":
                 print(f"{field}: type = {type(value)}, value = {value}")
         break
 
-    train(X_train, y_train, epochs=200, batch_size=32)
+    train(X_train, y_train, epochs=200, batch_size=32, model=model)
     #torch.save(model, "filter_mlp_model_full.pth")
-    torch.save(model.state_dict(), "filter_mlp_weights.pth")
+    torch.save(model.state_dict(), "mlp_weights_r.pth")
     #gemt_model = torch.load("filter_mlp_model_full.pth", weights_only=False)
     #model = gemt_model
 
