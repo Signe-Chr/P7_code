@@ -16,7 +16,7 @@ print(f"Filter 2 shape: {f2.shape}")
 # ------------------------------------------------------------
 # 2. Load VAST reference filter
 # ------------------------------------------------------------
-vast_archive = np.load("VAST_filter_archive_730.npy", allow_pickle=True).item()
+vast_archive = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
 
 # You can choose any key from the archive; here we pick one automatically
 # or manually select if you know which case corresponds to your test input.
@@ -58,25 +58,25 @@ def metrics(a, b, label_a, label_b):
     print(f"Cosine similarity: {cos_sim:.6f}")
     return diff
 
-diff_12 = metrics(f1n, f2n, "Model 1", "Model 2")
-diff_13 = metrics(f1n, f3n, "Model 1", "VAST")
-diff_23 = metrics(f2n, f3n, "Model 2", "VAST")
+diff_12 = metrics(f1n, f2n, "mlp_classification", "mlp_regression")
+diff_13 = metrics(f1n, f3n, "mlp_classification", "VAST")
+diff_23 = metrics(f2n, f3n, "mlp_regression", "VAST")
 
 # ------------------------------------------------------------
 # 6. Visualization — time-domain comparison
 # ------------------------------------------------------------
 plt.figure(figsize=(14, 10))
 plt.subplot(3, 1, 1)
-plt.plot(f1n, label="Model 1", alpha=0.8)
-plt.plot(f2n, label="Model 2", alpha=0.8)
+plt.plot(f1n, label="mlp_classification", alpha=0.8)
+plt.plot(f2n, label="mlp_regression", alpha=0.8)
 plt.plot(f3n, label="VAST Reference", alpha=0.8)
 plt.legend()
 plt.title("Filter Coefficients (Normalized)")
 plt.grid(True)
 
 plt.subplot(3, 1, 2)
-plt.plot(diff_13, color="red", label="Model 1 - VAST")
-plt.plot(diff_23, color="blue", alpha=0.5, label="Model 2 - VAST")
+plt.plot(diff_13, color="red", label="mlp_classification - VAST")
+plt.plot(diff_23, color="blue", alpha=0.5, label="mlp_regression - VAST")
 plt.legend()
 plt.title("Differences w.r.t. VAST Reference")
 plt.grid(True)
@@ -100,8 +100,8 @@ def plot_fft_comparison(f1, f2, f3, fs=16000):
     freq = fftfreq(N, 1/fs)[:N//2]
     F1, F2, F3 = np.abs(fft(f1)[:N//2]), np.abs(fft(f2)[:N//2]), np.abs(fft(f3)[:N//2])
 
-    plt.plot(freq, 20*np.log10(F1/np.max(F1)), label="Model 1")
-    plt.plot(freq, 20*np.log10(F2/np.max(F2)), label="Model 2")
+    plt.plot(freq, 20*np.log10(F1/np.max(F1)), label="mlp_classification (Model 1)")
+    plt.plot(freq, 20*np.log10(F2/np.max(F2)), label="mlp_regression (Model 2)")
     plt.plot(freq, 20*np.log10(F3/np.max(F3)), label="VAST Reference")
     plt.title("Magnitude Spectrum (dB)")
     plt.xlabel("Frequency [Hz]")
