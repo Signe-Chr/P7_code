@@ -1,5 +1,9 @@
-import numpy as np
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+import numpy as np
+#import os
 import scipy.io.wavfile as wavfile
 import pyroomacoustics as pra
 from VAST_filter_coefficients import design_vast_filter
