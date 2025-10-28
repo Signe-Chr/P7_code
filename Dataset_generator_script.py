@@ -71,9 +71,9 @@ def sources_mics(R, Center, N_mics):
     ))
     bright_zone_mics_index = [N_mics]
 
-    sources_position_list = [[Center[0]-0.1, Center[1]-0.2, Center[2]    ],
-                             [Center[0]+0.1, Center[1]-0.2, Center[2]    ],
-                             [Center[0]    , Center[1]-0.2, Center[2]+0.2]]
+    sources_position_list = [[Center[0]-0.04, Center[1]-0.15, Center[2]-0.16],
+                             [Center[0]+0.04, Center[1]-0.15, Center[2]-0.16],
+                             [Center[0]     , Center[1]-0.15, Center[2]]]
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, direction_list
 
 def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, IR, mic_positions, room_dim, spatial_position, R, user_orientation, phone_tilt, bright_zone_mics_index, dark_zone_mics_index):
