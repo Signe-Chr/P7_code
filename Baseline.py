@@ -5,6 +5,7 @@ from torchsummary import summary
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 np.random.seed(69420)
+import time
 # ---- 1. Load data from VAST archive
 data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
 X_list, filters_list,rt_60_list = [], [],[]
@@ -55,20 +56,38 @@ X_test = configs_tensor[test_mask]
 y_train = filters_tensor[train_mask]
 y_test = filters_tensor[test_mask]
 
-X_train, X_test, y_train, y_test = train_test_split(
-    configs_tensor, filters_tensor, test_size=0.9, random_state=42)
-
 print("Training samples:", X_train.shape[0])
 print("Test samples (unseen room):", X_test.shape[0])
 
 #Baseline - Compute all MSEs between the true value, and the filters in the dictionary, and chosse the smallest one. The Baseline mse is found as an average across the entire test set
-baseline_mse=0
-for i in range(y_test.shape[0]):
-    y_true = y_test[i]  # [filter_length]
-    diffs = y_train - y_true  # [N_total-N_test, filter_length]
-    mse_per_filter = torch.mean(diffs ** 2, dim=1)  # [N_total]
-    best_idx = torch.argmin(mse_per_filter)
-    best_mse = mse_per_filter[best_idx].item()
-    baseline_mse += best_mse
-baseline_mse /= y_test.shape[0]
+# [N_test, N_train, filter_length]
+t0 = time.time()
+diffs = y_test.unsqueeze(1) - y_train.unsqueeze(0)
+mse_matrix = torch.mean(diffs ** 2, dim=2)  # [N_test, N_train]
+best_mse_per_test = torch.min(mse_matrix, dim=1).values
+baseline_mse = best_mse_per_test.mean().item()
+t1 = time.time()
+print(f"Baseline time per query: {(t1 - t0)/len(y_test):.6f} s")
 print(f"Exhaustive search baseline MSE: {baseline_mse:.6f}")
+t2 = time.time()
+# -----------------------------
+# 3. Cosine similarity baseline
+# -----------------------------
+# Normalize filters to unit norm
+
+y_train_norm = F.normalize(y_train, p=2, dim=1)
+y_test_norm = F.normalize(y_test, p=2, dim=1)
+
+# Compute cosine similarity between all test and train filters
+# Result shape: [N_test, N_train]
+similarity_matrix = torch.mm(y_test_norm, y_train_norm.T)
+
+# For each test sample, pick the most similar training filter
+best_similarities, best_indices = torch.max(similarity_matrix, dim=1)
+
+# Convert to cosine distance (1 - similarity)
+cosine_distances = 1 - best_similarities
+mean_cosine_distance = cosine_distances.mean().item()
+t3 = time.time()
+print(f"Exhaustive search baseline (cosine distance): {mean_cosine_distance:.6f}")
+print(f"Baseline time per query cosine similarity: {(t3 - t2)/len(y_test):.6f} s")
