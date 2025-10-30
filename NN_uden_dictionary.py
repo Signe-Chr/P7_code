@@ -207,7 +207,7 @@ def L_1_loss(q_opt, fcentres, M_B, H):
     g = torch.fft.fft(q_opt, axis = 0)
     target_pressure = torch.abs(g)*1.3 # revurderes
     fd = 2**(1/6)
-    delta_f = vdg.fs_target/vdg.J
+    delta_f = dgs.fs_target/dgs.J
     L_1 = 0
 
     for freq in fcentres:
