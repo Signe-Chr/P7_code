@@ -11,7 +11,7 @@ from MLP_classification import SoftFilterNet
 from scipy.signal import stft
 from VAST_filter_coefficients import setup_acoustic_scenario
 from Dataset_generator_script import sources_mics, fs_target, rooms #, #mic_directions, mic_positions_list, bright_zone_mics_index
-
+from VAST_filter_coefficients import design_vast_filter
 
 
 # -------------------------------------------------------------------------
@@ -265,7 +265,8 @@ def apply_filter_to_audio(filter_path, input_wav_path, output_wav_path=None, nor
     """
 
     # ---- 1. Load filter coefficients ----
-    filt = np.loadtxt(filter_path, dtype=np.float32)
+    print(np.shape(np.loadtxt(filter_path, dtype=np.float32)))
+    filt = np.loadtxt(filter_path, dtype=np.float32).reshape((3, 1024))[0]
     print(f"Loaded filter from '{filter_path}' with {len(filt)} coefficients.")
 
     # ---- 2. Load input audio ----
@@ -282,6 +283,7 @@ def apply_filter_to_audio(filter_path, input_wav_path, output_wav_path=None, nor
         audio /= np.max(np.abs(audio))
 
     # ---- 3. Apply convolution ----
+    #print(np.shape(audio),np.shape(filt))
     filtered_audio = convolve(audio, filt, mode='full')
 
     # ---- 4. Normalize ----
@@ -302,16 +304,32 @@ def apply_filter_to_audio(filter_path, input_wav_path, output_wav_path=None, nor
 #update_all()
 #generate_measured_path()
 
+import Dataset_generator_script as dgs
+
+sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = dgs.sources_mics(dgs.dark_mic_radius, spatial_position, dgs.N_mics)
+
+
+q, IR = design_vast_filter(sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
+                    dgs.wav, dgs.RT60s[0], mic_directions, dgs.user_rotations[0], dgs.fs_target, dgs.J, dgs.N, 
+                    dgs.V, dgs.mu, [10, 10, 10], dgs.reg_eps, dgs.target_amplitude)
+
+print(np.shape(q))
+
+np.savetxt("predicted_filter_vast.txt", q, fmt="%.8f")
+print(f"Filter saved to 'predicted_filter_vast.txt")
+
 if __name__== "__main__":
+
 
     filter1 = "predicted_filter_top1.txt"
     filter2 = "predicted_filter_fnet_2.txt"
+    filter3 = "predicted_filter_vast.txt"
 
     original = "relaxing-guitar-loop-v5-245859.wav"
 
     output_wav_path = "relaxing-guitar-loop-v5-245859_filterd.wav"
 
-    measured = apply_filter_to_audio(filter2, original, output_wav_path)
+    measured = apply_filter_to_audio(filter1, original, output_wav_path)
 
     analyze_audio(original, measured)
 

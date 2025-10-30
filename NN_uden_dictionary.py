@@ -5,13 +5,11 @@ from scipy.signal import fftconvolve
 from scipy.io import wavfile
 from scipy.signal import lfilter
 import os
-#import VAST_dictionary_generator as vdg
-#import VISUALIZE_q_matrix as vq
 import Dataset_generator_script as dgs
 import torch.nn.functional as F
 import torch
 import torch.nn as nn
-
+import VAST_filter_coefficients
 
 # Get the directory where the script is located
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -34,6 +32,7 @@ FILTER_DIM = 3072
 n_srcs = 3   # Number of Sources (or microphone channels to control)
 T = 1024 # Number of Filter Taps
 n_mics = dgs.N_mics
+
 
 
 class RegressionNet(nn.Module):
@@ -304,7 +303,6 @@ def L_2_loss(q_opt, fcentres, H_B, H_D, M_B, M_D):
         L_2 += torch.sqrt(L_2_)
         del L_2_
     return L_2
-
 
 
 def energy_tilde(q_opt, H_time, N_time_steps, mic_index, speaker_index):

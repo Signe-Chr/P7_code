@@ -42,8 +42,6 @@ out_q_path = "VAST_filter_archive_730.npy"
 
 fs_wav, wav = wavfile.read(wav_path)
 
-wav = np.mean(wav, axis=1)
-
 wav = wav[5*44100:7*44100]
 
 

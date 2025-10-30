@@ -139,7 +139,7 @@ if __name__ == "__main__":
         preds = model(X_test.to(device)).cpu().numpy()
         mse = np.mean((preds - y_test.numpy()) ** 2)
     print(f"\nTest MSE: {mse:.6f}")
-
+    model.eval()
     # ---- 5. Evaluation and saving coefficients
     with torch.no_grad():
         # ---- Custom input as requested
