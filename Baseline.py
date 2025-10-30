@@ -91,3 +91,22 @@ mean_cosine_distance = cosine_distances.mean().item()
 t3 = time.time()
 print(f"Exhaustive search baseline (cosine distance): {mean_cosine_distance:.6f}")
 print(f"Baseline time per query cosine similarity: {(t3 - t2)/len(y_test):.6f} s")
+
+
+t4=time.time()
+# Number of test samples and dictionary size
+num_test = y_test.shape[0]
+num_dict = y_train.shape[0]
+
+# Randomly select indices from the dictionary for each test sample
+random_indices = torch.randint(0, num_dict, (num_test,))
+
+# Get randomly selected filters
+random_filters = y_train[random_indices]
+
+# Compute the baseline MSE between true test filters and randomly chosen filters
+random_mse = torch.mean((y_test - random_filters) ** 2).item()
+t5=time.time()
+print(f"Baseline time per query random selection: {(t5 - t4)/len(y_test):.6f} s")
+print(f"Random selection baseline MSE: {random_mse:.6f}")
+    
