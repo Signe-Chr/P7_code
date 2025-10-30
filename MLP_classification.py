@@ -135,6 +135,7 @@ if __name__== "__main__":
         # ---- Select filter with highest softmax probability
         max_idx = torch.argmax(weights, dim=1).item()
         selected_filter = filters_tensor[max_idx]
+        
 
         print(f"Selected filter index: {max_idx}")
         print(f"Highest softmax probability: {weights[0, max_idx].item():.6f}")
