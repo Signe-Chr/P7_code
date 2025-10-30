@@ -8,8 +8,13 @@ from scipy.io import wavfile
 np.random.seed(69420)
 wav_path = "relaxing-guitar-loop-v5-245859.wav"
 fs_wav, wav = wavfile.read(wav_path)
-wav = np.mean(wav, axis=1)           # mono
-wav = wav[5*fs_wav:7*fs_wav]         # 5s to 7s
+# If stereo, convert to mono by averaging channels
+if wav.ndim > 1:
+    wav = np.mean(wav, axis=1)
+# Slice the segment you want
+wav = wav[5*fs_wav : 7*fs_wav]
+wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
+# Convert to torch tensor
 x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
 # ---- 1. Load data from VAST archive
 data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
