@@ -109,6 +109,44 @@ if __name__== "__main__":
     torch.save(filters_tensor, "filters_tensor.pt")
     print("Filters saved to filters_tensor.pt")
 
+
+           # ---- Test model output on specific input
+    model.eval()
+    with torch.no_grad():
+        test_input = np.concatenate([[0.6], [np.deg2rad(15)], [np.pi/2], [2, 2, 4]]).astype(np.float32)
+        test_input_t = torch.from_numpy(test_input).unsqueeze(0)  # [1, input_size]
+
+        pred_filter, pred_weights = model(test_input_t)
+
+        print(f"Predicted filter shape: {pred_filter.shape}")
+        print(f"Weights shape:          {pred_weights.shape}")
+
+        # Save all predicted filter coefficients to text file
+        np.savetxt("predicted_filter_1.txt", pred_filter.squeeze().cpu().numpy(), fmt="%.8f")
+        print(f"\nAll {pred_filter.numel()} predicted filter coefficients saved to 'predicted_filter.txt'")
+
+        # Optional: preview first few coefficients
+        print("\nFirst 10 predicted filter values:")
+        print(pred_filter[0, :10].cpu().numpy())
+
+    with torch.no_grad():
+        _, weights = model(test_input_t)  # weights shape: [1, num_filters]
+
+        # ---- Select filter with highest softmax probability
+        max_idx = torch.argmax(weights, dim=1).item()
+        selected_filter = filters_tensor[max_idx]
+
+        print(f"Selected filter index: {max_idx}")
+        print(f"Highest softmax probability: {weights[0, max_idx].item():.6f}")
+
+        # ---- Save the selected filter coefficients
+        np.savetxt("predicted_filter_top1.txt", selected_filter.cpu().numpy(), fmt="%.8f")
+        print(f"Selected filter (index {max_idx}) saved to 'predicted_filter_top1.txt'")
+
+        # ---- Optional: show first few coefficients
+        print("\nFirst 10 coefficients of selected filter:")
+        print(selected_filter[:10].cpu().numpy())
+
 """
 # ---- 5. Evaluation with top-k filter combination
 model.eval()

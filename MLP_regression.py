@@ -140,5 +140,25 @@ if __name__ == "__main__":
         mse = np.mean((preds - y_test.numpy()) ** 2)
     print(f"\nTest MSE: {mse:.6f}")
 
+    # ---- 5. Evaluation and saving coefficients
+    with torch.no_grad():
+        # ---- Custom input as requested
+        test_input = np.concatenate([[0.6], [np.deg2rad(15)], [np.pi/2], [2, 2, 4]]).astype(np.float32)
+        test_input_scaled = scaler_X.transform(test_input.reshape(1, -1))
+        test_tensor = torch.tensor(test_input_scaled, dtype=torch.float32).to(device)
 
+        predicted_filter = model(test_tensor).cpu().numpy().squeeze()
+
+        print(f"Predicted filter shape: {predicted_filter.shape}")
+        print("First 10 coefficients:", predicted_filter[:10])
+
+        # ---- Save coefficients
+        np.savetxt("predicted_filter_fnet_2.txt", predicted_filter, fmt="%.8f")
+        print(f"All {predicted_filter.size} coefficients saved to 'predicted_filter_fnet.txt'")
+
+    # ---- Optional: compute test set MSE
+    with torch.no_grad():
+        preds = model(X_test.to(device)).cpu().numpy()
+        mse = np.mean((preds - y_test.numpy()) ** 2)
+    print(f"\nTest MSE: {mse:.6f}")
 

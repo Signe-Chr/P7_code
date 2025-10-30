@@ -1,166 +1,114 @@
-import torch
-import torch.nn as nn
 import numpy as np
-import os
-import torch.optim as optim
+import matplotlib.pyplot as plt
+from scipy.signal import correlate
+from scipy.fft import fft, fftfreq
 
-# --- Configuration (Matches MetadataRegressionNet from previous turn) ---
-INPUT_SIZE = 6
-FILTER_DIM = 3072
-S = 3   # Sources
-T = 1024 # Taps
+# ------------------------------------------------------------
+# 1. Load model predictions
+# ------------------------------------------------------------
+f1 = np.loadtxt("predicted_filter_top1.txt")
+f2 = np.loadtxt("predicted_filter_fnet_2.txt")
 
-# --- 1. Define the Model Architecture ---
-class MetadataRegressionNet(nn.Module):
-    """
-    A simple Fully Connected network structure for filter coefficient regression.
-    This class MUST be defined for PyTorch to load the state_dict correctly.
-    """
-    def __init__(self, input_size, filter_dim, S, T):
-        super().__init__()
-        self.S = S
-        self.T = T
-        
-        self.fc1 = nn.Linear(input_size, 64)
-        self.fc2 = nn.Linear(64, 256)
-        self.fc3 = nn.Linear(256, 1024)
-        self.fc_output = nn.Linear(1024, filter_dim)
-        self.activation = nn.ReLU() 
+print("=== Loaded Model Filters ===")
+print(f"Filter 1 shape: {f1.shape}")
+print(f"Filter 2 shape: {f2.shape}")
 
-    def forward(self, x):
-        B = x.size(0)
-        x = self.activation(self.fc1(x))
-        x = self.activation(self.fc2(x))
-        x = self.activation(self.fc3(x))
-        predicted_filters_flat = self.fc_output(x) 
-        q = predicted_filters_flat.view(B, self.S, self.T)
-        return q
+# ------------------------------------------------------------
+# 2. Load VAST reference filter
+# ------------------------------------------------------------
+vast_archive = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
 
-# --- 2. Simulation: Creation and Saving of Two Different Models ---
+# You can choose any key from the archive; here we pick one automatically
+# or manually select if you know which case corresponds to your test input.
+vast_key = list(vast_archive.keys())[0]
+print(f"Using VAST archive key: {vast_key}")
 
-def create_and_save_models(file1='model_A.pth', file2='model_B.pth'):
-    """
-    Simulates creating two models, running a small 'training' step on Model B, 
-    and saving their state dictionaries.
-    """
-    print("--- Simulating Model Creation and Saving ---")
-    
-    # Model A: Initialized weights
-    model_a = MetadataRegressionNet(INPUT_SIZE, FILTER_DIM, S, T)
-    torch.save(model_a.state_dict(), file1)
-    print(f"Saved initial state to: {file1}")
+q_matrix = vast_archive[vast_key]["q_matrix"]
+f3 = np.ravel(q_matrix)
 
-    # Model B: Weights after a simulated training run
-    model_b = MetadataRegressionNet(INPUT_SIZE, FILTER_DIM, S, T)
-    
-    # Simulate one step of training on model B to ensure it differs from model A
-    # Setup dummy data and optimizer
-    dummy_input = torch.randn(2, INPUT_SIZE)
-    dummy_target = torch.randn(2, S, T)
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model_b.parameters(), lr=0.01)
-    
-    # Training step
-    optimizer.zero_grad()
-    output = model_b(dummy_input)
-    loss = criterion(output, dummy_target)
-    loss.backward()
-    optimizer.step()
+print(f"VAST filter shape: {f3.shape}")
 
-    torch.save(model_b.state_dict(), file2)
-    print(f"Saved 'trained' state to: {file2}")
-    print("------------------------------------------\n")
-    return file1, file2
+# ------------------------------------------------------------
+# 3. Normalize lengths
+# ------------------------------------------------------------
+min_len = min(len(f1), len(f2), len(f3))
+f1, f2, f3 = f1[:min_len], f2[:min_len], f3[:min_len]
 
+# ------------------------------------------------------------
+# 4. Normalize amplitude for fair comparison
+# ------------------------------------------------------------
+def normalize(sig):
+    return sig / np.max(np.abs(sig))
 
-# --- 3. Core Logic: The Comparison Function ---
+f1n, f2n, f3n = normalize(f1), normalize(f2), normalize(f3)
 
-def compare_models(file_path_a, file_path_b, tolerance=1e-5):
-    """
-    Loads and compares the state_dicts of two PyTorch models layer-by-layer.
-    """
-    print("="*50)
-    print(f"STARTING COMPARISON: {file_path_a} vs {file_path_b}")
-    print("="*50)
+# ------------------------------------------------------------
+# 5. Define comparison metrics
+# ------------------------------------------------------------
+def metrics(a, b, label_a, label_b):
+    diff = a - b
+    mse = np.mean(diff**2)
+    mae = np.mean(np.abs(diff))
+    corr = np.corrcoef(a, b)[0, 1]
+    cos_sim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+    print(f"\n--- {label_a} vs {label_b} ---")
+    print(f"MSE: {mse:.8e}")
+    print(f"MAE: {mae:.8e}")
+    print(f"Correlation: {corr:.6f}")
+    print(f"Cosine similarity: {cos_sim:.6f}")
+    return diff
 
-    try:
-        state_dict_a = torch.load(file_path_a)
-        state_dict_b = torch.load(file_path_b)
-    except Exception as e:
-        print(f"Error loading files: {e}")
-        return
+diff_12 = metrics(f1n, f2n, "mlp_classification", "mlp_regression")
+diff_13 = metrics(f1n, f3n, "mlp_classification", "VAST")
+diff_23 = metrics(f2n, f3n, "mlp_regression", "VAST")
 
-    # 1. Compare Keys (Structure)
-    keys_a = set(state_dict_a.keys())
-    keys_b = set(state_dict_b.keys())
+# ------------------------------------------------------------
+# 6. Visualization — time-domain comparison
+# ------------------------------------------------------------
+plt.figure(figsize=(14, 10))
+plt.subplot(3, 1, 1)
+plt.plot(f1n, label="mlp_classification", alpha=0.8)
+plt.plot(f2n, label="mlp_regression", alpha=0.8)
+plt.plot(f3n, label="VAST Reference", alpha=0.8)
+plt.legend()
+plt.title("Filter Coefficients (Normalized)")
+plt.grid(True)
 
-    if keys_a != keys_b:
-        print("\n[FAILED] MODEL STRUCTURE MISMATCH")
-        print(f"  Keys only in A: {keys_a - keys_b}")
-        print(f"  Keys only in B: {keys_b - keys_a}")
-    else:
-        print("\n[SUCCESS] Model structures (keys) are identical.")
+plt.subplot(3, 1, 2)
+plt.plot(diff_13, color="red", label="mlp_classification - VAST")
+plt.plot(diff_23, color="blue", alpha=0.5, label="mlp_regression - VAST")
+plt.legend()
+plt.title("Differences w.r.t. VAST Reference")
+plt.grid(True)
 
-    # 2. Compare Shapes and Values for Common Keys
-    common_keys = sorted(list(keys_a.intersection(keys_b)))
-    
-    print(f"\nComparing {len(common_keys)} shared parameter tensors...")
-    
-    all_identical = True
+plt.subplot(3, 1, 3)
+corr_vast = correlate(f3n - np.mean(f3n), f1n - np.mean(f1n), mode="full")
+lags = np.arange(-len(f3n) + 1, len(f1n))
+plt.plot(lags, corr_vast)
+plt.title("Cross-correlation (VAST vs Model 1)")
+plt.grid(True)
 
-    for key in common_keys:
-        tensor_a = state_dict_a[key]
-        tensor_b = state_dict_b[key]
+plt.tight_layout()
+plt.show()
 
-        # Check shapes first
-        if tensor_a.shape != tensor_b.shape:
-            print(f"\n[DIFFERENCE] Shape mismatch for '{key}'")
-            print(f"  A Shape: {tensor_a.shape}")
-            print(f"  B Shape: {tensor_b.shape}")
-            all_identical = False
-            continue
+# ------------------------------------------------------------
+# 7. Frequency-domain comparison (FFT)
+# ------------------------------------------------------------
+def plot_fft_comparison(f1, f2, f3, fs=16000):
+    plt.figure(figsize=(14, 8))
+    N = len(f1)
+    freq = fftfreq(N, 1/fs)[:N//2]
+    F1, F2, F3 = np.abs(fft(f1)[:N//2]), np.abs(fft(f2)[:N//2]), np.abs(fft(f3)[:N//2])
 
-        # Check values using torch.allclose
-        if not torch.allclose(tensor_a, tensor_b, atol=tolerance):
-            all_identical = False
-            
-            # Calculate metrics for the difference
-            diff = torch.abs(tensor_a - tensor_b)
-            max_diff = diff.max().item()
-            mean_diff = diff.mean().item()
-            
-            print(f"\n[DIFFERENCE] Parameter '{key}' differs significantly:")
-            print(f"  Tensor Shape: {tensor_a.shape}")
-            print(f"  Max Absolute Diff: {max_diff:.8f}")
-            print(f"  Mean Absolute Diff: {mean_diff:.8f}")
-    
-    print("\n" + "="*50)
-    if all_identical and keys_a == keys_b:
-        print("[FINAL RESULT] The models are structurally and numerically IDENTICAL (within tolerance).")
-    elif not all_identical:
-        print("[FINAL RESULT] The models have the same structure but DIFFERENT parameter values.")
-    else:
-        print("[FINAL RESULT] Model comparison complete. See above for details on structural differences.")
-    print("="*50 + "\n")
+    plt.plot(freq, 20*np.log10(F1/np.max(F1)), label="mlp_classification (Model 1)")
+    plt.plot(freq, 20*np.log10(F2/np.max(F2)), label="mlp_regression (Model 2)")
+    plt.plot(freq, 20*np.log10(F3/np.max(F3)), label="VAST Reference")
+    plt.title("Magnitude Spectrum (dB)")
+    plt.xlabel("Frequency [Hz]")
+    plt.ylabel("Magnitude [dB]")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
 
-
-# --- 4. Main Execution Block ---
-
-if __name__ == '__main__':
-    # Define file names
-    FILE_A = 'mlp_weights.pth' # vægte til dictionary
-    FILE_B = 'filter_mlp_weights.pth'
-
-    # 1. Create the dummy files (A is baseline, B is 'trained')
-    f_a, f_b = create_and_save_models(FILE_A, FILE_B)
-
-    # 2. Run the comparison
-    compare_models(f_a, f_b, tolerance=1e-5)
-
-    # 3. Clean up dummy files
-    try:
-        os.remove(f_a)
-        os.remove(f_b)
-        print(f"Cleaned up {f_a} and {f_b}.")
-    except OSError:
-        pass
+plot_fft_comparison(f1n, f2n, f3n)

@@ -1,5 +1,9 @@
-import numpy as np
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+import numpy as np
+#import os
 import scipy.io.wavfile as wavfile
 import pyroomacoustics as pra
 from VAST_filter_coefficients import design_vast_filter
@@ -31,6 +35,8 @@ RT60s = np.linspace(0.6, 0.8, 3)
 
 user_rotations=[np.pi/2,np.pi,np.pi*3/2,2*np.pi]
 tilt_rotations=[np.deg2rad(15),np.deg2rad(45),np.deg2rad(75)]
+
+np.concatenate([[0.5], [np.deg2rad(15)], [np.pi/2], [1,1,1]])
 
 N_mics=12
 
@@ -65,9 +71,9 @@ def sources_mics(R, Center, N_mics):
     ))
     bright_zone_mics_index = [N_mics]
 
-    sources_position_list = [[Center[0]-0.1, Center[1]-0.2, Center[2]    ],
-                             [Center[0]+0.1, Center[1]-0.2, Center[2]    ],
-                             [Center[0]    , Center[1]-0.2, Center[2]+0.2]]
+    sources_position_list = [[Center[0]-0.04, Center[1]-0.15, Center[2]-0.16],
+                             [Center[0]+0.04, Center[1]-0.15, Center[2]-0.16],
+                             [Center[0]     , Center[1]-0.15, Center[2]]]
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, direction_list
 
 def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, IR, mic_positions, room_dim, spatial_position, R, user_orientation, phone_tilt, bright_zone_mics_index, dark_zone_mics_index):
@@ -131,7 +137,6 @@ def main(orientation_source_final, mic_positions_list, bright_zone_mics_index, d
     m = f"VAST_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
     #print(m, datetime.datetime.now())
     
-
     archive_q_matrix(
         q, out_q_path, m, orientation_source_final,
         RT60, IR, mic_positions_list, room_dim,
