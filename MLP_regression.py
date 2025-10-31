@@ -1,3 +1,4 @@
+import os
 import torch
 import numpy as np
 import torch.nn as nn
@@ -6,6 +7,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torchsummary import summary
 import Dataset_generator_script as dgs
+from tqdm import trange
 
 L = 3       # Loudspeaker
 J = 1024    # Filter order
@@ -329,37 +331,37 @@ def L_3_loss(q_opt, H_time, N_time_steps = dgs.N):
 fcentres = torch.tensor([1000, 2000])
 
 # ---- 4. Train and save the model
-def train(epochs, batch_size, model):
+def train(X, y, IRs, bright_mics, dark_mics, epochs, model, dev, batch_size=1):
      
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     c = nn.MSELoss()
-    batch_size = 1
 
     for epoch in range(epochs):
-        permutation = torch.randperm(X_train.size(0))
+        permutation = torch.randperm(X.size(0))
         total_loss = 0.0
 
-        for i in range(0, X_train.size(0), batch_size):
+        loop = trange(0, X.size(0), batch_size, desc=f"Epoch {epoch+1}/{epochs}")
+        for i in loop:
             idx = permutation[i:i + batch_size]
-            batch_X, batch_y = X_train[idx].to(device), y_train[idx].to(device)
+            batch_X, batch_y = X[idx].to(dev), y[idx].to(dev)
             batch_y = batch_y.reshape(3, 1024)
-
 
             optimizer.zero_grad()
             outputs = model(batch_X)
             outputs = outputs.reshape(3, 1024)
-            H, freqs = compute_H_matrix(IR_list[i])
-            H_B = torch.from_numpy(H[bright_zone_mics_index])
-            H_D = torch.from_numpy(H[dark_zone_mics_index])
+            H, _ = compute_H_matrix(IRs[i])
+            H_B = torch.from_numpy(H[bright_mics])
+            H_D = torch.from_numpy(H[dark_mics])
 
-            H_time = compute_multi_toeplitz(IR_list[i], len(batch_y[0]))
-            loss = c(outputs, batch_y) + L_1_loss(batch_y, fcentres, len(bright_zone_mics_index), H) + L_2_loss(batch_y, fcentres, H_B, H_D, len(bright_zone_mics_index), len(dark_zone_mics_index)) + L_3_loss(batch_y, H_time, N_time_steps = dgs.N)
+            H_time = compute_multi_toeplitz(IRs[i], len(batch_y[0]))
+            loss = c(outputs, batch_y) + L_1_loss(batch_y, fcentres, len(bright_mics), H) + L_2_loss(batch_y, fcentres, H_B, H_D, len(bright_mics), len(dark_mics)) + L_3_loss(batch_y, H_time, N_time_steps = dgs.N)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
 
+            loop.set_postfix(f"Loss: {total_loss:.4f}")
         #if (epoch + 1) % 20 == 0:
-        print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
+        #print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
     return model
 
 def review_data():
@@ -378,10 +380,12 @@ def review_data():
 
 
 if __name__ == "__main__":
-    X_train, X_test, y_train, y_test, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR_list = load_data()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = FilterNet(input_size=X_train.shape[1], output_size=y_train.shape[1]).to(torch.device)
-    train(epochs=20, batch_size=32, model=model)
+    keys = os.listdir("VAST_filter_archive")
+    for key in keys:
+        X_train, X_test, y_train, y_test, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR_list = load_data()
+    model = FilterNet(input_size=X_train.shape[1], output_size=y_train.shape[1]).to(device)
+    model = train(X_train, y_train, IR_list, bright_zone_mics_index, dark_zone_mics_index, epochs=20, dev=device, batch_size=32, model=model)
     #torch.save(model, "filter_mlp_model_full.pth")
     torch.save(model.state_dict(), "mlp_weights_r.pth")
 
