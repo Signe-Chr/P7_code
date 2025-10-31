@@ -219,8 +219,6 @@ def L_1_loss(q_opt, fcentres, M_B, H):
     return L_1
 
 
-
-
 def C_i(AC_des, w_AC, AC_tilde):
     #print(np.real(AC_des * w_AC - AC_tilde))
     return torch.max(torch.tensor(0), torch.real(AC_des * w_AC - AC_tilde))
@@ -295,8 +293,6 @@ def L_2_loss(q_opt, fcentres, H_B, H_D, M_B, M_D):
     return L_2
 
 
-
-
 def energy_tilde(q_opt, H_time, N_time_steps, mic_index, speaker_index):
 
     e_b = torch.tensor(0.0, dtype=H_time.dtype)
@@ -348,16 +344,13 @@ def L_3_loss(q_opt, H_time, N_time_steps = dgs.N):
 
     return L_3
 
-
-
-
 fcentres = torch.tensor([1000, 2000])
 
 # ---- 4. Train and save the model
 def train(X, y, epochs, batch_size, model):
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     c = nn.MSELoss()
-    epochs = 200
+    #epochs = 200
     batch_size = 1
 
     for epoch in range(epochs):
@@ -376,7 +369,6 @@ def train(X, y, epochs, batch_size, model):
             H, freqs = compute_H_matrix(IR_list[i])
             H_B = torch.from_numpy(H[bright_zone_mics_index])
             H_D = torch.from_numpy(H[dark_zone_mics_index])
-            #print(np.shape(H_B), np.shape(H_D))
 
             H_time = compute_multi_toeplitz(IR_list[i], len(batch_y[0]))
             #print(np.shape(batch_y))
@@ -402,34 +394,14 @@ if __name__ == "__main__":
                 print(f"{field}: type = {type(value)}, value = {value}")
         break
 
-    train(X_train, y_train, epochs=200, batch_size=32, model=model)
+    train(X_train, y_train, epochs=20, batch_size=32, model=model)
     #torch.save(model, "filter_mlp_model_full.pth")
     torch.save(model.state_dict(), "mlp_weights_r.pth")
     #gemt_model = torch.load("filter_mlp_model_full.pth", weights_only=False)
     #model = gemt_model
 
-
-    # ---- 5. Evaluation
-    dummy_input = np.array([2.2,    # Reverberation, float
-                        0.78,      # Phone tilt, degrees
-                        3.14,      # Orientation,  degrees
-                        5, 10, 1.7],
-                        [10,10,10])    # Spatial position, (x, y, z)       
-
-    dumm = torch.tensor(dummy_input, dtype=torch.float32)
-    print(dumm, dummy_input)
-
-    model.eval()
-    with torch.no_grad():
-        Y = model(dumm)
-    print(Y)
-    with torch.no_grad():
-        preds = model(X_test.to(device)).cpu().numpy()
-        mse = np.mean((preds - y_test.numpy()) ** 2)
-    print(f"\nTest MSE: {mse:.6f}")
-    model.eval()
     # ---- 5. Evaluation and saving coefficients
-    with torch.no_grad():
+    """with torch.no_grad():
         # ---- Custom input as requested
         test_input = np.concatenate([[0.6], [np.deg2rad(15)], [np.pi/2], [2, 2, 4]]).astype(np.float32)
         test_input_scaled = scaler_X.transform(test_input.reshape(1, -1))
@@ -450,3 +422,4 @@ if __name__ == "__main__":
         mse = np.mean((preds - y_test.numpy()) ** 2)
     print(f"\nTest MSE: {mse:.6f}")
 
+"""
