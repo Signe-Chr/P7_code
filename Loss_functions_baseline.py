@@ -108,19 +108,20 @@ def compute_pressure_with_input(rir, g, x):
 
     n_mics, n_srcs, n_rir = rir.shape
 
-    # If we have a single source but the room expects multiple sources, duplicate g and x
-    if g.shape[0] == 1 and n_srcs > 1:
-        g = g.repeat(n_srcs, 1)
-        x = x.repeat(n_srcs, 1)
+    # 1. Handle filters (g): Flattened filters must be reshaped to [n_srcs, filter_len]
+    if g.ndim == 1:
+        filter_len = g.shape[0] // n_srcs
+        g = g.reshape(n_srcs, filter_len) # Expected shape: [3, 1024]
+    elif g.ndim == 2:
+        if g.shape[0] == 1:
+            filter_len = g.shape[1] // n_srcs
+            g = g.squeeze(0).reshape(n_srcs, filter_len) # g shape now [3, 1024]
 
-    n_mics, n_srcs, n_rir = rir.shape
-    # After unsqueeze, g shape should be [n_srcs_g, filter_len]
-    # If rir has n_srcs > 1 but g has n_srcs == 1, we allow broadcasting across sources only if appropriate.
-    # If shapes mismatch, raise a helpful error.
+    if x.ndim == 1: # [n_input] -> [1, n_input]
+        x = x.unsqueeze(0)
+
     if g.shape[0] != n_srcs:
-        # If dictionary filters are shaped [1, L] but rir has >1 sources, that is a mismatch.
-        raise ValueError(f"g has {g.shape[0]} source(s) but rir has {n_srcs} sources. "
-                         "If you have a single source, consider duplicating g or ensure rir is shaped accordingly.")
+        raise ValueError(f"Filter 'g' has {g.shape[0]} source(s) but RIR 'rir' has {n_srcs} sources after dimension handling.")
 
     _, filter_len = g.shape
     _, n_input = x.shape

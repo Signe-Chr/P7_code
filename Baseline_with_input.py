@@ -77,7 +77,7 @@ print("All rooms (RT60 values):", unique_rooms)
 
 
 def Exhaustive_MSE(test, dictionary):
-    diffs=test.unsqueeze(1) - dictionary.unsqueeze(0)
+    diffs = test.unsqueeze(1) - dictionary.unsqueeze(0)
     mse_matrix = torch.mean(diffs ** 2, dim=2)  # [N_test, N_train]
     return mse_matrix
 
@@ -164,6 +164,8 @@ def loss_function_with_input(test_filters, dictionary, lamda_mse, lambda_cosine,
 
 baseline_losses = []
 
+print(len(unique_rooms))
+
 for test_room in unique_rooms:  # <-- loop over unique rooms
     train_mask = rt60_array != test_room
     test_mask = rt60_array == test_room
@@ -177,6 +179,7 @@ for test_room in unique_rooms:  # <-- loop over unique rooms
     RIR_test = rir_tensor[test_mask]
     print("Training samples:", X_train.shape[0])
     print("Test samples (unseen room):", X_test.shape[0])
+    print("her1")
 
     baseline_loss = loss_function_with_input(
     test_filters=y_test, 
@@ -192,6 +195,7 @@ for test_room in unique_rooms:  # <-- loop over unique rooms
     fcentre=fcentre,
     input_signal=x_input    
     )
+    print("her2")
     baseline_losses.append(baseline_loss)
     print(baseline_loss)
 
