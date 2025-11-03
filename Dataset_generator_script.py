@@ -148,12 +148,12 @@ def main(orientation_source_final, mic_positions_list, bright_zone_mics_index, d
 
 if __name__ == "__main__":
     iteration_count=0
-    total_iterations = len(RT60s) * len(rooms) * len(user_rotations) * len(tilt_rotations) * 3
+    total_iterations = len(RT60s) * (len(rooms)-1) * len(user_rotations) * len(tilt_rotations) * 3 + len(RT60s) * len(user_rotations) * len(tilt_rotations)
     loop = tqdm(total=total_iterations)
     #rooms_loop = tqdm(total=len(rooms))
     pool = mp.Pool(processes=mp.cpu_count()-1)
     for r, room_dim in enumerate(rooms):
-        if room_dim == rooms[-1]:
+        if r == len(rooms)-1:
             spatial_positions = [[50, 50, z_height]]
         else:
             spatial_positions = [
