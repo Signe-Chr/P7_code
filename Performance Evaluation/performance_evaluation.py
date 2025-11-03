@@ -5,13 +5,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import scipy.io.wavfile as wavfile
-from scipy.signal import convolve
+from scipy.signal import convolve, stft
+from scipy.io import loadmat
+
+#Import of necessary modules
 #from MLP_regression import FilterNet
 from MLP_classification import SoftFilterNet
-from scipy.signal import stft
 from VAST_filter_coefficients import setup_acoustic_scenario
 from Dataset_generator_script import sources_mics, fs_target, rooms #, #mic_directions, mic_positions_list, bright_zone_mics_index
-from VAST_filter_coefficients import design_vast_filter
+#from VAST_filter_coefficients import design_vast_filter
 
 
 # -------------------------------------------------------------------------
@@ -34,9 +36,9 @@ sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mic
 # -------------------------------------------------------------------------
 
 
-def generate_cut_input(start, stop):
+def generate_cut_input(start, stop, input):
 
-    fs_orig, wav = wavfile.read("relaxing-guitar-loop-v5-245859.wav")
+    fs_orig, wav = wavfile.read(input)
     wav = np.mean(wav, axis=1)
     wav = wav[int(start * fs_orig):int(stop * fs_orig)].astype(np.float32)
     wav /= np.abs(wav).max()
@@ -58,12 +60,12 @@ def generate_IR():
     torch.save(IR, "Performance Evaluation/test_ir.pt")
     return IR
 
-def generate_measured_path():
+def generate_measured_path(original):
     '''
     Convolves original input with impulse responses and filter coefficients to get measured output.
     Saves the file "Performance Evaluation/reproduced_sound.wav" to save time in future runs.
     '''
-
+    cut = original
     X = np.concatenate([[rt60], [phone_tilt], [user_rotation], spatial_position])
     dumm = torch.tensor(X, dtype=torch.float32)
 
@@ -131,7 +133,7 @@ def update_all():
     Cosine similarity
 '''
 
-from torch_pesq import PesqLoss
+#from torch_pesq import PesqLoss
 
 def calculate_pesq(reference: torch.Tensor, degraded: torch.Tensor, sample_rate: int = 44100, mode: float = 0.5):
     """
@@ -153,10 +155,10 @@ def calculate_pesq(reference: torch.Tensor, degraded: torch.Tensor, sample_rate:
     tuple
         (mos, loss) — both as torch.Tensors.
     """
-    pesq = PesqLoss(mode, sample_rate=sample_rate)
-    mos = pesq.mos(reference, degraded)
-    loss = pesq(reference, degraded)
-    return mos, loss
+    #pesq = PesqLoss(mode, sample_rate=sample_rate)
+    #mos = pesq.mos(reference, degraded)
+    #loss = pesq(reference, degraded)
+    #return mos, loss
 
 def compute_psnr(original, measured):
     mse = np.mean((original - measured)**2)
@@ -239,12 +241,14 @@ def analyze_audio(measured_path, original_path):
 
     return psnr, lsd_mean
 
+
+"""
 import numpy as np
 from scipy.io import wavfile
 from scipy.signal import convolve
 
 def apply_filter_to_audio(filter_path, input_wav_path, output_wav_path=None, normalize=True):
-    """
+    '''
     Applies a FIR filter (from .txt file) to an input WAV file and saves the output.
 
     Parameters
@@ -262,7 +266,7 @@ def apply_filter_to_audio(filter_path, input_wav_path, output_wav_path=None, nor
     -------
     output_wav_path : str
         The path of the saved filtered WAV file.
-    """
+    '''
 
     # ---- 1. Load filter coefficients ----
     print(np.shape(np.loadtxt(filter_path, dtype=np.float32)))
@@ -317,6 +321,7 @@ print(np.shape(q))
 
 np.savetxt("predicted_filter_vast.txt", q, fmt="%.8f")
 print(f"Filter saved to 'predicted_filter_vast.txt")
+"""
 
 if __name__== "__main__":
 
@@ -328,8 +333,12 @@ if __name__== "__main__":
     original = "relaxing-guitar-loop-v5-245859.wav"
 
     output_wav_path = "relaxing-guitar-loop-v5-245859_filterd.wav"
+    #generate_cut_input(start, stop, original)
 
-    measured = apply_filter_to_audio(filter1, original, output_wav_path)
+    #measured = apply_filter_to_audio(filter1, original, output_wav_path)
 
-    analyze_audio(original, measured)
+    #analyze_audio(original, measured)
 
+    file = "Phone Zone Data/Proc_B4107_M0_P0R000_T0.mat"
+    data = loadmat(file)
+    print(data.keys())

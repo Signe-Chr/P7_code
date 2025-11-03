@@ -42,7 +42,7 @@ N_mics=12
 
 wav_path = "relaxing-guitar-loop-v5-245859.wav"
 
-out_q_path = "VAST_filter_archive_730.npy"
+out_q_path = "VAST_filter_archive_730"
 
 fs_wav, wav = wavfile.read(wav_path)
 
@@ -93,7 +93,7 @@ def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, I
                 'R': R,
                 'IR': IR}
             
-            archive_dict = {}
+            """archive_dict = {}
             
             if os.path.exists(archive_path):
                 try:
@@ -111,10 +111,13 @@ def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, I
                     #print(f"Warning: Could not load existing archive at {archive_path} due to error: {e}. Starting new archive.")
             
             # Update the dictionary with the new matrix
-            archive_dict[key_name] = dict_update
+            archive_dict[key_name] = dict_update"""
             
+            os.makedirs(archive_path, exist_ok=True)
+            path = os.path.join(archive_path, f"{key_name}.npy")
+
             # Save the updated dictionary back, overwriting the old file
-            np.save(archive_path, archive_dict, allow_pickle=True)
+            np.save(path, dict_update, allow_pickle=True)
             #print(f"Archived filter under key '{key_name}' and saved updated archive to {archive_path}.")
 
 def compute_center(points):
@@ -124,7 +127,7 @@ def compute_center(points):
 
 def main(orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
          wav, RT60, mic_directions, user_rotation, fs_target, J, N, V, mu, room_dim, reg_eps, target_amplitude,
-         i, ii, iii, iv, out_q_path, spatial_position, dark_mic_radius, tilt_rotation):
+         i, ii, iii, iv, r, out_q_path, spatial_position, dark_mic_radius, tilt_rotation):
     q, IR = design_vast_filter(
         orientation_source_final, mic_positions_list,
         bright_zone_mics_index, dark_zone_mics_index,
@@ -132,7 +135,7 @@ def main(orientation_source_final, mic_positions_list, bright_zone_mics_index, d
         fs_target, J, N, V, mu, room_dim, reg_eps, target_amplitude
     )
 
-    m = f"VAST_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
+    m = f"VAST_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
     #print(m, datetime.datetime.now())
     
     archive_q_matrix(
@@ -149,7 +152,7 @@ if __name__ == "__main__":
     loop = tqdm(total=total_iterations)
     #rooms_loop = tqdm(total=len(rooms))
     pool = mp.Pool(processes=mp.cpu_count()-1)
-    for room_dim in rooms:
+    for r, room_dim in enumerate(rooms):
         if room_dim == rooms[-1]:
             spatial_positions = [[50, 50, z_height]]
         else:
@@ -195,7 +198,7 @@ if __name__ == "__main__":
                         orientation_source_final += center_sources.T
                         args = (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
                             wav, RT60, mic_directions, user_rotation, fs_target, J, N, V, mu, room_dim, reg_eps, target_amplitude,
-                            i, ii, iii, iv, out_q_path, spatial_position, dark_mic_radius, tilt_rotation)
+                            i, ii, iii, iv, r, out_q_path, spatial_position, dark_mic_radius, tilt_rotation)
                         pool.apply_async(main, args=args, callback=lambda _:loop.update(1))
                         #iteration_count += 1
                         #print(f'Completed iteration {iteration_count} out of {total_iterations}')

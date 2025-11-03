@@ -1,3 +1,4 @@
+import os
 import torch
 import numpy as np
 import torch.nn as nn
@@ -6,68 +7,58 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torchsummary import summary
 import Dataset_generator_script as dgs
+from tqdm import trange
 
 L = 3       # Loudspeaker
 J = 1024    # Filter order
 
 # ---- 1. Load data
-data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
-
-bright_zone_mics_index = data["VAST_0_0_0_0"]['bright_zone_mics_index']
-
-dark_zone_mics_index = data["VAST_0_0_0_0"]['dark_zone_mics_index']
-
-
-n_srcs = len(data["VAST_0_0_0_0"]['sources_position'])
-
-#print(type(data["VAST_0_0_0_0"]['IR']))
-
-
-X_list, y_list = [], []
-IR_list = []
-for key, inner in data.items():
-    # Robust håndtering af input features (fallback til 0 hvis mangler)
-    rt60 = inner.get('RT60', 0)                         # 2.5
-    phone_tilt = inner.get('Phone_tilt', 0)             # I radianer: 0.261, 0.785, 1.309
-    user_orient = inner.get('User_orientation', 0)      # I radianer: 0, 1.57, 3.14, 4.71
-    spatial = inner.get('Spatial_position', [0,0,0])    # (x, y, z): (5, 5 ,1.7) betyder i midten af rummet og i højde 1.7m
-    spatial = np.array(spatial).ravel()                 # flad ud til 1D
-    room_dim = inner.get('room_dim', [0,0,0])
-    IR = inner.get('IR', [0,0,0])
+def load_data(dataset = "VAST_filter_archive.npy"):
+    data = np.load(dataset, allow_pickle=True).item()
+    bright_zone_mics_index = data["VAST_0_0_0_0"]['bright_zone_mics_index']
+    dark_zone_mics_index = data["VAST_0_0_0_0"]['dark_zone_mics_index']
+    n_srcs = len(data["VAST_0_0_0_0"]['sources_position'])
     
-    X = np.concatenate([
-        [rt60],
-        [phone_tilt],
-        [user_orient],
-        spatial,
-        room_dim
-    ])
+    X_list, y_list = [], []
+    IR_list = []
+    for key, inner in data.items():
+        # Robust håndtering af input features (fallback til 0 hvis mangler)
+        rt60 = inner.get('RT60', 0)                         # 2.5
+        phone_tilt = inner.get('Phone_tilt', 0)             # I radianer: 0.261, 0.785, 1.309
+        user_orient = inner.get('User_orientation', 0)      # I radianer: 0, 1.57, 3.14, 4.71
+        spatial = inner.get('Spatial_position', [0,0,0])    # (x, y, z): (5, 5 ,1.7) betyder i midten af rummet og i højde 1.7m
+        spatial = np.array(spatial).ravel()                 # flad ud til 1D
+        room_dim = inner.get('room_dim', [0,0,0])
+        IR = inner.get('IR', [0,0,0])
+        
+        X = np.concatenate([
+            [rt60],
+            [phone_tilt],
+            [user_orient],
+            spatial,
+            room_dim
+        ])
+        
+        # Output: flatten q_matrix
+        y = np.ravel(inner.get('q_matrix', np.zeros(L*J)))
+        IR_list.append(IR)
+        X_list.append(X)
+        y_list.append(y)
 
-    
-    
-    # Output: flatten q_matrix
-    y = np.ravel(inner.get('q_matrix', np.zeros(L*J)))
-    IR_list.append(IR)
-    X_list.append(X)
-    y_list.append(y)
+    X = np.stack(X_list)
+    y = np.stack(y_list)
 
-X = np.stack(X_list)
-y = np.stack(y_list)
+    # ---- 2. Train/test split and scaling
+    scaler_X = StandardScaler()
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train = scaler_X.fit_transform(X_train)
+    X_test = scaler_X.transform(X_test)
 
-#print(X)
-#print("X shape:", X.shape)
-#print("y shape:", y.shape)
-
-# ---- 2. Train/test split and scaling
-scaler_X = StandardScaler()
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-X_train = scaler_X.fit_transform(X_train)
-X_test = scaler_X.transform(X_test)
-
-X_train = torch.tensor(X_train, dtype=torch.float32)
-y_train = torch.tensor(y_train, dtype=torch.float32)
-X_test = torch.tensor(X_test, dtype=torch.float32)
-y_test = torch.tensor(y_test, dtype=torch.float32)
+    X_train = torch.tensor(X_train, dtype=torch.float32)
+    y_train = torch.tensor(y_train, dtype=torch.float32)
+    X_test = torch.tensor(X_test, dtype=torch.float32)
+    y_test = torch.tensor(y_test, dtype=torch.float32)
+    return X_train, X_test, y_train, y_test, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR_list
 
 # ---- 3. Define the network
 class FilterNet(nn.Module):
@@ -86,11 +77,6 @@ class FilterNet(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = FilterNet(input_size=X.shape[1], output_size=y.shape[1]).to(device)
-#summary(model, input_size=(X.shape[1],))
-
-#loss functions
 
 def compute_H_matrix(rir_array, fs=16000, n_fft=None):
     """
@@ -218,9 +204,6 @@ def L_1_loss(q_opt, fcentres, M_B, H):
         del L_1_
     return L_1
 
-
-
-
 def C_i(AC_des, w_AC, AC_tilde):
     #print(np.real(AC_des * w_AC - AC_tilde))
     return torch.max(torch.tensor(0), torch.real(AC_des * w_AC - AC_tilde))
@@ -294,9 +277,6 @@ def L_2_loss(q_opt, fcentres, H_B, H_D, M_B, M_D):
         del L_2_
     return L_2
 
-
-
-
 def energy_tilde(q_opt, H_time, N_time_steps, mic_index, speaker_index):
 
     e_b = torch.tensor(0.0, dtype=H_time.dtype)
@@ -348,48 +328,44 @@ def L_3_loss(q_opt, H_time, N_time_steps = dgs.N):
 
     return L_3
 
-
-
-
 fcentres = torch.tensor([1000, 2000])
 
 # ---- 4. Train and save the model
-def train(X, y, epochs, batch_size, model):
+def train(X, y, IRs, bright_mics, dark_mics, epochs, model, dev, batch_size=1):
+     
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     c = nn.MSELoss()
-    epochs = 200
-    batch_size = 1
 
     for epoch in range(epochs):
-        permutation = torch.randperm(X_train.size(0))
+        permutation = torch.randperm(X.size(0))
         total_loss = 0.0
 
-        for i in range(0, X_train.size(0), batch_size):
+        loop = trange(0, X.size(0), batch_size, desc=f"Epoch {epoch+1}/{epochs}")
+        for i in loop:
             idx = permutation[i:i + batch_size]
-            batch_X, batch_y = X_train[idx].to(device), y_train[idx].to(device)
+            batch_X, batch_y = X[idx].to(dev), y[idx].to(dev)
             batch_y = batch_y.reshape(3, 1024)
-
 
             optimizer.zero_grad()
             outputs = model(batch_X)
             outputs = outputs.reshape(3, 1024)
-            H, freqs = compute_H_matrix(IR_list[i])
-            H_B = torch.from_numpy(H[bright_zone_mics_index])
-            H_D = torch.from_numpy(H[dark_zone_mics_index])
-            #print(np.shape(H_B), np.shape(H_D))
+            H, _ = compute_H_matrix(IRs[i])
+            H_B = torch.from_numpy(H[bright_mics])
+            H_D = torch.from_numpy(H[dark_mics])
 
-            H_time = compute_multi_toeplitz(IR_list[i], len(batch_y[0]))
-            #print(np.shape(batch_y))
-            loss = c(outputs, batch_y) + L_1_loss(batch_y, fcentres, len(bright_zone_mics_index), H) + L_2_loss(batch_y, fcentres, H_B, H_D, len(bright_zone_mics_index), len(dark_zone_mics_index)) + L_3_loss(batch_y, H_time, N_time_steps = dgs.N)
+            H_time = compute_multi_toeplitz(IRs[i], len(batch_y[0]))
+            loss = c(outputs, batch_y) + L_1_loss(batch_y, fcentres, len(bright_mics), H) + L_2_loss(batch_y, fcentres, H_B, H_D, len(bright_mics), len(dark_mics)) + L_3_loss(batch_y, H_time, N_time_steps = dgs.N)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
 
+            loop.set_postfix(f"Loss: {total_loss:.4f}")
         #if (epoch + 1) % 20 == 0:
-        print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
+        #print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
     return model
 
-if __name__ == "__main__":
+def review_data():
+    data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
     for key, inner in data.items():
         print(f"--- Key: {key} ---")
         for field in inner:
@@ -402,34 +378,19 @@ if __name__ == "__main__":
                 print(f"{field}: type = {type(value)}, value = {value}")
         break
 
-    train(X_train, y_train, epochs=200, batch_size=32, model=model)
+
+if __name__ == "__main__":
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    keys = os.listdir("VAST_filter_archive")
+    for key in keys:
+        X_train, X_test, y_train, y_test, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR_list = load_data()
+    model = FilterNet(input_size=X_train.shape[1], output_size=y_train.shape[1]).to(device)
+    model = train(X_train, y_train, IR_list, bright_zone_mics_index, dark_zone_mics_index, epochs=20, dev=device, batch_size=32, model=model)
     #torch.save(model, "filter_mlp_model_full.pth")
     torch.save(model.state_dict(), "mlp_weights_r.pth")
-    #gemt_model = torch.load("filter_mlp_model_full.pth", weights_only=False)
-    #model = gemt_model
 
-
-    # ---- 5. Evaluation
-    dummy_input = np.array([2.2,    # Reverberation, float
-                        0.78,      # Phone tilt, degrees
-                        3.14,      # Orientation,  degrees
-                        5, 10, 1.7],
-                        [10,10,10])    # Spatial position, (x, y, z)       
-
-    dumm = torch.tensor(dummy_input, dtype=torch.float32)
-    print(dumm, dummy_input)
-
-    model.eval()
-    with torch.no_grad():
-        Y = model(dumm)
-    print(Y)
-    with torch.no_grad():
-        preds = model(X_test.to(device)).cpu().numpy()
-        mse = np.mean((preds - y_test.numpy()) ** 2)
-    print(f"\nTest MSE: {mse:.6f}")
-    model.eval()
     # ---- 5. Evaluation and saving coefficients
-    with torch.no_grad():
+    """with torch.no_grad():
         # ---- Custom input as requested
         test_input = np.concatenate([[0.6], [np.deg2rad(15)], [np.pi/2], [2, 2, 4]]).astype(np.float32)
         test_input_scaled = scaler_X.transform(test_input.reshape(1, -1))
@@ -450,3 +411,4 @@ if __name__ == "__main__":
         mse = np.mean((preds - y_test.numpy()) ** 2)
     print(f"\nTest MSE: {mse:.6f}")
 
+"""
