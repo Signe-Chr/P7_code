@@ -380,6 +380,9 @@ def review_data():
 
 
 if __name__ == "__main__":
+    import torch
+    print(torch.cuda.is_available())
+    print(torch.version.cuda)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dataset = CustomDataset()
     p_features = len(dataset[0][0])
@@ -389,6 +392,8 @@ if __name__ == "__main__":
     model = train(dataloader, epochs=20, dev=device, model=model)
     #torch.save(model, "filter_mlp_model_full.pth")
     torch.save(model.state_dict(), "mlp_weights_r.pth")
+
+    
 
     # ---- 5. Evaluation and saving coefficients
     """with torch.no_grad():
