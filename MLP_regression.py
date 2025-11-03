@@ -380,14 +380,19 @@ def review_data():
 
 
 if __name__ == "__main__":
+    import torch
+    print(torch.cuda.is_available())
+    print(torch.version.cuda)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    keys = os.listdir("VAST_filter_archive")
+    keys = os.listdir("VAST_filter_archive.npy")
     for key in keys:
         X_train, X_test, y_train, y_test, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR_list = load_data()
     model = FilterNet(input_size=X_train.shape[1], output_size=y_train.shape[1]).to(device)
     model = train(X_train, y_train, IR_list, bright_zone_mics_index, dark_zone_mics_index, epochs=20, dev=device, batch_size=32, model=model)
     #torch.save(model, "filter_mlp_model_full.pth")
     torch.save(model.state_dict(), "mlp_weights_r.pth")
+
+    
 
     # ---- 5. Evaluation and saving coefficients
     """with torch.no_grad():
