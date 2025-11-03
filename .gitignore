@@ -1,0 +1,32 @@
+# --- Python filer ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# --- Virtuelle miljøer ---
+.venv*/
+venv/
+env/
+
+# --- IDE / editor filer ---
+.vscode/
+.vs/
+
+# --- Midlertidige / OS-filer ---
+.DS_Store
+Thumbs.db
+
+# --- Projektfiler der ikke skal i Git ---
+*.sqlite
+*.db
+*.log
+
+# --- PyInstaller / build output ---
+build/
+dist/
+*.spec
+
+# --- Jupyter / IPython ---
+.ipynb_checkpoints/
