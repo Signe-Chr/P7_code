@@ -15,7 +15,7 @@ import multiprocessing as mp
 
 
 J = 1024
-N = 2000#len(wav)
+N = 1#2000#len(wav)
 V = int(J*3/2)
 mu = 1
 reg_eps=1*10**(-6)
@@ -40,13 +40,14 @@ np.concatenate([[0.5], [np.deg2rad(15)], [np.pi/2], [1,1,1]])
 
 N_mics=12
 
-wav_path = "relaxing-guitar-loop-v5-245859.wav"
+wav = np.array([1])
+#wav_path = "relaxing-guitar-loop-v5-245859.wav"
 
-out_q_path = "VAST_filter_archive_730"
+out_q_path = "VAST_filter_archive_kronecker_730"
 
-fs_wav, wav = wavfile.read(wav_path)
+#fs_wav, wav = wavfile.read(wav_path)
 
-wav = wav[5*44100:7*44100]
+#wav = wav[5*44100:7*44100]
 
 
 def sources_mics(R, Center, N_mics):
@@ -135,7 +136,7 @@ def main(orientation_source_final, mic_positions_list, bright_zone_mics_index, d
         fs_target, J, N, V, mu, room_dim, reg_eps, target_amplitude
     )
 
-    m = f"VAST_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
+    m = f"VAST_kronecker_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
     #print(m, datetime.datetime.now())
     
     archive_q_matrix(
