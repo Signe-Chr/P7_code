@@ -95,13 +95,33 @@ def compute_pressure_with_input(rir, g, x):
 
     Parameters:
         rir: [n_mics, n_srcs, n_rir_samples] (torch.Tensor)
-        g: [n_srcs, filter_len] (torch.Tensor)
-        x: [n_srcs, n_input_samples] (torch.Tensor)
+        g: [n_srcs, filter_len] (torch.Tensor) OR [filter_len] for single source
+        x: [n_srcs, n_input_samples] (torch.Tensor) OR [n_input_samples] for single source
 
     Returns:
         p: [n_mics, n_output_samples] (torch.Tensor)
     """
+    if g.ndim == 1:
+        g = g.unsqueeze(0) # [filter_len] -> [1, filter_len]
+    if x.ndim == 1: # [n_input] -> [1, n_input]
+        x = x.unsqueeze(0)
+
     n_mics, n_srcs, n_rir = rir.shape
+
+    # If we have a single source but the room expects multiple sources, duplicate g and x
+    if g.shape[0] == 1 and n_srcs > 1:
+        g = g.repeat(n_srcs, 1)
+        x = x.repeat(n_srcs, 1)
+
+    n_mics, n_srcs, n_rir = rir.shape
+    # After unsqueeze, g shape should be [n_srcs_g, filter_len]
+    # If rir has n_srcs > 1 but g has n_srcs == 1, we allow broadcasting across sources only if appropriate.
+    # If shapes mismatch, raise a helpful error.
+    if g.shape[0] != n_srcs:
+        # If dictionary filters are shaped [1, L] but rir has >1 sources, that is a mismatch.
+        raise ValueError(f"g has {g.shape[0]} source(s) but rir has {n_srcs} sources. "
+                         "If you have a single source, consider duplicating g or ensure rir is shaped accordingly.")
+
     _, filter_len = g.shape
     _, n_input = x.shape
     output_len = n_rir + filter_len + n_input - 2
@@ -119,6 +139,7 @@ def compute_pressure_with_input(rir, g, x):
 
     p = torch.fft.ifft(p_f).real[:, :output_len]
     return p
+
 
 def AC_tilde_with_input(rir, g, x_input):
     """
@@ -161,6 +182,9 @@ def AC_loss_with_input(rir, bright_idx, dark_idx, g, x_input):
     E_D = torch.sum(torch.abs(p_D) ** 2) + 1e-12
     M_B, M_D = len(bright_idx), len(dark_idx)
     return (M_D / M_B) * (E_B / E_D)
+
+
+
 
 def L_2_loss_with_input(q_opt, fcentres, rir, bright_idx, dark_idx, x_input, fs=16000, AC_des=None):
     """
