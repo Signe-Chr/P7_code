@@ -10,60 +10,62 @@ np.random.seed(69420)
 torch.manual_seed(69420)
 
 # ---- 1. Load data
-data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
+def load_data(dataset="VAST_filter_archive.npy"):
+    data = np.load(dataset, allow_pickle=True).item()
 
-X_list, filters_list, rt60_list = [], [], []
+    X_list, filters_list, rt60_list = [], [], []
 
-for key, inner in data.items():
-    rt60 = inner.get('RT60', 0.0)
-    phone_tilt = inner.get('Phone_tilt', 0.0)
-    user_orient = inner.get('User_orientation', 0.0)
-    spatial = np.array(inner.get('Spatial_position', [0, 0, 0]), dtype=np.float32).ravel()
+    for key, inner in data.items():
+        rt60 = inner.get('RT60', 0.0)
+        phone_tilt = inner.get('Phone_tilt', 0.0)
+        user_orient = inner.get('User_orientation', 0.0)
+        spatial = np.array(inner.get('Spatial_position', [0, 0, 0]), dtype=np.float32).ravel()
 
-    X = np.concatenate([[rt60], [phone_tilt], [user_orient], spatial])
-    X_list.append(X)
-    filters_list.append(inner.get('q_matrix', np.zeros(3072, dtype=np.float32)))
-    rt60_list.append(rt60)
+        X = np.concatenate([[rt60], [phone_tilt], [user_orient], spatial])
+        X_list.append(X)
+        filters_list.append(inner.get('q_matrix', np.zeros(3072, dtype=np.float32)))
+        rt60_list.append(rt60)
 
-# Convert to arrays
-X = np.stack(X_list).astype(np.float32)
-filters = np.stack(filters_list).astype(np.float32)
-rt60_array = np.array(rt60_list)
+    # Convert to arrays
+    X = np.stack(X_list).astype(np.float32)
+    filters = np.stack(filters_list).astype(np.float32)
+    rt60_array = np.array(rt60_list)
 
-num_samples, input_size = X.shape
-filter_dim = filters.shape[1]
+    num_samples, input_size = X.shape
+    filter_dim = filters.shape[1]
 
-print(f"Total samples: {num_samples}, Feature size: {input_size}, Filter length: {filter_dim}")
+    print(f"Total samples: {num_samples}, Feature size: {input_size}, Filter length: {filter_dim}")
 
-# ---- 2. Train/test split by RT60
-unique_rooms = np.unique(rt60_array)
-print("Unique RT60 values:", unique_rooms)
+    # ---- 2. Train/test split by RT60
+    unique_rooms = np.unique(rt60_array)
+    print("Unique RT60 values:", unique_rooms)
 
-test_room = unique_rooms[0]  # Pick one RT60 as unseen test room
-train_mask = rt60_array != test_room
-test_mask = rt60_array == test_room
+    test_room = unique_rooms[0]  # Pick one RT60 as unseen test room
+    train_mask = rt60_array != test_room
+    test_mask = rt60_array == test_room
 
-X_train, X_test = X[train_mask], X[test_mask]
-y_train, y_test = filters[train_mask], filters[test_mask]
+    X_train, X_test = X[train_mask], X[test_mask]
+    y_train, y_test = filters[train_mask], filters[test_mask]
 
-# Flatten filters (3×1024 → 3072)
-y_train = y_train.reshape(y_train.shape[0], -1)
-y_test = y_test.reshape(y_test.shape[0], -1)
+    # Flatten filters (3×1024 → 3072)
+    y_train = y_train.reshape(y_train.shape[0], -1)
+    y_test = y_test.reshape(y_test.shape[0], -1)
 
-print(f"Train: {X_train.shape[0]} samples, Test: {X_test.shape[0]} samples (RT60={test_room})")
+    print(f"Train: {X_train.shape[0]} samples, Test: {X_test.shape[0]} samples (RT60={test_room})")
 
-# Convert to tensors
-X_train_t = torch.from_numpy(X_train)
-y_train_t = torch.from_numpy(y_train)
-X_test_t = torch.from_numpy(X_test)
-y_test_t = torch.from_numpy(y_test)
+    # Convert to tensors
+    X_train_t = torch.from_numpy(X_train)
+    y_train_t = torch.from_numpy(y_train)
+    X_test_t = torch.from_numpy(X_test)
+    y_test_t = torch.from_numpy(y_test)
 
-# Create unique 2D filter dictionary
-filters_flat = torch.from_numpy(filters).view(filters.shape[0], -1)
-filters_tensor = torch.unique(filters_flat, dim=0)
-num_filters, filter_dim = filters_tensor.shape
+    # Create unique 2D filter dictionary
+    filters_flat = torch.from_numpy(filters).view(filters.shape[0], -1)
+    filters_tensor = torch.unique(filters_flat, dim=0)
+    num_filters, filter_dim = filters_tensor.shape
 
-print(f"Filter dictionary shape: {filters_tensor.shape}")
+    print(f"Filter dictionary shape: {filters_tensor.shape}")
+    return X_train, X_test, y_train, y_test, X_train_t, y_train_t, X_test_t, y_test_t, num_filters, filter_dim, filters_tensor, input_size
 
 # ---- 3. Model
 class SoftFilterNet(nn.Module):
@@ -84,14 +86,16 @@ class SoftFilterNet(nn.Module):
         combined = weights @ self.filters           # [batch, filter_dim]
         return combined, weights
 
-model = SoftFilterNet(input_size, num_filters, filter_dim, filters_tensor)
-summary(model, input_size=(input_size,))
-
-criterion = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
 
 if __name__== "__main__":
 # ---- 4. Training loop
+    X_train, X_test, y_train, y_test, X_train_t, y_train_t, X_test_t, y_test_t, num_filters, filter_dim, filters_tensor, input_size = load_data()
+    model = SoftFilterNet(input_size, num_filters, filter_dim, filters_tensor)
+    summary(model, input_size=(input_size,))
+
+    criterion = nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
+
     model.train()
     for epoch in range(200):
         predicted_filters, weights = model(X_train_t)  # two outputs
