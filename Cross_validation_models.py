@@ -73,4 +73,4 @@ class FilterNet_(nn.Module):
                 def forward(self, x):
                     return self.net(x)
 
-q = FilterNet_(input_size, output_size)
+model_ = FilterNet_(input_size, output_size)
