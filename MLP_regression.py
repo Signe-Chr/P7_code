@@ -62,21 +62,7 @@ def load_data(dataset = "VAST_filter_archive.npy"):
     return X_train, X_test, y_train, y_test, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR_list
 
 # ---- 3. Define the network
-class FilterNet(nn.Module):
-    def __init__(self, input_size, output_size):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, 512),
-            nn.ReLU(),
-            nn.Linear(512, output_size)
-        )
 
-    def forward(self, x):
-        return self.net(x)
 
 
 def compute_H_matrix(rir_array, fs=16000, n_fft=None):
@@ -381,26 +367,37 @@ def review_data():
 
 if __name__ == "__main__":
     import torch
+    import Cross_validation_models as cvm
     print(torch.cuda.is_available())
     print(torch.version.cuda)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data_dir = "VAST_filter_archive_730"
     from Dataset_generator_script import room_indices as ri
     full_data = os.listdir(data_dir)
-    data_points = []
+    #data_points = []
+    train_points = []
+    #test_points = []
     for data in full_data:
-        if int(data.split("_")[1]) in ri:
-            data_points.append(data)
+        i = int(data.split("_")[1])
+        if (i in ri) and (i not in ri[::4]):
+            train_points.append(data)
+            #data_points.append(data)
     #data_points = full_data[:1000]
     #train_files, test_files = train_test_split(data_points, test_size=0.2, random_state=42)
-    trainset = CustomDataset(data_dir, data_points)
+    trainset = CustomDataset(data_dir, train_points)
+    #testset = CustomDataset(data_dir, test_points)
     p_features = len(trainset[0][0])
     out_features = len(trainset[0][1])
     train_loader = DataLoader(trainset, batch_size=1, shuffle=True, num_workers=cpu_count()//3*2)
-    model = FilterNet(input_size=p_features, output_size=out_features).to(device)
-    model = train(train_loader, epochs=20, dev=device, model=model)
+    #test_loader = DataLoader(testset, shuffle=False)
+
+    model = train(train_loader, epochs=5, dev=device, model=cvm.model_.to(device))
+    torch.save(model.state_dict(), f"MLP_regression.pth")
+    """for i, model in enumerate(cvm.L[]):
+        model = train(train_loader, epochs=5, dev=device, model=model.to(device))
+        torch.save(model.state_dict(), f"Regression_cross_validation_models/MLP_regression_cross_{i}.pth")"""
+
     #torch.save(model, "filter_mlp_model_full.pth")
-    torch.save(model.state_dict(), "mlp_weights_r.pth")
 
     
 
