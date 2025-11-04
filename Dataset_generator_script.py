@@ -29,6 +29,13 @@ widths = range(2, 11)
 depths = range(2, 11)
 heights = range(4, 13)
 rooms = [[width, depth, height/2] for width in widths for depth in depths for height in heights]+[[100, 100, 100]]  # if width<=depth (This code snippet can be added in the list loop if rooms like 2x10xz and 10x2xz are deemed equal)
+target_rooms = [
+    [2, 2, 2], [2, 4, 3], [ 2, 6, 4], [ 2,  8, 3], [ 2, 10, 3],
+    [4, 2, 3], [4, 4, 2], [ 4, 8, 4], [ 4, 10, 4], [ 6,  2, 2],
+    [6, 4, 3], [6, 6, 3], [ 6, 8, 4], [ 6, 10, 4], [ 8,  2, 3],
+    [8, 6, 3], [8, 8, 4], [10, 2, 3], [10,  6, 5], [10, 10, 4]
+]
+room_indices = [i for i in range(len(rooms)) if rooms[i] in target_rooms]
 z_height=1.7
 #RT60s = [0.5*i for i in range(5, 10)]
 RT60s = np.linspace(0.6, 0.8, 3)
