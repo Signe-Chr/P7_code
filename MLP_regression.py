@@ -62,21 +62,7 @@ def load_data(dataset = "VAST_filter_archive.npy"):
     return X_train, X_test, y_train, y_test, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR_list
 
 # ---- 3. Define the network
-class FilterNet(nn.Module):
-    def __init__(self, input_size, output_size):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, 512),
-            nn.ReLU(),
-            nn.Linear(512, output_size)
-        )
 
-    def forward(self, x):
-        return self.net(x)
 
 
 def compute_H_matrix(rir_array, fs=16000, n_fft=None):
@@ -381,6 +367,7 @@ def review_data():
 
 if __name__ == "__main__":
     import torch
+    import Cross_validation_models as cvm
     print(torch.cuda.is_available())
     print(torch.version.cuda)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -388,7 +375,7 @@ if __name__ == "__main__":
     p_features = len(dataset[0][0])
     out_features = len(dataset[0][1])
     dataloader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=cpu_count()//3*2)
-    model = FilterNet(input_size=p_features, output_size=out_features).to(device)
+    model = cvm.L[0].to(device)
     model = train(dataloader, epochs=20, dev=device, model=model)
     #torch.save(model, "filter_mlp_model_full.pth")
     torch.save(model.state_dict(), "mlp_weights_r.pth")
