@@ -5,51 +5,47 @@ from torchsummary import summary
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import KFold
 from Baseline_fast_search import ANN_Search_and_Refine
 from scipy.io import wavfile
-from sklearn.model_selection import GroupKFold
+from Dataset_class import CustomDataset, L, J
+from torch.utils.data import DataLoader
+from Dataset_generator_script import room_indices as ri
+import os
+
+#---Check Device--
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
+
+#---Define some variables---
 num_layers=3
-number_of_folds=5
+num_folds=5
 num_epochs=200
-L=3
 fcentres = torch.tensor([1000, 2000], device=device)
-np.random.seed(69420)
-data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
 
-bright_zone_mics_index = data["VAST_0_0_0_0"].get('bright_zone_mics_index', [])
-dark_zone_mics_index = data["VAST_0_0_0_0"].get('dark_zone_mics_index', [])
+#---Load data---
+data_dir="Signes_data"
+full_data=os.listdir(data_dir)
+data_points = []
+for data in full_data:
+    if int(data.split("_")[1]) in ri:
+        data_points.append(data)
+data=CustomDataset(data_dir,data_points)
+data_loader = DataLoader(data, batch_size=len(data), shuffle=True)
+Q=[batch for batch in data_loader][0]
+X=Q[0]
+filters=Q[1]
+bright_zone_mics_index=Q[2]
+dark_zone_mics_index=Q[3]
+n_srcs=Q[4]
+IR=Q[5]
 
+#---Define more variables---
 M_B = len(bright_zone_mics_index)
 M_D = len(dark_zone_mics_index)
+L=n_srcs[0].item()
 
-X_list, filters_list, IR_list,rt60_list = [], [], [], []
-
-for key, inner in data.items():
-    # Robust handling of features
-    rt60 = inner.get('RT60', 0.0)
-    phone_tilt = inner.get('Phone_tilt', 0.0)
-    user_orient = inner.get('User_orientation', 0.0)
-    spatial = np.array(inner.get('Spatial_position', [0, 0, 0]), dtype=np.float32).ravel()
-    IR = inner.get('IR', np.zeros((M_B + M_D, L, 1), dtype=np.float32)) 
-
-    # Input feature vector
-    X = np.concatenate([[rt60], [phone_tilt], [user_orient], spatial])
-    X_list.append(X)
-
-    # q_matrix = target filter coefficients
-    q = inner.get('q_matrix', np.zeros(3072, dtype=np.float32))
-    filters_list.append(q.flatten())
-    
-    IR_list.append(IR)
-    rt60_list.append(rt60)
-    
-IR_array = np.stack(IR_list).astype(np.float32) # [N_total, n_mics, n_srcs, n_samples]
-print(IR_array.shape)
-rt60_array = np.array(rt60_list)  # shape [N]
-
+#--- Load sound file---
 wav_path = "relaxing-guitar-loop-v5-245859.wav"
 fs_wav, wav = wavfile.read(wav_path)
 if wav.ndim > 1:
@@ -59,24 +55,19 @@ wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
 x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
 x_input = x_input.to(device)
 
-# ---- 2. Prepare arrays and tensors
-X = np.stack(X_list).astype(np.float32)        # [N_total, num_features]
-filters = np.stack(filters_list).astype(np.float32)  # [N_total, filter_length]
-
 num_total, input_size = X.shape
 filter_length = filters.shape[1]
 
-configs_tensor = torch.from_numpy(X)        # [N_total, num_features]
-filters_tensor = torch.from_numpy(filters)  # [N_total, filter_length]
+configs_tensor = X       # [N_total, num_features]
+filters_tensor = filters  # [N_total, filter_length]
 # Encode unique filters as integers
 unique_filters, y_indices = np.unique(filters, axis=0, return_inverse=True)
 y_tensor = torch.from_numpy(y_indices).long()  # [N_total]
 num_classes = len(unique_filters)
-print(num_classes)
 
 print(f"Configs shape: {configs_tensor.shape}")
 print(f"Filters shape: {filters_tensor.shape}") 
-
+print(f"Number of classes: {num_classes}")
 #---One hidden layer---
 if num_layers == 1:
     neurons = [128, 256, 512]
@@ -251,17 +242,16 @@ if num_layers == 3:
                 fold_test_acoustic = []
 
                 # Cross-validation
-                skf = StratifiedKFold(n_splits=number_of_folds, shuffle=True, random_state=42)
-                for fold_idx, (train_idx, test_idx) in enumerate(skf.split(configs_tensor, y_tensor)):
-                    # --- Prepare train/test tensors ---
-                    X_train = configs_tensor[train_idx]
-                    X_test = configs_tensor[test_idx]
-                    y_train = y_tensor[train_idx]
-                    y_test = y_tensor[test_idx]
+                kf = KFold(n_splits=num_folds, shuffle=True, random_state=42)
 
-                    # Corresponding IRs
-                    IR_train_tensor = torch.tensor(IR_array[train_idx], dtype=torch.float32, device=device)  # [N_train, n_mics, n_srcs, n_rir_samples]
-                    IR_test_tensor = torch.tensor(IR_array[test_idx], dtype=torch.float32, device=device)    # [N_test, n_mics, n_srcs, n_rir_samples]
+                for fold_idx, (train_idx, test_idx) in enumerate(kf.split(configs_tensor)):
+                    print(f"\nFold {fold_idx+1}")
+                    print(f"Train samples: {len(train_idx)}, Test samples: {len(test_idx)}")
+
+                    # Convert indices to tensors and select corresponding data
+                    X_train, X_test = configs_tensor[train_idx], configs_tensor[test_idx]
+                    y_train, y_test = y_tensor[train_idx], y_tensor[test_idx]
+                    IR_train, IR_test = IR[train_idx], IR[test_idx]
 
                     # --- Define model ---
                     model = torch.nn.Sequential(
