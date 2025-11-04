@@ -384,10 +384,12 @@ if __name__ == "__main__":
     p_features = len(trainset[0][0])
     out_features = len(trainset[0][1])
     train_loader = DataLoader(trainset, batch_size=1, shuffle=True, num_workers=cpu_count()//3*2)
-    model = cvm.L[0].to(device)
-    model = train(train_loader, epochs=20, dev=device, model=model)
+
+    for i, model in enumerate(cvm.L):
+        model = train(train_loader, epochs=5, dev=device, model=model.to(device))
+        torch.save(model.state_dict(), f"Regression_cross_validation_models/MLP_cross_{i}.pth")
+
     #torch.save(model, "filter_mlp_model_full.pth")
-    torch.save(model.state_dict(), "mlp_weights_r.pth")
 
     
 
