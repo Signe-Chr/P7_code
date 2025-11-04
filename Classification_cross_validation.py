@@ -6,13 +6,26 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import StratifiedKFold
+from Baseline_fast_search import ANN_Search_and_Refine
+from scipy.io import wavfile
+from sklearn.model_selection import GroupKFold
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 num_layers=3
+number_of_folds=5
 num_epochs=200
+L=3
+fcentres = torch.tensor([1000, 2000], device=device)
 np.random.seed(69420)
 data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
-number_of_folds=5
 
-X_list, filters_list = [], []
+bright_zone_mics_index = data["VAST_0_0_0_0"].get('bright_zone_mics_index', [])
+dark_zone_mics_index = data["VAST_0_0_0_0"].get('dark_zone_mics_index', [])
+
+M_B = len(bright_zone_mics_index)
+M_D = len(dark_zone_mics_index)
+
+X_list, filters_list, IR_list,rt60_list = [], [], [], []
 
 for key, inner in data.items():
     # Robust handling of features
@@ -20,6 +33,7 @@ for key, inner in data.items():
     phone_tilt = inner.get('Phone_tilt', 0.0)
     user_orient = inner.get('User_orientation', 0.0)
     spatial = np.array(inner.get('Spatial_position', [0, 0, 0]), dtype=np.float32).ravel()
+    IR = inner.get('IR', np.zeros((M_B + M_D, L, 1), dtype=np.float32)) 
 
     # Input feature vector
     X = np.concatenate([[rt60], [phone_tilt], [user_orient], spatial])
@@ -28,6 +42,22 @@ for key, inner in data.items():
     # q_matrix = target filter coefficients
     q = inner.get('q_matrix', np.zeros(3072, dtype=np.float32))
     filters_list.append(q.flatten())
+    
+    IR_list.append(IR)
+    rt60_list.append(rt60)
+    
+IR_array = np.stack(IR_list).astype(np.float32) # [N_total, n_mics, n_srcs, n_samples]
+print(IR_array.shape)
+rt60_array = np.array(rt60_list)  # shape [N]
+
+wav_path = "relaxing-guitar-loop-v5-245859.wav"
+fs_wav, wav = wavfile.read(wav_path)
+if wav.ndim > 1:
+    wav = np.mean(wav, axis=1)
+wav = wav[5*fs_wav : 7*fs_wav]
+wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
+x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
+x_input = x_input.to(device)
 
 # ---- 2. Prepare arrays and tensors
 X = np.stack(X_list).astype(np.float32)        # [N_total, num_features]
@@ -204,27 +234,34 @@ if num_layers == 3:
     neurons2 = [128, 256, 512]
     neurons3 = [128, 256, 512]
 
-    all_test_mse_grids = []
-    all_train_mse_grids = []
+    all_test_acoustic_grids = []
+    all_train_acoustic_grids = []
 
     for k, neuron3 in enumerate(neurons3):
         print(f'Neurons in 3rd layer {neuron3}')
-        test_mse_grid = np.zeros((len(neurons2), len(neurons1)))
-        train_mse_grid = np.zeros((len(neurons2), len(neurons1)))
+        test_acoustic_grid = np.zeros((len(neurons2), len(neurons1)))
+        train_acoustic_grid = np.zeros((len(neurons2), len(neurons1)))
 
         for i, neuron2 in enumerate(neurons2):
             print(f'Neurons in 2nd layer {neuron2}')
             for j, neuron1 in enumerate(neurons1):
                 print(f'Neurons in 1st layer {neuron1}')
 
-                fold_train_mse = []
-                fold_test_mse = []
+                fold_train_acoustic = []
+                fold_test_acoustic = []
 
                 # Cross-validation
-                for fold in range(number_of_folds):
-                    X_train, X_test, y_train, y_test = train_test_split(
-                        configs_tensor, y_tensor, test_size=0.25, shuffle=True, random_state=fold
-                    )
+                skf = StratifiedKFold(n_splits=number_of_folds, shuffle=True, random_state=42)
+                for fold_idx, (train_idx, test_idx) in enumerate(skf.split(configs_tensor, y_tensor)):
+                    # --- Prepare train/test tensors ---
+                    X_train = configs_tensor[train_idx]
+                    X_test = configs_tensor[test_idx]
+                    y_train = y_tensor[train_idx]
+                    y_test = y_tensor[test_idx]
+
+                    # Corresponding IRs
+                    IR_train_tensor = torch.tensor(IR_array[train_idx], dtype=torch.float32, device=device)  # [N_train, n_mics, n_srcs, n_rir_samples]
+                    IR_test_tensor = torch.tensor(IR_array[test_idx], dtype=torch.float32, device=device)    # [N_test, n_mics, n_srcs, n_rir_samples]
 
                     # --- Define model ---
                     model = torch.nn.Sequential(
@@ -234,8 +271,9 @@ if num_layers == 3:
                         torch.nn.ReLU(),
                         torch.nn.Linear(neuron2, neuron3),
                         torch.nn.ReLU(),
-                        torch.nn.Linear(neuron3, num_classes)   # classification output
-                    )
+                        torch.nn.Linear(neuron3, num_classes)
+                    ).to(device)
+
                     criterion = torch.nn.CrossEntropyLoss()
                     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
@@ -251,81 +289,98 @@ if num_layers == 3:
                     # --- Evaluation ---
                     model.eval()
                     with torch.no_grad():
+                        # Predict class indices
                         train_logits = model(X_train)
                         test_logits = model(X_test)
-
                         pred_classes_train = train_logits.argmax(dim=1)
                         pred_classes_test = test_logits.argmax(dim=1)
 
-                        # Optional: compute MSE between predicted filter vectors
-                        pred_filters_train = unique_filters[pred_classes_train.numpy()]
-                        pred_filters_test = unique_filters[pred_classes_test.numpy()]
+                        # Map class indices to filter vectors
+                        pred_filters_train = unique_filters[pred_classes_train.cpu().numpy()]
+                        pred_filters_test = unique_filters[pred_classes_test.cpu().numpy()]
+                        true_filters_train = unique_filters[y_train.cpu().numpy()]
+                        true_filters_test = unique_filters[y_test.cpu().numpy()]
 
-                        true_filters_train = unique_filters[y_train.numpy()]
-                        true_filters_test = unique_filters[y_test.numpy()]
+                        # --- Compute acoustic loss via ANN_Search_and_Refine ---
+                        # Train loss
+                        train_loss, _ = ANN_Search_and_Refine(
+                            test_filters=torch.tensor(pred_filters_train, dtype=torch.float32, device=device),
+                            dictionary=torch.tensor(true_filters_train, dtype=torch.float32, device=device),
+                            IR_train=IR_train_tensor,
+                            IR_test=IR_train_tensor,  # Evaluate on same train RIRs
+                            fcentres=fcentres,
+                            M_B=M_B,
+                            M_D=M_D,
+                            x_input=x_input,
+                            k_neighbors=20
+                        )
 
-                        train_mse = np.mean((pred_filters_train - true_filters_train) ** 2)
-                        test_mse = np.mean((pred_filters_test - true_filters_test) ** 2)
+                        # Test loss
+                        test_loss, _ = ANN_Search_and_Refine(
+                            test_filters=torch.tensor(pred_filters_test, dtype=torch.float32, device=device),
+                            dictionary=torch.tensor(true_filters_train, dtype=torch.float32, device=device),
+                            IR_train=IR_train_tensor,
+                            IR_test=IR_test_tensor,
+                            fcentres=fcentres,
+                            M_B=M_B,
+                            M_D=M_D,
+                            x_input=x_input,
+                            k_neighbors=20
+                        )
 
-                        fold_train_mse.append(train_mse)
-                        fold_test_mse.append(test_mse)
+                        fold_train_acoustic.append(train_loss)
+                        fold_test_acoustic.append(test_loss)
 
                 # Average over folds
-                train_mse_grid[i, j] = np.mean(fold_train_mse)
-                test_mse_grid[i, j] = np.mean(fold_test_mse)
+                train_acoustic_grid[i, j] = np.mean(fold_train_acoustic)
+                test_acoustic_grid[i, j] = np.mean(fold_test_acoustic)
 
-        all_train_mse_grids.append(train_mse_grid)
-        all_test_mse_grids.append(test_mse_grid)
+        all_train_acoustic_grids.append(train_acoustic_grid)
+        all_test_acoustic_grids.append(test_acoustic_grid)
 
-    # --- 2. Plotting ---
+    # --- Plotting ---
     fig = plt.figure(figsize=(14, 6))
-    import matplotlib.gridspec as gridspec
     gs = gridspec.GridSpec(2, len(neurons3), figure=fig, wspace=0.4, hspace=0.4)
 
-    # Separate min/max for train and test
-    test_min = min([g.min() for g in all_test_mse_grids])
-    test_max = max([g.max() for g in all_test_mse_grids])
-    train_min = min([g.min() for g in all_train_mse_grids])
-    train_max = max([g.max() for g in all_train_mse_grids])
+    vmin = min([g.min() for g in all_train_acoustic_grids + all_test_acoustic_grids])
+    vmax = max([g.max() for g in all_train_acoustic_grids + all_test_acoustic_grids])
 
     for k, neuron3 in enumerate(neurons3):
-        # Test MSE (top row)
+        # Test acoustic
         ax = fig.add_subplot(gs[0, k])
-        im_test = ax.imshow(all_test_mse_grids[k], origin='lower', cmap='viridis', vmin=test_min, vmax=test_max)
+        im_test = ax.imshow(all_test_acoustic_grids[k], origin='lower', cmap='viridis', vmin=vmin, vmax=vmax)
         for x in range(len(neurons2)):
             for y in range(len(neurons1)):
-                ax.text(y, x, f"{all_test_mse_grids[k][x, y]:.4f}", ha='center', va='center', color='w', fontsize=8)
+                ax.text(y, x, f"{all_test_acoustic_grids[k][x, y]:.4f}", ha='center', va='center', color='w', fontsize=8)
         ax.set_xticks(range(len(neurons1)))
         ax.set_xticklabels(neurons1)
         ax.set_yticks(range(len(neurons2)))
         ax.set_yticklabels(neurons2)
         ax.set_xlabel("L1 neurons")
         ax.set_ylabel("L2 neurons")
-        ax.set_title(f"Test MSE, L3={neuron3}")
+        ax.set_title(f"Test Acoustic Loss, L3={neuron3}")
 
-        # Train MSE (bottom row)
+        # Train acoustic
         ax = fig.add_subplot(gs[1, k])
-        im_train = ax.imshow(all_train_mse_grids[k], origin='lower', cmap='viridis', vmin=train_min, vmax=train_max)
+        im_train = ax.imshow(all_train_acoustic_grids[k], origin='lower', cmap='viridis', vmin=vmin, vmax=vmax)
         for x in range(len(neurons2)):
             for y in range(len(neurons1)):
-                ax.text(y, x, f"{all_train_mse_grids[k][x, y]:.4f}", ha='center', va='center', color='w', fontsize=8)
+                ax.text(y, x, f"{all_train_acoustic_grids[k][x, y]:.4f}", ha='center', va='center', color='w', fontsize=8)
         ax.set_xticks(range(len(neurons1)))
         ax.set_xticklabels(neurons1)
         ax.set_yticks(range(len(neurons2)))
         ax.set_yticklabels(neurons2)
         ax.set_xlabel("L1 neurons")
         ax.set_ylabel("L2 neurons")
-        ax.set_title(f"Train MSE, L3={neuron3}")
+        ax.set_title(f"Train Acoustic Loss, L3={neuron3}")
 
-    # Colorbar for test MSE (top row)
-    cbar_ax_test = fig.add_axes([0.92, 0.55, 0.02, 0.35])
-    fig.colorbar(im_test, cax=cbar_ax_test, label='Test MSE')
-
-    # Colorbar for train MSE (bottom row)
-    cbar_ax_train = fig.add_axes([0.92, 0.1, 0.02, 0.35])
-    fig.colorbar(im_train, cax=cbar_ax_train, label='Train MSE')
+    # Shared colorbar
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    fig.colorbar(im_test, cax=cbar_ax, label='Acoustic Loss')
 
     plt.show()
+
+
 
 
     
