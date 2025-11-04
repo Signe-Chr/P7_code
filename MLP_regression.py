@@ -196,7 +196,7 @@ def L_1_loss(q_opt, fcentres, M_B, H):
         for m in range(M_B):
             temp = 0
             for k in range(k_low, k_high):
-                H_B_slice_complex = torch.tensor(H[:,:,k]).to(g.dtype)
+                H_B_slice_complex = H[:,:,k].to(g.dtype)
                 H_B_tilde = torch.matmul(H_B_slice_complex, g)
                 temp += (torch.linalg.norm(H_B_tilde[m,:], ord=1)-torch.linalg.norm(target_pressure[:,k], ord=1))**2
             L_1_ += torch.sqrt(temp)
@@ -278,12 +278,12 @@ def L_2_loss(q_opt, fcentres, H_B, H_D, M_B, M_D):
         del L_2_
     return L_2
 
-def energy_tilde(q_opt, H_time, N_time_steps, mic_index, speaker_index):
+def energy_tilde(q_opt, H_time, N_time_steps, mic_index, speaker_index, dev):
 
-    e_b = torch.tensor(0.0, dtype=H_time.dtype)
+    e_b = torch.tensor(0.0, dtype=H_time.dtype).to(dev)
     
     if isinstance(H_time, np.ndarray):
-        H_time = torch.from_numpy(H_time)
+        H_time = torch.from_numpy(H_time).to(dev)
     
     
 
@@ -305,21 +305,21 @@ def energy(H_time, mic_index: int, speaker_index: int) -> torch.Tensor:
     
     return e_b
 
-def L_3_loss(q_opt, H_time, N_time_steps = dgs.N, bs=[], n_srcs=0):
-    L_3 = torch.tensor(0.0)
+def L_3_loss(q_opt, H_time, dev, N_time_steps = dgs.N, bs=[], n_srcs=0):
+    L_3 = torch.tensor(0.0).to(dev)
     
     for m in bs:
-        mm = torch.tensor(0.0) 
+        mm = torch.tensor(0.0).to(dev) 
         
         for s in range(n_srcs):
-            E_tilde_num = energy_tilde(q_opt[s], H_time, N_time_steps, m, s)
-            E_tilde_den = energy_tilde(q_opt[s], H_time, N_time_steps, m, -1) 
+            E_tilde_num = energy_tilde(q_opt[s], H_time, N_time_steps, m, s, dev)
+            E_tilde_den = energy_tilde(q_opt[s], H_time, N_time_steps, m, -1, dev) 
             
             E_num = energy(H_time, m, s)
             E_den = energy(H_time, m, -1)
             
             if E_tilde_den.item() == 0 or E_den.item() == 0:
-                diff_squared = torch.tensor(0.0)
+                diff_squared = torch.tensor(0.0).to(dev)
             else:
                 diff_squared = (E_tilde_num / E_tilde_den - E_num / E_den)**2
 
@@ -343,17 +343,17 @@ def train(data, epochs, model, dev):
         loop = tqdm(data, desc=f"Epoch {epoch+1}/{epochs}")
         for batch in loop:
             batch_X, batch_y = batch[0].to(dev, dtype=torch.float32), batch[1].to(dev, dtype=torch.float32)
-            batch_y = np.reshape(batch_y, (3, 1024))
+            batch_y = torch.reshape(batch_y, (3, 1024))
 
             optimizer.zero_grad()
             outputs = model(batch_X)
             outputs = outputs.reshape(3, 1024)
-            H, _ = compute_H_matrix(batch[5][0])
-            H_B = torch.from_numpy(H[batch[2][0]])
-            H_D = torch.from_numpy(H[batch[3][0]])
+            H = torch.from_numpy(compute_H_matrix(batch[5][0])[0]).to(dev)
+            H_B = H[batch[2][0]][0]
+            H_D = H[batch[3][0]][0]
 
-            H_time = compute_multi_toeplitz(batch[5][0], len(batch_y[0]))
-            loss = c(outputs, batch_y) + L_1_loss(batch_y, fcentres, len(batch[2]), H) + L_2_loss(batch_y, fcentres, H_B, H_D, len(batch[2]), len(batch[3])) + L_3_loss(batch_y, H_time, N_time_steps = dgs.N, bs=batch[2], n_srcs=batch[4])
+            H_time = compute_multi_toeplitz(batch[5][0], len(batch_y[0])).to(dev)
+            loss = c(outputs, batch_y) + L_1_loss(batch_y, fcentres, len(batch[2]), H) + L_2_loss(batch_y, fcentres, H_B, H_D, len(batch[2]), len(batch[3])) + L_3_loss(batch_y, H_time, dev, N_time_steps = dgs.N, bs=batch[2], n_srcs=batch[4])
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
