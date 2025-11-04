@@ -371,12 +371,21 @@ if __name__ == "__main__":
     print(torch.cuda.is_available())
     print(torch.version.cuda)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    dataset = CustomDataset()
-    p_features = len(dataset[0][0])
-    out_features = len(dataset[0][1])
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=cpu_count()//3*2)
+    data_dir = "VAST_filter_archive_730"
+    from Dataset_generator_script import room_indices as ri
+    full_data = os.listdir(data_dir)
+    data_points = []
+    for data in full_data:
+        if int(data.split("_")[1]) in ri:
+            data_points.append(data)
+    #data_points = full_data[:1000]
+    #train_files, test_files = train_test_split(data_points, test_size=0.2, random_state=42)
+    trainset = CustomDataset(data_dir, data_points)
+    p_features = len(trainset[0][0])
+    out_features = len(trainset[0][1])
+    train_loader = DataLoader(trainset, batch_size=1, shuffle=True, num_workers=cpu_count()//3*2)
     model = cvm.L[0].to(device)
-    model = train(dataloader, epochs=20, dev=device, model=model)
+    model = train(train_loader, epochs=20, dev=device, model=model)
     #torch.save(model, "filter_mlp_model_full.pth")
     torch.save(model.state_dict(), "mlp_weights_r.pth")
 

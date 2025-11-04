@@ -1,15 +1,13 @@
-import os
 import numpy as np
 from torch.utils.data import Dataset
-from torch import float32
 
 L = 3       # Loudspeaker
 J = 1024    # Filter order
 
 class CustomDataset(Dataset):
-    def __init__(self, data_path="VAST_filter_archive_730"):
+    def __init__(self, data_path, filenames):
         self.data_path = data_path
-        self.files = os.listdir(data_path)
+        self.files = filenames
     
     def __len__(self):
         return len(self.files)
