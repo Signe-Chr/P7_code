@@ -3,17 +3,18 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torchsummary import summary
 import Dataset_generator_script as dgs
-from tqdm import trange
-
-L = 3       # Loudspeaker
-J = 1024    # Filter order
+from tqdm import tqdm
+from Dataset_class import CustomDataset, L, J
+from multiprocessing import cpu_count
 
 # ---- 1. Load data
 def load_data(dataset = "VAST_filter_archive.npy"):
+    # THIS FUNCTION IS NO LONGER USED IN THIS SCRIPT
     data = np.load(dataset, allow_pickle=True).item()
     bright_zone_mics_index = data["VAST_0_0_0_0"]['bright_zone_mics_index']
     dark_zone_mics_index = data["VAST_0_0_0_0"]['dark_zone_mics_index']
@@ -195,7 +196,7 @@ def L_1_loss(q_opt, fcentres, M_B, H):
         for m in range(M_B):
             temp = 0
             for k in range(k_low, k_high):
-                H_B_slice_complex = torch.tensor(H[:,:,k]).to(g.dtype)
+                H_B_slice_complex = H[:,:,k].to(g.dtype)
                 H_B_tilde = torch.matmul(H_B_slice_complex, g)
                 temp += (torch.linalg.norm(H_B_tilde[m,:], ord=1)-torch.linalg.norm(target_pressure[:,k], ord=1))**2
             L_1_ += torch.sqrt(temp)
@@ -269,7 +270,7 @@ def L_2_loss(q_opt, fcentres, H_B, H_D, M_B, M_D):
         k_high = int(torch.ceil(f_high/delta_f))
         L_2_ = 0
         for i in range(k_low, k_high):
-            AC_sim = AC_tilde(H_B[:,:,i], H_D[:,:,i], g[:,i], M_B, M_D)
+            AC_sim = AC_tilde(H_B[:,i], H_D[:,i], g[:,i], M_B, M_D)
             w_AC = w_ac(freq, ref_frequency=100, beta=1, min_weight=1)
             C = C_i(AC_des, w_AC, AC_sim)
             L_2_ += C**2
@@ -277,20 +278,20 @@ def L_2_loss(q_opt, fcentres, H_B, H_D, M_B, M_D):
         del L_2_
     return L_2
 
-def energy_tilde(q_opt, H_time, N_time_steps, mic_index, speaker_index):
+def energy_tilde(q_opt, H_time, N_time_steps, mic_index, speaker_index, dev):
 
-    e_b = torch.tensor(0.0, dtype=H_time.dtype)
+    e_b = torch.tensor(0.0, dtype=H_time.dtype).to(dev)
     
     if isinstance(H_time, np.ndarray):
-        H_time = torch.from_numpy(H_time)
+        H_time = torch.from_numpy(H_time).to(dev)
     
     
 
     for n in range(N_time_steps-500):
-        H_n_vector = H_time[n, mic_index, speaker_index, :].to(q_opt.dtype).detach()
+        H_n_vector = H_time[n, mic_index, speaker_index, :].to(q_opt.dtype)[0]
 
         y_n = torch.dot(q_opt, H_n_vector)
-        
+
         e_b += torch.square(y_n)
         
     #print(f"Calculated Energy e_b: {e_b.item()}")
@@ -304,21 +305,21 @@ def energy(H_time, mic_index: int, speaker_index: int) -> torch.Tensor:
     
     return e_b
 
-def L_3_loss(q_opt, H_time, N_time_steps = dgs.N):
-    L_3 = torch.tensor(0.0)
+def L_3_loss(q_opt, H_time, dev, N_time_steps = dgs.N, bs=[], n_srcs=0):
+    L_3 = torch.tensor(0.0).to(dev)
     
-    for m in bright_zone_mics_index:
-        mm = torch.tensor(0.0) 
+    for m in bs:
+        mm = torch.tensor(0.0).to(dev) 
         
         for s in range(n_srcs):
-            E_tilde_num = energy_tilde(q_opt[s], H_time, N_time_steps, m, s)
-            E_tilde_den = energy_tilde(q_opt[s], H_time, N_time_steps, m, -1) 
+            E_tilde_num = energy_tilde(q_opt[s], H_time, N_time_steps, m, s, dev)
+            E_tilde_den = energy_tilde(q_opt[s], H_time, N_time_steps, m, -1, dev) 
             
             E_num = energy(H_time, m, s)
             E_den = energy(H_time, m, -1)
             
             if E_tilde_den.item() == 0 or E_den.item() == 0:
-                diff_squared = torch.tensor(0.0)
+                diff_squared = torch.tensor(0.0).to(dev)
             else:
                 diff_squared = (E_tilde_num / E_tilde_den - E_num / E_den)**2
 
@@ -331,40 +332,39 @@ def L_3_loss(q_opt, H_time, N_time_steps = dgs.N):
 fcentres = torch.tensor([1000, 2000])
 
 # ---- 4. Train and save the model
-def train(X, y, IRs, bright_mics, dark_mics, epochs, model, dev, batch_size=1):
+def train(data, epochs, model, dev):
      
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     c = nn.MSELoss()
 
     for epoch in range(epochs):
-        permutation = torch.randperm(X.size(0))
         total_loss = 0.0
 
-        loop = trange(0, X.size(0), batch_size, desc=f"Epoch {epoch+1}/{epochs}")
-        for i in loop:
-            idx = permutation[i:i + batch_size]
-            batch_X, batch_y = X[idx].to(dev), y[idx].to(dev)
-            batch_y = batch_y.reshape(3, 1024)
+        loop = tqdm(data, desc=f"Epoch {epoch+1}/{epochs}")
+        for batch in loop:
+            batch_X, batch_y = batch[0].to(dev, dtype=torch.float32), batch[1].to(dev, dtype=torch.float32)
+            batch_y = torch.reshape(batch_y, (3, 1024))
 
             optimizer.zero_grad()
             outputs = model(batch_X)
             outputs = outputs.reshape(3, 1024)
-            H, _ = compute_H_matrix(IRs[i])
-            H_B = torch.from_numpy(H[bright_mics])
-            H_D = torch.from_numpy(H[dark_mics])
+            H = torch.from_numpy(compute_H_matrix(batch[5][0])[0]).to(dev)
+            H_B = H[batch[2][0]][0]
+            H_D = H[batch[3][0]][0]
 
-            H_time = compute_multi_toeplitz(IRs[i], len(batch_y[0]))
-            loss = c(outputs, batch_y) + L_1_loss(batch_y, fcentres, len(bright_mics), H) + L_2_loss(batch_y, fcentres, H_B, H_D, len(bright_mics), len(dark_mics)) + L_3_loss(batch_y, H_time, N_time_steps = dgs.N)
+            H_time = compute_multi_toeplitz(batch[5][0], len(batch_y[0])).to(dev)
+            loss = c(outputs, batch_y) + L_1_loss(batch_y, fcentres, len(batch[2]), H) + L_2_loss(batch_y, fcentres, H_B, H_D, len(batch[2]), len(batch[3])) + L_3_loss(batch_y, H_time, dev, N_time_steps = dgs.N, bs=batch[2], n_srcs=batch[4])
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
 
-            loop.set_postfix(f"Loss: {total_loss:.4f}")
+            loop.set_postfix(loss=f"{total_loss:.4f}")
         #if (epoch + 1) % 20 == 0:
         #print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
     return model
 
 def review_data():
+    #OUTDATED FUNCTION
     data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
     for key, inner in data.items():
         print(f"--- Key: {key} ---")
@@ -380,14 +380,20 @@ def review_data():
 
 
 if __name__ == "__main__":
+    import torch
+    print(torch.cuda.is_available())
+    print(torch.version.cuda)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    keys = os.listdir("VAST_filter_archive")
-    for key in keys:
-        X_train, X_test, y_train, y_test, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR_list = load_data()
-    model = FilterNet(input_size=X_train.shape[1], output_size=y_train.shape[1]).to(device)
-    model = train(X_train, y_train, IR_list, bright_zone_mics_index, dark_zone_mics_index, epochs=20, dev=device, batch_size=32, model=model)
+    dataset = CustomDataset()
+    p_features = len(dataset[0][0])
+    out_features = len(dataset[0][1])
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=cpu_count()//3*2)
+    model = FilterNet(input_size=p_features, output_size=out_features).to(device)
+    model = train(dataloader, epochs=20, dev=device, model=model)
     #torch.save(model, "filter_mlp_model_full.pth")
     torch.save(model.state_dict(), "mlp_weights_r.pth")
+
+    
 
     # ---- 5. Evaluation and saving coefficients
     """with torch.no_grad():
