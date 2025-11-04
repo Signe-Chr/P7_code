@@ -374,20 +374,28 @@ if __name__ == "__main__":
     data_dir = "VAST_filter_archive_730"
     from Dataset_generator_script import room_indices as ri
     full_data = os.listdir(data_dir)
-    data_points = []
+    #data_points = []
+    train_points = []
+    #test_points = []
     for data in full_data:
-        if int(data.split("_")[1]) in ri:
-            data_points.append(data)
+        i = int(data.split("_")[1])
+        if (i in ri) and (i not in ri[::4]):
+            train_points.append(data)
+            #data_points.append(data)
     #data_points = full_data[:1000]
     #train_files, test_files = train_test_split(data_points, test_size=0.2, random_state=42)
-    trainset = CustomDataset(data_dir, data_points)
+    trainset = CustomDataset(data_dir, train_points)
+    #testset = CustomDataset(data_dir, test_points)
     p_features = len(trainset[0][0])
     out_features = len(trainset[0][1])
     train_loader = DataLoader(trainset, batch_size=1, shuffle=True, num_workers=cpu_count()//3*2)
+    #test_loader = DataLoader(testset, shuffle=False)
 
-    for i, model in enumerate(cvm.L):
+    model = train(train_loader, epochs=5, dev=device, model=cvm.model_.to(device))
+    torch.save(model.state_dict(), f"MLP_regression.pth")
+    """for i, model in enumerate(cvm.L[]):
         model = train(train_loader, epochs=5, dev=device, model=model.to(device))
-        torch.save(model.state_dict(), f"Regression_cross_validation_models/MLP_cross_{i}.pth")
+        torch.save(model.state_dict(), f"Regression_cross_validation_models/MLP_regression_cross_{i}.pth")"""
 
     #torch.save(model, "filter_mlp_model_full.pth")
 
