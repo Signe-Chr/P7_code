@@ -70,16 +70,6 @@ x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=160
 
 #---Compute Acoustic contrast---
 def compute_pressure_with_input(rir: torch.Tensor, x_input: torch.Tensor) -> torch.Tensor:
-    """
-    Simulates the acoustic pressure at all mics by convolving RIRs directly with the input signal.
-
-    Parameters:
-        rir: [n_mics, n_srcs, n_rir_samples]
-        x_input: [1, n_input_samples] (The source signal)
-    
-    Returns:
-        p: [n_mics, n_output_samples] (Acoustic pressure)
-    """
     n_mics, n_srcs, n_rir_samples = rir.shape
     n_input_samples = x_input.shape[-1]
     
