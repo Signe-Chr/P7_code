@@ -15,6 +15,85 @@ from Dataset_generator_script import room_indices as ri
 from MLP_classification import SoftFilterNet
 
 
+def resample_to_16k_np(wav_path):
+    fs, audio = wavfile.read(wav_path)
+    # convert to float32 in [-1,1]
+    if audio.dtype != np.float32:
+        if audio.ndim > 1:
+            audio = np.mean(audio, axis=1)
+        audio = audio.astype(np.float32)
+        audio /= np.max(np.abs(audio))
+    if fs != 16000:
+        n_samples = int(len(audio) * 16000 / fs)
+        audio = resample(audio, n_samples)
+    return audio
+
+def load_data():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    data_dir = "Signes_data"
+    full_data = os.listdir(data_dir)
+    data_points = []
+    for data in full_data:
+        if int(data.split("_")[1]) in ri:
+            data_points.append(data)
+    data = CustomDataset(data_dir,data_points)
+    data_loader = DataLoader(data, batch_size=len(data), shuffle=True)
+    Q = [batch for batch in data_loader][0]
+    return Q, device
+
+def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
+    """
+    Simulates the acoustic pressure at all mics by convolving RIRs and filters with the input signal.
+
+    Parameters:
+        rir: [n_mics, n_srcs, n_rir_samples]
+        filter_q: [n_srcs, filter_len]
+        reference: [1, n_input_samples] (The source signal)
+    
+    Returns:
+        p: [n_mics, n_output_samples] (Acoustic pressure)
+    """
+    n_mics, n_srcs, n_rir_samples = rir.shape
+    filter_len = filter_q.shape[1]
+    n_input_samples = reference.shape[-1]
+    # The total combined impulse response length (h_combined) is n_rir_samples + filter_len - 1
+    # The final pressure length (p) is h_combined_len + n_input_samples - 1
+    output_len = n_input_samples    # We would like the output to match input as we are converting a sound signal
+    
+    # Zero pad reference for convolution
+    reference_padded = F.pad(reference, (0, output_len - n_input_samples), 'constant', 0)
+    p = torch.zeros((n_mics, output_len), device=rir.device)
+
+    for m in range(n_mics):
+        p_m = torch.zeros(output_len, device=rir.device)
+        for s in range(n_srcs):
+            # Combined filter impulse response: h_combined = RIR * filter_q (via standard convolution)
+            rir_m_s = rir[m, s, :].unsqueeze(0).unsqueeze(0) # [1, 1, n_rir_samples]
+            q_s = filter_q[s, :].unsqueeze(0).unsqueeze(0) # [1, 1, filter_len]
+            
+            # --- CRITICAL FIX: SWAP INPUT/KERNEL FOR CONV1D ---
+            # Since n_rir_samples (512) < filter_len (1024), we must swap them for F.conv1d.
+            # Convolution is commutative: rir * q = q * rir
+            h_combined = F.conv1d(q_s, rir_m_s, padding=0).squeeze()
+            
+            # Convolve h_combined with input signal x (reference) using FFT
+            
+            # Pad h_combined to ensure final output length matches 'output_len'
+            h_combined_padded = F.pad(h_combined, (0, output_len - h_combined.shape[0]), 'constant', 0)
+            
+            n_fft = 2**int(np.ceil(np.log2(output_len)))
+            
+            H = torch.fft.rfft(h_combined_padded, n=n_fft)
+            X_fft = torch.fft.rfft(reference_padded, n=n_fft).squeeze(0)
+            
+            P_fft = H * X_fft
+            p_m_s = torch.fft.irfft(P_fft, n=n_fft)[:output_len] # Back to time domain
+            
+            p_m += p_m_s
+        p[m, :] = p_m
+    
+    return p
+
 # -------------------------------------------------------------------------
 # 3. Performance Evaluation Functions
 # -------------------------------------------------------------------------
@@ -56,9 +135,6 @@ def compute_pesq(reference, measured, mode:str='wb'):
     return score
 
 def compute_psnr(reference, measured):
-    min_len = min(len(reference), len(measured))
-    reference = reference[:min_len]
-    measured = measured[:min_len]
     mse = np.mean((reference - measured)**2)
     if mse == 0:
         return np.inf
@@ -340,10 +416,8 @@ def performance_evaluation2(
         p_dark_t   = p_dark_t / torch.max(torch.abs(p_dark_t))
 
         
-        # --- 4. Save degraded WAVs ---
-        if save == True:
-            bright_path = os.path.join(save_dir, f"degraded_bright_{i}.wav")
-            dark_path   = os.path.join(save_dir, f"degraded_dark_{i}.wav")
+        bright_path = os.path.join(save_dir, f"degraded_bright_{i}.wav")
+        dark_path   = os.path.join(save_dir, f"degraded_dark_{i}.wav")
 
         # Convert to NumPy and ensure 2D for WAV: [N_samples, N_channels]
         p_bright_np = p_bright_t.cpu().numpy().reshape(-1, 1)
@@ -351,8 +425,10 @@ def performance_evaluation2(
         p_bright_np = np.asarray(p_bright_np, dtype=np.float32).ravel() # <-- gør 1D
         p_dark_np   = np.asarray(p_dark_np, dtype=np.float32).ravel() # <-- gør 1D
 
-        wavfile.write(bright_path, fs_wav, (p_bright_np * 32767).astype(np.int16))
-        wavfile.write(dark_path,   fs_wav, (p_dark_np   * 32767).astype(np.int16))
+        # --- 4. Save degraded WAVs ---
+        if save == True:
+            wavfile.write(bright_path, fs_wav, (p_bright_np * 32767).astype(np.int16))
+            wavfile.write(dark_path,   fs_wav, (p_dark_np   * 32767).astype(np.int16))
 
         # --- 5. Compute metrics ---
         pesq_b = compute_pesq(ref_path, bright_path)

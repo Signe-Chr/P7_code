@@ -11,6 +11,9 @@ from scipy.io import wavfile
 from pesq import pesq
 import torchaudio
 
+data_random_selection = torch.load("random_selection_data.pt")
+selected_filters = data_random_selection['selected_filters']
+
 
 
 #---Load data and split into test and traning data---
@@ -66,39 +69,49 @@ wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
 x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
 x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
 
-#x_input = x_input.to(device)
-
-#---Compute Acoustic contrast---
-def compute_pressure_with_input(rir: torch.Tensor, x_input: torch.Tensor) -> torch.Tensor:
+def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
     n_mics, n_srcs, n_rir_samples = rir.shape
-    n_input_samples = x_input.shape[-1]
+    filter_len = filter_q.shape[1]
+    n_input_samples = reference.shape[-1]
+    # The total combined impulse response length (h_combined) is n_rir_samples + filter_len - 1
+    # The final pressure length (p) is h_combined_len + n_input_samples - 1
+    output_len = n_rir_samples + filter_len + n_input_samples - 2
     
-    # Output length = n_rir_samples + n_input_samples - 1
-    output_len = n_rir_samples + n_input_samples - 1
     
-    # Zero pad input
-    x_input_padded = F.pad(x_input, (0, output_len - n_input_samples), 'constant', 0)
+    # Zero pad reference for convolution
+    reference_padded = F.pad(reference, (0, output_len - n_input_samples), 'constant', 0)
     p = torch.zeros((n_mics, output_len), device=rir.device)
 
-    # FFT length (power of 2 for efficiency)
-    n_fft = 2 ** int(np.ceil(np.log2(output_len)))
-    X_fft = torch.fft.rfft(x_input_padded, n=n_fft).squeeze(0)
-
-    # Loop through microphones and sources
     for m in range(n_mics):
         p_m = torch.zeros(output_len, device=rir.device)
         for s in range(n_srcs):
-            h = rir[m, s, :]  # [n_rir_samples]
-            h_padded = F.pad(h, (0, output_len - n_rir_samples), 'constant', 0)
-            H_fft = torch.fft.rfft(h_padded, n=n_fft)
+            # Combined filter impulse response: h_combined = RIR * filter_q (via standard convolution)
+            rir_m_s = rir[m, s, :].unsqueeze(0).unsqueeze(0) # [1, 1, n_rir_samples]
+            q_s = filter_q[s, :].unsqueeze(0).unsqueeze(0) # [1, 1, filter_len]
+            rir_m_s = rir[m, s, :].unsqueeze(0).unsqueeze(0).float()  # cast to float32
+            q_s = filter_q[s, :].unsqueeze(0).unsqueeze(0).float()    # cast to float32
+
+            # --- CRITICAL FIX: SWAP INPUT/KERNEL FOR CONV1D ---
+            # Since n_rir_samples (512) < filter_len (1024), we must swap them for F.conv1d.
+            # Convolution is commutative: rir * q = q * rir
+            h_combined = F.conv1d(q_s, rir_m_s, padding=0).squeeze()
             
-            # Convolution via multiplication in frequency domain
-            P_fft = H_fft * X_fft
-            p_m_s = torch.fft.irfft(P_fft, n=n_fft)[:output_len]
+            # Convolve h_combined with input signal x (reference) using FFT
+            
+            # Pad h_combined to ensure final output length matches 'output_len'
+            h_combined_padded = F.pad(h_combined, (0, output_len - h_combined.shape[0]), 'constant', 0)
+            
+            n_fft = 2**int(np.ceil(np.log2(output_len)))
+            
+            H = torch.fft.rfft(h_combined_padded, n=n_fft)
+            X_fft = torch.fft.rfft(reference_padded, n=n_fft).squeeze(0)
+            
+            P_fft = H * X_fft
+            p_m_s = torch.fft.irfft(P_fft, n=n_fft)[:output_len] # Back to time domain
+            
             p_m += p_m_s
-
         p[m, :] = p_m
-
+    
     return p
 
 #---Compute Acoustic Contrast---
@@ -271,93 +284,82 @@ def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D)
     plt.tight_layout()
     plt.show()
 
+def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test):
+    """
+    Computes AC, PESQ, nSDR, and STOI for the entire test set using selected filters.
+    
+    Parameters:
+        RIR_test: [n_samples, n_mics, n_srcs, n_rir_samples] torch.Tensor
+        selected_filters: [n_samples, n_srcs, filter_len] torch.Tensor
+        wav_input: [1, n_input_samples] torch.Tensor
+        bright_zone_mics_index_test: list of bright-zone mic indices
+        dark_zone_mics_index_test: list of dark-zone mic indices
+    
+    Returns:
+        Average, min, max of each metric for bright and dark zones
+    """
+    AC_list, pesq_B_list, pesq_D_list = [], [], []
+    NSDR_B_list, NSDR_D_list = [], []
+    STOI_B_list, STOI_D_list = [], []
 
-#---Compute average performance metrics across testset---
-def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test):
-    pesq_B = []
-    pesq_D = []
-    AC = []
-    NSDR_B = []
-    NSDR_D = []
-    STOI_B = []
-    STOI_D = []
     for i in range(RIR_test.shape[0]):
         print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
-        rirs = RIR_test[i]
-        BZ_idx = bright_zone_mics_index_test
-        DZ_idx = dark_zone_mics_index_test
+        rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
+        n_srcs = 3
+        filter_len = 1024
+        filters_flat = selected_filters[i]  # [3072]
+        filters = filters_flat.reshape(n_srcs, filter_len)  # [3, 1024]
 
-        # Compute pressures
-        p_C = compute_pressure_with_input(rirs, wav_input)
 
-        # Compute PESQ
-        mean_pesq_B, mean_pesq_D = compute_pesq_unfiltered(p_C, wav_input, BZ_idx, DZ_idx)
+        # Compute pressures with filters
+        p_C = compute_pressure_with_input(rirs, filters, wav_input)
 
-        # Compute AC
-        AC_i = float(acoustic_contrast(p_C, BZ_idx, DZ_idx))
-        
-        # Compute NSDR
-        mean_NSDR_B,mean_NSDR_D=compute_nSDR(p_C,wav_input,BZ_idx,DZ_idx)
-        
-        #Compute STOI
-        mean_STOI_B,mean_STOI_D=compute_STOI(p_C, wav_input, BZ_idx, DZ_idx)
+        # Compute metrics
+        AC_i = float(acoustic_contrast(p_C, bright_zone_mics_index_test, dark_zone_mics_index_test))
+        mean_pesq_B, mean_pesq_D = compute_pesq_unfiltered(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
+        mean_NSDR_B, mean_NSDR_D = compute_nSDR(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
+        mean_STOI_B, mean_STOI_D = compute_STOI(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
 
-        pesq_B.append(mean_pesq_B)
-        pesq_D.append(mean_pesq_D)
-        AC.append(AC_i)
-        NSDR_B.append(mean_NSDR_B)
-        NSDR_D.append(mean_NSDR_D)
-        STOI_B.append(mean_STOI_B)
-        STOI_D.append(mean_STOI_D)
+        # Append results
+        AC_list.append(AC_i)
+        pesq_B_list.append(mean_pesq_B)
+        pesq_D_list.append(mean_pesq_D)
+        NSDR_B_list.append(mean_NSDR_B)
+        NSDR_D_list.append(mean_NSDR_D)
+        STOI_B_list.append(mean_STOI_B)
+        STOI_D_list.append(mean_STOI_D)
 
-    AC = np.array(AC)
-    pesq_B = np.array(pesq_B)
-    pesq_D = np.array(pesq_D)
-    NSDR_B = np.array(NSDR_B)
-    NSDR_D = np.array(NSDR_D)
-    STOI_B = np.array(STOI_B)
-    STOI_D = np.array(STOI_D)
+    # Convert to numpy arrays
+    AC_list = np.array(AC_list)
+    pesq_B_list = np.array(pesq_B_list)
+    pesq_D_list = np.array(pesq_D_list)
+    NSDR_B_list = np.array(NSDR_B_list)
+    NSDR_D_list = np.array(NSDR_D_list)
+    STOI_B_list = np.array(STOI_B_list)
+    STOI_D_list = np.array(STOI_D_list)
 
-    avg_ac = np.mean(AC)
-    min_ac = np.min(AC)
-    max_ac = np.max(AC)
+    # Compute statistics
+    results = {
+        "AC": (np.mean(AC_list), np.min(AC_list), np.max(AC_list)),
+        "PESQ_B": (np.mean(pesq_B_list), np.min(pesq_B_list), np.max(pesq_B_list)),
+        "PESQ_D": (np.mean(pesq_D_list), np.min(pesq_D_list), np.max(pesq_D_list)),
+        "NSDR_B": (np.mean(NSDR_B_list), np.min(NSDR_B_list), np.max(NSDR_B_list)),
+        "NSDR_D": (np.mean(NSDR_D_list), np.min(NSDR_D_list), np.max(NSDR_D_list)),
+        "STOI_B": (np.mean(STOI_B_list), np.min(STOI_B_list), np.max(STOI_B_list)),
+        "STOI_D": (np.mean(STOI_D_list), np.min(STOI_D_list), np.max(STOI_D_list))
+    }
 
-    avg_pesq_B = np.mean(pesq_B)
-    min_pesq_B = np.min(pesq_B)
-    max_pesq_B = np.max(pesq_B)
+    # Optional: plot metrics
+    plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDR_B_list, NSDR_D_list, STOI_B_list, STOI_D_list)
 
-    avg_pesq_D = np.mean(pesq_D)
-    min_pesq_D = np.min(pesq_D)
-    max_pesq_D = np.max(pesq_D)
-    
-    avg_NSDR_B = np.mean(NSDR_B)
-    min_NSDR_B = np.min(NSDR_B)
-    max_NSDR_B = np.max(NSDR_B)
-    
-    avg_NSDR_D = np.mean(NSDR_D)
-    min_NSDR_D = np.min(NSDR_D)
-    max_NSDR_D = np.max(NSDR_D)
-    
-    avg_STOI_B = np.mean(STOI_B)
-    min_STOI_B = np.min(STOI_B)
-    max_STOI_B = np.max(STOI_B)
-    
-    avg_STOI_D = np.mean(STOI_D)
-    min_STOI_D = np.min(STOI_D)
-    max_STOI_D = np.max(STOI_D)
-    
-    plot_performance_metrics(AC, pesq_B, pesq_D, NSDR_B, NSDR_D, STOI_B, STOI_D)
+    return results
+# Assuming `selected_filters_test` comes from your random selection
+results = average_performance_metrics_with_filters(RIRs_test, selected_filters, x_input, bright_zone_mics_index, dark_zone_mics_index)
 
-    return avg_ac, min_ac, max_ac, avg_pesq_B, min_pesq_B, max_pesq_B, avg_pesq_D, min_pesq_D, max_pesq_D, avg_NSDR_B, min_NSDR_B, max_NSDR_B, avg_NSDR_D, min_NSDR_D, max_NSDR_D, avg_STOI_B, min_STOI_B, max_STOI_B, avg_STOI_D, min_STOI_D, max_STOI_D
-
-if __name__=='__main__':
-    avg_ac, min_ac, max_ac, avg_pesq_B, min_pesq_B, max_pesq_B, avg_pesq_D, min_pesq_D, max_pesq_D, avg_NSDR_B, min_NSDR_B, max_NSDR_B, avg_NSDR_D, min_NSDR_D, max_NSDR_D, avg_STOI_B, min_STOI_B, max_STOI_B, avg_STOI_D, min_STOI_D, max_STOI_D=average_performance_metrics(RIRs_test,x_input,bright_zone_mics_index,dark_zone_mics_index)
-    print(f'Average AC over {RIRs_test.shape[0]} data points:{avg_ac}, minimum AC: {min_ac}, maximum AC: {max_ac}')
-    print('Bright Zone:')
-    print(f'Average PESQ over {RIRs_test.shape[0]} data points: {avg_pesq_B}, minimum PESQ:{min_pesq_B}, maximum pesq:{max_pesq_B}')
-    print(f'Average NSDR over {RIRs_test.shape[0]} data points: {avg_NSDR_B}, minimum NSDR:{min_NSDR_B}, maximum NSDR:{max_NSDR_B}')
-    print(f'Average STOI over {RIRs_test.shape[0]} data points: {avg_STOI_B}, minimum STOI:{min_STOI_B}, maximum STOI:{max_STOI_B}')
-    print('Dark Zone:')
-    print(f'Average PESQ over {RIRs_test.shape[0]} data points: {avg_pesq_D}, minimum PESQ:{min_pesq_D}, maximum pesq:{max_pesq_D}')
-    print(f'Average NSDR over {RIRs_test.shape[0]} data points: {avg_NSDR_D}, minimum NSDR:{min_NSDR_D}, maximum NSDR:{max_NSDR_D}')
-    print(f'Average STOI over {RIRs_test.shape[0]} data points: {avg_STOI_D}, minimum STOI:{min_STOI_D}, maximum STOI:{max_STOI_D}')
+print(f"AC (mean, min, max): {results['AC']}")
+print(f"PESQ Bright Zone (mean, min, max): {results['PESQ_B']}")
+print(f"PESQ Dark Zone (mean, min, max): {results['PESQ_D']}")
+print(f"NSDR Bright Zone (mean, min, max): {results['NSDR_B']}")
+print(f"NSDR Dark Zone (mean, min, max): {results['NSDR_D']}")
+print(f"STOI Bright Zone (mean, min, max): {results['STOI_B']}")
+print(f"STOI Dark Zone (mean, min, max): {results['STOI_D']}")
