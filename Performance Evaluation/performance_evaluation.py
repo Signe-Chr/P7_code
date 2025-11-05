@@ -58,7 +58,7 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, refer
     n_input_samples = reference.shape[-1]
     # The total combined impulse response length (h_combined) is n_rir_samples + filter_len - 1
     # The final pressure length (p) is h_combined_len + n_input_samples - 1
-    output_len = n_rir_samples + filter_len + n_input_samples - 2
+    output_len = n_input_samples
     
     # Zero pad reference for convolution
     reference_padded = F.pad(reference, (0, output_len - n_input_samples), 'constant', 0)

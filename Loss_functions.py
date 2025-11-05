@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 import torch.nn.functional as F
 import Dataset_generator_script as dgs
 
@@ -33,21 +32,21 @@ def compute_H_matrix(rir_array, fs=16000, n_fft=None):
 
     # --- Choose FFT length ---
     if n_fft is None:
-        n_fft = 2 ** int(np.ceil(np.log2(n_samples)))  # next power of 2
+        n_fft = 2 ** int(torch.ceil(torch.log2(torch.tensor(n_samples))))  # next power of 2
 
     n_freqs = n_fft // 2 + 1
 
     # --- Allocate frequency-domain matrix ---
-    H = np.zeros((n_mics, n_srcs, n_freqs), dtype=np.complex128)
+    H = torch.zeros((n_mics, n_srcs, n_freqs), dtype=torch.complex128)
 
     # --- Compute FFT for each mic–source pair ---
     for m in range(n_mics):
         for s in range(n_srcs):
             h = rir_array[m, s, :]
-            H[m, s, :] = np.fft.rfft(h, n=n_fft)
+            H[m, s, :] = torch.fft.rfft(h, n=n_fft)
 
     # --- Frequency axis ---
-    freqs = np.fft.rfftfreq(n_fft, 1 / fs)
+    freqs = torch.fft.rfftfreq(n_fft, 1 / fs)
 
     return H, freqs
 
@@ -119,7 +118,7 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, x_inp
     n_input_samples = x_input.shape[-1]
     # The total combined impulse response length (h_combined) is n_rir_samples + filter_len - 1
     # The final pressure length (p) is h_combined_len + n_input_samples - 1
-    output_len = n_rir_samples + filter_len + n_input_samples - 2
+    output_len = torch.tensor(n_rir_samples + filter_len + n_input_samples - 2)
     
     # Zero pad x_input for convolution
     x_input_padded = F.pad(x_input, (0, output_len - n_input_samples), 'constant', 0)
@@ -142,7 +141,7 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, x_inp
             # Pad h_combined to ensure final output length matches 'output_len'
             h_combined_padded = F.pad(h_combined, (0, output_len - h_combined.shape[0]), 'constant', 0)
             
-            n_fft = 2**int(np.ceil(np.log2(output_len)))
+            n_fft = 2**int(torch.ceil(torch.log2(output_len)))
             
             H = torch.fft.rfft(h_combined_padded, n=n_fft)
             X_fft = torch.fft.rfft(x_input_padded, n=n_fft).squeeze(0)
