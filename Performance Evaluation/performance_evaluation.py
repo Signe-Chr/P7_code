@@ -44,12 +44,10 @@ data_loader = DataLoader(data, batch_size=len(data), shuffle=True)
 Q = [batch for batch in data_loader][0]
 X = Q[0]
 filters = Q[1]
-bright_zone_mics_index = np.array(Q[2])
-dark_zone_mics_index = np.array(Q[3])
+bright_zone_mics_index = np.array(Q[2]).T
+dark_zone_mics_index = np.array(Q[3]).T
 n_srcs = Q[4]
 RIRs = Q[5]
-
-print(len(bright_zone_mics_index), type(dark_zone_mics_index))
 
 
 def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, x_input: torch.Tensor) -> torch.Tensor:
@@ -272,16 +270,15 @@ def performance_evaluation(
         p = compute_pressure_with_input(rir, filter, x_input)
         
         # --- 2. Extract bright & dark zone pressures ---
-        p_bright = p[bright_zone_mics_index[:,i]]
-        p_dark   = p[dark_zone_mics_index[:,i]]
-        print(p_bright, p_dark)
+        p_bright = p[bright_zone_mics_index[i]]
+        p_dark   = p[dark_zone_mics_index[i]]
 
         #p_bright_mean = torch.mean(p_bright, dim=0)
         p_dark_mean   = torch.mean(p_dark, dim=0)
         print(p_dark_mean.shape)
 
         # --- 3. Convert to same type/shape as x_input ---
-        p_bright_t = p_bright.unsqueeze(0).to(dtype=x_input.dtype, device=x_input.device)
+        p_bright_t = p_bright.to(dtype=x_input.dtype, device=x_input.device)
         p_dark_t   = p_dark_mean.unsqueeze(0).to(dtype=x_input.dtype, device=x_input.device)
         print(p_bright_t.shape, p_dark_t.shape)
 
@@ -294,8 +291,8 @@ def performance_evaluation(
         print("Dark indices:", dark_zone_mics_index[i])
 
         print(f"p shape: {p.shape}")  # [n_mics, n_output_samples] forventet
-        print(f"bright indices: {bright_zone_mics_index[:,i]}")
-        print(f"dark indices: {dark_zone_mics_index[:,i]}")
+        print(f"bright indices: {bright_zone_mics_index[i]}")
+        print(f"dark indices: {dark_zone_mics_index[i]}")
         print(f"p_bright shape: {p_bright.shape}")
         print(f"p_dark shape: {p_dark.shape}")
         # --- 4. Save degraded WAVs ---
@@ -340,15 +337,16 @@ def performance_evaluation(
 
         print(f"Results: PESQ_b={pesq_b:.2f}, PESQ_d={pesq_d:.2f}, STOI_b={stoi_b:.2f}, STOI_d={stoi_d:.2f}")
         print(f"         PSNR_b={psnr_b:.2f}, PSNR_d={psnr_d:.2f}, AC={ac:.2f}")
+        exit()
 
     return results
 
 #print(RIRs.shape)
 if __name__== "__main__":
     X_test=np.stack([X[0],X[1]],axis=0)
-    n_srcs = 3
-    filter_len = 1024
-
+    n_srcs = n_srcs[0]
+    filter_len = len(filters[0])//n_srcs
+    
     # For the first two test points:
     filter_test = torch.stack([
         filters[0].reshape(n_srcs, filter_len),
@@ -356,7 +354,6 @@ if __name__== "__main__":
     ], dim=0)
     test_RIRs = torch.stack([RIRs[0], RIRs[1]], dim=0).to(device)  # shape [2, 13, 3, 512]
 
-    print(test_RIRs.shape)
     wav_path = "relaxing-guitar-loop-v5-245859.wav"
     fs_wav, wav = wavfile.read(wav_path)
     if wav.ndim > 1:
@@ -366,14 +363,12 @@ if __name__== "__main__":
     x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
     x_input = x_input.to(device)
     # Original tensor
-    bright_tensor = bright_zone_mics_index[:,0]  # the only element in the list
-    dark_tensor   = dark_zone_mics_index[:,0]
-    print(bright_tensor.shape, dark_tensor.shape)
+    bright_tensor = bright_zone_mics_index[0]  # the only element in the list
+    dark_tensor   = dark_zone_mics_index[0]
 
     # Select first two test points (assuming first axis corresponds to data points)
-    bright_zone_mics_index_test = [bright_tensor[0], bright_tensor[1]]
-    dark_zone_mics_index_test   = [dark_tensor[0], dark_tensor[1]]
-
+    bright_zone_mics_index_test = [bright_zone_mics_index[0], bright_zone_mics_index[1]]
+    dark_zone_mics_index_test   = [dark_zone_mics_index[0], dark_zone_mics_index[1]]
 
     print(performance_evaluation(X_test,filter_test,test_RIRs,x_input,fs_wav,bright_zone_mics_index_test,dark_zone_mics_index_test))
     

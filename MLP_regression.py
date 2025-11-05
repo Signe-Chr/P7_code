@@ -140,7 +140,7 @@ def train(data, wav, epochs, model, dev):
             #H_D = H[batch[3][0]][0]
 
             #H_time = compute_multi_toeplitz(batch_IR, len(batch_y[0])).to(dev)
-            loss = L_1_loss(outputs, batch_y) + L_2_loss(pre_flat_outputs, pre_flat_batch_y) + L_3_loss(outputs, batch_y, batch_IR, batch_IR, wav, bright_batch) + L_4_loss(batch_y, batch_IR, wav, fcentres, H, bright_batch, dark_batch, len(batch[2]), len(batch[3]))
+            loss = L_1_loss(outputs, batch_y) + L_2_loss(pre_flat_outputs, pre_flat_batch_y) + L_3_loss(outputs, batch_y, batch_IR, batch_IR, wav, bright_batch) + L_4_loss(batch_y, batch_IR, wav, fcentres, H, bright_batch, dark_batch, len(bright_batch), len(dark_batch))
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
