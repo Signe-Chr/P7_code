@@ -1,3 +1,8 @@
+from VAST_filter_coefficients import setup_acoustic_scenario
+from Dataset_generator_script import sources_mics, fs_target, rooms #, #mic_directions, mic_positions_list, bright_zone_mics_index
+
+
+
 """
 # -------------------------------------------------------------------------
 # 1. Define scenario parameters
