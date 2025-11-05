@@ -310,7 +310,7 @@ def ANN_Search_and_Refine(
             print(f"Average Cosine Loss Time: {np.mean(cosine_times):.6f} s")
             print(f"Average AC Loss Time:     {np.mean(ac_times):.6f} s")
             print(f"Average MSEP Loss Time:  {np.mean(msep_times):.6f} s")
-            print("-------------------------------------------------------------------------")
+            print("---------------------------------------------------------------------------")
             #break # Stop the outer loop after the first test sample
             
     # Since we break after the first iteration, N_test is effectively 1 for the results below.
@@ -340,9 +340,9 @@ if __name__ == "__main__":
     
     end_time = time.time()
     
-    print(f"\n--- ANN Baseline Results (K=20, Composite Loss) ---")
-    print(f"Total Test Samples Processed: {len(chosen_indices)}")
-    print(f"Average Combined Loss (across all samples): {avg_baseline_loss:.6f}")
-    print(f"Total Search Time: {end_time - start_time:.4f} seconds")
-    print(f"\nIndices of All Chosen Filters (from y_train):")
-    print(chosen_indices)
+print(f"\n--- ANN Baseline Results (K=20, Composite Loss) ---")
+print(f"Total Test Samples Processed: {len(chosen_indices)}")
+print(f"Average Combined Loss (across all samples): {avg_baseline_loss:.6f}")
+print(f"Total Search Time: {end_time - start_time:.4f} seconds")
+print(f"\nIndices of All Chosen Filters (from y_train):")
+print(chosen_indices)

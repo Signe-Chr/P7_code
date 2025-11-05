@@ -61,7 +61,7 @@ for æ in Æ:
 
 
                 
-#standalone
+#standalone regression
 class FilterNet_(nn.Module):
                 def __init__(self, input_size, output_size):
                     super().__init__()
@@ -74,3 +74,20 @@ class FilterNet_(nn.Module):
                     return self.net(x)
 
 model_ = FilterNet_(input_size, output_size)
+
+#standalone interpolatio
+input_size1 = 9
+#output_size1 = #dict_size
+
+class FilterNet_(nn.Module):
+                def __init__(self, input_size, output_size):
+                    super().__init__()
+                    self.net = nn.Sequential(
+                    nn.Linear(input_size, 512),
+                    nn.ReLU(),
+                    nn.Linear(512, output_size))
+
+                def forward(self, x):
+                    return self.net(x)
+
+model_ = FilterNet_(input_size1, output_size1)
