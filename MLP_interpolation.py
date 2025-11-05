@@ -68,29 +68,14 @@ def load_data(dataset="VAST_filter_archive.npy"):
     return X_train, X_test, y_train, y_test, X_train_t, y_train_t, X_test_t, y_test_t, num_filters, filter_dim, filters_tensor, input_size
 
 # ---- 3. Model
-class SoftFilterNet(nn.Module):
-    def __init__(self, input_size, num_filters, filter_dim, filters_tensor):
-        super().__init__()
-        self.fc1 = nn.Linear(input_size, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, 512)
-        self.fc4 = nn.Linear(512, num_filters)
-        self.register_buffer("filters", filters_tensor)  # [num_filters, filter_dim]
 
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))
-        logits = self.fc4(x)                        # [batch, num_filters]
-        weights = F.softmax(logits, dim=1)          # [batch, num_filters]
-        combined = weights @ self.filters           # [batch, filter_dim]
-        return combined, weights
 
 
 if __name__== "__main__":
 # ---- 4. Training loop
+    import Cross_validation_models as cvm
     X_train, X_test, y_train, y_test, X_train_t, y_train_t, X_test_t, y_test_t, num_filters, filter_dim, filters_tensor, input_size = load_data()
-    model = SoftFilterNet(input_size, num_filters, filter_dim, filters_tensor)
+    model = cvm.model_
     summary(model, input_size=(input_size,))
 
     criterion = nn.MSELoss()
