@@ -337,7 +337,6 @@ def performance_evaluation(
 
         print(f"Results: PESQ_b={pesq_b:.2f}, PESQ_d={pesq_d:.2f}, STOI_b={stoi_b:.2f}, STOI_d={stoi_d:.2f}")
         print(f"         PSNR_b={psnr_b:.2f}, PSNR_d={psnr_d:.2f}, AC={ac:.2f}")
-        exit()
 
     return results
 
