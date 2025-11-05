@@ -41,27 +41,27 @@ def load_data():
     Q = [batch for batch in data_loader][0]
     return Q, device
 
-def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, x_input: torch.Tensor) -> torch.Tensor:
+def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
     """
     Simulates the acoustic pressure at all mics by convolving RIRs and filters with the input signal.
 
     Parameters:
         rir: [n_mics, n_srcs, n_rir_samples]
         filter_q: [n_srcs, filter_len]
-        x_input: [1, n_input_samples] (The source signal)
+        reference: [1, n_input_samples] (The source signal)
     
     Returns:
         p: [n_mics, n_output_samples] (Acoustic pressure)
     """
     n_mics, n_srcs, n_rir_samples = rir.shape
     filter_len = filter_q.shape[1]
-    n_input_samples = x_input.shape[-1]
+    n_input_samples = reference.shape[-1]
     # The total combined impulse response length (h_combined) is n_rir_samples + filter_len - 1
     # The final pressure length (p) is h_combined_len + n_input_samples - 1
     output_len = n_rir_samples + filter_len + n_input_samples - 2
     
-    # Zero pad x_input for convolution
-    x_input_padded = F.pad(x_input, (0, output_len - n_input_samples), 'constant', 0)
+    # Zero pad reference for convolution
+    reference_padded = F.pad(reference, (0, output_len - n_input_samples), 'constant', 0)
     p = torch.zeros((n_mics, output_len), device=rir.device)
 
     for m in range(n_mics):
@@ -76,7 +76,7 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, x_inp
             # Convolution is commutative: rir * q = q * rir
             h_combined = F.conv1d(q_s, rir_m_s, padding=0).squeeze()
             
-            # Convolve h_combined with input signal x (x_input) using FFT
+            # Convolve h_combined with input signal x (reference) using FFT
             
             # Pad h_combined to ensure final output length matches 'output_len'
             h_combined_padded = F.pad(h_combined, (0, output_len - h_combined.shape[0]), 'constant', 0)
@@ -84,7 +84,7 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, x_inp
             n_fft = 2**int(np.ceil(np.log2(output_len)))
             
             H = torch.fft.rfft(h_combined_padded, n=n_fft)
-            X_fft = torch.fft.rfft(x_input_padded, n=n_fft).squeeze(0)
+            X_fft = torch.fft.rfft(reference_padded, n=n_fft).squeeze(0)
             
             P_fft = H * X_fft
             p_m_s = torch.fft.irfft(P_fft, n=n_fft)[:output_len] # Back to time domain
@@ -98,9 +98,9 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, x_inp
 # 3. Performance Evaluation Functions
 # -------------------------------------------------------------------------
 
-def compute_pesq(original, measured, mode:str='wb'):
+def compute_pesq(reference, measured, mode:str='wb'):
     """
-    Calculate PESQ (MOS-LQO) score between a original and measured audio file.
+    Calculate PESQ (MOS-LQO) score between a reference and measured audio file.
 
     Args:
         reference_file (str): Path to the reference WAV file.
@@ -110,7 +110,7 @@ def compute_pesq(original, measured, mode:str='wb'):
     Returns:
         float: PESQ score (MOS-LQO) ranging approximately from 1.0 to 4.5.
     """
-    fs_ref, wav_ref = wavfile.read(original)
+    fs_ref, wav_ref = wavfile.read(reference)
     fs_deg, wav_deg = wavfile.read(measured)
 
     # Check that sample rates match
@@ -127,27 +127,27 @@ def compute_pesq(original, measured, mode:str='wb'):
     min_len = min(len(wav_ref), len(wav_deg))
     wav_ref = wav_ref[:min_len]
     wav_deg = wav_deg[:min_len]
-    wav_ref = resample_to_16k_np(original)
+    wav_ref = resample_to_16k_np(reference)
     wav_deg = resample_to_16k_np(measured)
     score = pesq(16000, wav_ref, wav_deg, mode)
     # Calculate PESQ score
     #mos = pesq.mos(ref, deg)
     return score
 
-def compute_psnr(original, measured):
-    min_len = min(len(original), len(measured))
-    original = original[:min_len]
+def compute_psnr(reference, measured):
+    min_len = min(len(reference), len(measured))
+    reference = reference[:min_len]
     measured = measured[:min_len]
-    mse = np.mean((original - measured)**2)
+    mse = np.mean((reference - measured)**2)
     if mse == 0:
         return np.inf
-    max_val = np.max(np.abs(original))
+    max_val = np.max(np.abs(reference))
     psnr = 20 * np.log10(max_val / np.sqrt(mse))
     return psnr
 
-def compute_lsd(original, measured, fs, n_fft=1024, hop_length=512):
+def compute_lsd(reference, measured, fs, n_fft=1024, hop_length=512):
     # Short-Time Fourier Transform
-    f1, t1, Z_orig = stft(original, fs=fs, nperseg=n_fft, noverlap=n_fft-hop_length)
+    f1, t1, Z_orig = stft(reference, fs=fs, nperseg=n_fft, noverlap=n_fft-hop_length)
     f2, t2, Z_meas = stft(measured, fs=fs, nperseg=n_fft, noverlap=n_fft-hop_length)
     
     # Power spectrum in dB
@@ -158,22 +158,22 @@ def compute_lsd(original, measured, fs, n_fft=1024, hop_length=512):
     lsd_frames = np.sqrt(np.mean((S_orig - S_meas)**2, axis=0))
     return np.mean(lsd_frames), lsd_frames  # gennemsnit og alle frames
 
-def compute_CC(original, measured):
-    min_len = min(len(original), len(measured))
-    original = original[:min_len]
+def compute_CC(reference, measured):
+    min_len = min(len(reference), len(measured))
+    reference = reference[:min_len]
     measured = measured[:min_len]
-    original_mean = np.mean(original)
+    reference_mean = np.mean(reference)
     measured_mean = np.mean(measured)
     
-    numerator = np.sum((original - original_mean) * (measured - measured_mean))
-    denominator = np.sqrt(np.sum((original - original_mean)**2) * np.sum((measured - measured_mean)**2))
+    numerator = np.sum((reference - reference_mean) * (measured - measured_mean))
+    denominator = np.sqrt(np.sum((reference - reference_mean)**2) * np.sum((measured - measured_mean)**2))
     
     cc = numerator / denominator
     return cc
 
-def compute_cosine_similarity(original, measured):
-    dot_product = np.dot(original, measured)
-    norm_orig = np.linalg.norm(original)
+def compute_cosine_similarity(reference, measured):
+    dot_product = np.dot(reference, measured)
+    norm_orig = np.linalg.norm(reference)
     norm_meas = np.linalg.norm(measured)
     cosine_similarity = dot_product / (norm_orig * norm_meas)
     return cosine_similarity
@@ -189,7 +189,7 @@ def acoustic_contrast(rir,filter,wav_input,bright_zone_mics_index,dark_zone_mics
     AC=(M_D / M_B) * (e_B / e_D) if e_D.item() != 0 else torch.tensor(1e10)
     return AC
 
-def compute_STOI(original,measured):
+def compute_STOI(reference,measured):
     """
     Calculate the Short-Time Objective Intelligibility (STOI) score between
     a reference and degraded audio file.
@@ -202,7 +202,7 @@ def compute_STOI(original,measured):
         float: STOI score between 0.0 and 1.0.
     """
     # Load the reference and degraded audio
-    fs_ref, ref = wavfile.read(original)
+    fs_ref, ref = wavfile.read(reference)
     fs_deg, deg = wavfile.read(measured)
 
     # Check sample rate consistency
@@ -228,8 +228,8 @@ def compute_STOI(original,measured):
 
 def performance_evaluation(
     test_features, test_filters, test_RIRs,
-    original, fs_wav,
-    bright_zone_mics_index, dark_zone_mics_index
+    reference, fs_wav,
+    bright_zone_mics_index, dark_zone_mics_index, save=False
 ):
     """
     Simulates pressure fields for all test samples, saves degraded audio
@@ -238,17 +238,16 @@ def performance_evaluation(
     save_dir="Performance Evaluation"
     os.makedirs(save_dir, exist_ok=True)
 
-    # Save reference (original) audio for comparison
+    # Save reference (reference) audio for comparison
     ref_path = os.path.join(save_dir, "reference.wav")
-    ref_np = original.squeeze().cpu().numpy()
+    ref_np = reference.squeeze().cpu().numpy()
     ref_np /= np.max(np.abs(ref_np))
     ref_np = np.asarray(ref_np, dtype=np.float32).ravel()  # <-- gør 1D
-    #original = ref_np[:]
+    #reference = ref_np[:]
 
     wavfile.write(ref_path, fs_wav, (ref_np * 32767).astype(np.int16))
 
-    # Trim til samme længde, hvis nødvendigt
- 
+
 
     results = []
 
@@ -257,12 +256,12 @@ def performance_evaluation(
 
         rir = test_RIRs[i]
         filter = test_filters[i]
-        rir = rir.float().to(original.device)
-        filter = filter.float().to(original.device)
-        original = original.float().to(original.device)
+        rir = rir.float().to(reference.device)
+        filter = filter.float().to(reference.device)
+        reference = reference.float().to(reference.device)
 
         # --- 1. Compute acoustic pressure ---
-        p = compute_pressure_with_input(rir, filter, original)
+        p = compute_pressure_with_input(rir, filter, reference)
         
         # --- 2. Extract bright & dark zone pressures ---
         p_bright = p[bright_zone_mics_index[i]]
@@ -271,9 +270,9 @@ def performance_evaluation(
         #p_bright_mean = torch.mean(p_bright, dim=0)
         p_dark_mean = torch.mean(p_dark, dim=0)
 
-        # --- 3. Convert to same type/shape as original ---
-        p_bright_t = p_bright.to(dtype=original.dtype, device=original.device)
-        p_dark_t   = p_dark_mean.unsqueeze(0).to(dtype=original.dtype, device=original.device)
+        # --- 3. Convert to same type/shape as reference ---
+        p_bright_t = p_bright.to(dtype=reference.dtype, device=reference.device)
+        p_dark_t   = p_dark_mean.unsqueeze(0).to(dtype=reference.dtype, device=reference.device)
 
         # Normalize (match input scaling)
         p_bright_t = p_bright_t / torch.max(torch.abs(p_bright_t))
@@ -281,8 +280,9 @@ def performance_evaluation(
 
         
         # --- 4. Save degraded WAVs ---
-        bright_path = os.path.join(save_dir, f"degraded_bright_{i}.wav")
-        dark_path   = os.path.join(save_dir, f"degraded_dark_{i}.wav")
+        if save == True:
+            bright_path = os.path.join(save_dir, f"degraded_bright_{i}.wav")
+            dark_path   = os.path.join(save_dir, f"degraded_dark_{i}.wav")
 
         # Convert to NumPy and ensure 2D for WAV: [N_samples, N_channels]
         p_bright_np = p_bright_t.cpu().numpy().reshape(-1, 1)
@@ -306,7 +306,7 @@ def performance_evaluation(
         cc_b = compute_CC(ref_np, p_bright_np)
         cc_d = compute_CC(ref_np, p_dark_np)
 
-        ac = acoustic_contrast(rir, filter, original, bright_zone_mics_index, dark_zone_mics_index)
+        ac = acoustic_contrast(rir, filter, reference, bright_zone_mics_index, dark_zone_mics_index)
 
         # --- 6. Store results ---
         results.append({
@@ -331,17 +331,13 @@ def performance_evaluation(
 
 
 
-
 #print(RIRs.shape)
 if __name__== "__main__":
-    [X, filters, bright_zone_mics_index, dark_zone_mics_index, n_srcs, RIRs], device = load_data()
-    Q, device = load_data()
-    X = Q[0]
-    filters = Q[1]
-    bright_zone_mics_index = np.array(Q[2]).T
-    dark_zone_mics_index = np.array(Q[3]).T
-    n_srcs = Q[4]
-    RIRs = Q[5]
+    X, filters, bright_zone_mics_index, dark_zone_mics_index, n_srcs, RIRs= load_data()[0]
+    device = load_data()[1]
+    bright_zone_mics_index = np.array(bright_zone_mics_index).T
+    dark_zone_mics_index = np.array(dark_zone_mics_index).T
+
     X_test=np.stack([X[0],X[1]],axis=0)
     n_srcs = n_srcs[0]
     filter_len = len(filters[0])//n_srcs
@@ -358,9 +354,9 @@ if __name__== "__main__":
         wav = np.mean(wav, axis=1)
     wav = wav[5*fs_wav : 7*fs_wav]
     wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
-    original = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
-    original = original.to(device)
-    # Original tensor
+    reference = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
+    reference = reference.to(device)
+    # reference tensor
     bright_tensor = bright_zone_mics_index[0]  # the only element in the list
     dark_tensor   = dark_zone_mics_index[0]
 
@@ -368,6 +364,5 @@ if __name__== "__main__":
     bright_zone_mics_index_test = [bright_zone_mics_index[0], bright_zone_mics_index[1]]
     dark_zone_mics_index_test   = [dark_zone_mics_index[0], dark_zone_mics_index[1]]
 
-    performance_evaluation(X_test,filter_test,test_RIRs,original ,fs_wav,bright_zone_mics_index_test,dark_zone_mics_index_test)
-    
+    performance_evaluation(X_test, filter_test, test_RIRs, reference, fs_wav, bright_zone_mics_index_test, dark_zone_mics_index_test)
 
