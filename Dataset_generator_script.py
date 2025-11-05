@@ -15,7 +15,6 @@ import multiprocessing as mp
 
 
 J = 1024
-N = 2000#len(wav)
 V = int(J*3/2)
 mu = 1
 reg_eps=1*10**(-6)
@@ -53,7 +52,10 @@ out_q_path = "VAST_filter_archive_730"
 
 fs_wav, wav = wavfile.read(wav_path)
 
-wav = wav[5*44100:7*44100]
+N = 2000
+
+wav = wav[5*44100:5*44100+N]#7*44100]
+
 
 
 def sources_mics(R, Center, N_mics):
