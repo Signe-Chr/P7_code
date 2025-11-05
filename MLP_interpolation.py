@@ -11,9 +11,10 @@ import Loss_functions as LF
 import Cross_validation_models as cvm
 import Dataset_class as dc
 import os
+import Dataset_generator_script as dgs
 
 # ---- 3. Training function ----
-def train_model(model, data_loader, optimizer, device, criterion): 
+def train_model(model, data_loader, optimizer, device, wav): 
     model.train()
     total_loss = 0
     total = 0
@@ -28,12 +29,18 @@ def train_model(model, data_loader, optimizer, device, criterion):
         # FIX 2: Move to device AND cast to float32 (Float) to avoid DType mismatch
         X = X.to(device).float() 
         y = y.to(device).float()
+        rir = data[5].to(device)
+        B_idx = data[2].to(device)
+        D_idx = data[3].to(device)
+
+        
 
         optimizer.zero_grad()
         
-        outputs = model(X) 
-        
-        loss = criterion(outputs, y)
+        outputs = model(X)
+
+        H = LF.compute_H_matrix(rir, fs=16000, n_fft=None)
+        loss = nn.MSELoss(outputs, y) + LF.L_2_loss(outputs, y)+ LF.L_3_loss(outputs, y, rir, rir, wav, B_idx) + LF.L_4_loss(outputs, rir, wav, H, B_idx, D_idx)
         loss.backward()
         optimizer.step()
 
@@ -102,12 +109,13 @@ def main():
 
     # Define loss and optimizer
     optimizer = optim.Adam(model_interpolation.parameters(), lr=1e-3)
-    criterion = nn.MSELoss() 
+    #criterion = nn.MSELoss()
+    wav = dgs.wav
 
     # Training loop
     for epoch in range(1, 21):
         # We pass the criterion, as previously discussed
-        train_loss, train_acc = train_model(model_interpolation, data_loader, optimizer, device, criterion) 
+        train_loss, train_acc = train_model(model_interpolation, data_loader, optimizer, device, wav) 
         # Only print loss since accuracy is not applicable for MSELoss
         print(f"Epoch {epoch:02d}: Loss={train_loss:.4f}") 
 

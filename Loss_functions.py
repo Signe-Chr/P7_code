@@ -183,7 +183,10 @@ def L_3_loss(test_filter_reshaped: torch.Tensor, candidate_filter_reshaped: torc
     msep_loss = torch.mean((p_pred_B - p_des_B) ** 2)
     return msep_loss
 
-def L_4_loss(q_opt, rir, x_input, fcentres, H, bright_indices, dark_indices, M_B, M_D):
+def L_4_loss(q_opt, rir, x_input, H, bright_indices, dark_indices):
+    M_B = len(bright_indices)
+    M_D = len(dark_indices)
+    fcentres = torch.tensor([1000, 2000])
     fd = torch.tensor(2**(1/6))
     delta_f = dgs.fs_target/dgs.J
     L_4 = 0
