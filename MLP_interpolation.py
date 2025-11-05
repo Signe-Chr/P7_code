@@ -31,13 +31,16 @@ def train_model(model, data_loader, optimizer, device, wav):
         y = y.to(device).float()
         rir = data[5].to(device)
         B_idx = data[2].to(device)
+        D_idx = data[3].to(device)
+
         
 
         optimizer.zero_grad()
         
-        outputs = model(X) 
-        
-        loss = nn.MSELoss(outputs, y) + LF.L_2_loss(outputs, y)+ LF.L_3_loss(outputs, y, rir, rir, wav, B_idx) + LF.L_4_loss(outputs, rir, wav, H, bright_indices, dark_indices, M_B, M_D)
+        outputs = model(X)
+
+        H = LF.compute_H_matrix(rir, fs=16000, n_fft=None)
+        loss = nn.MSELoss(outputs, y) + LF.L_2_loss(outputs, y)+ LF.L_3_loss(outputs, y, rir, rir, wav, B_idx) + LF.L_4_loss(outputs, rir, wav, H, B_idx, D_idx)
         loss.backward()
         optimizer.step()
 
