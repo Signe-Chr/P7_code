@@ -64,56 +64,6 @@ def load_data(dataset = "VAST_filter_archive.npy"):
 
 # ---- 3. Define the network
 
-
-
-def compute_H_matrix(rir_array, fs=16000, n_fft=None):
-    """
-    Compute the frequency-domain transfer matrix H[k]
-    from a set of impulse responses.
-
-    Parameters
-    ----------
-    rir_array : np.ndarray, shape (n_mics, n_srcs, n_samples)
-        Time-domain impulse responses for each mic–source pair.
-        rir_array[m, s, :] = impulse response from source s to mic m.
-    fs : int, optional
-        Sampling frequency in Hz (default: 16000).
-    n_fft : int, optional
-        FFT length. If None, uses next power of 2 above rir length.
-
-    Returns
-    -------
-    H : np.ndarray, shape (n_mics, n_srcs, n_freqs)
-        Frequency response matrix for all microphone–source pairs.
-    freqs : np.ndarray
-        Frequency vector (in Hz) for the frequency bins.
-    """
-    # --- Input validation ---
-    if rir_array.ndim != 3:
-        raise ValueError(f"Expected rir_array of shape (n_mics, n_srcs, n_samples), got {rir_array.shape}")
-
-    n_mics, n_srcs, n_samples = rir_array.shape
-
-    # --- Choose FFT length ---
-    if n_fft is None:
-        n_fft = 2 ** int(np.ceil(np.log2(n_samples)))  # next power of 2
-
-    n_freqs = n_fft // 2 + 1
-
-    # --- Allocate frequency-domain matrix ---
-    H = np.zeros((n_mics, n_srcs, n_freqs), dtype=np.complex128)
-
-    # --- Compute FFT for each mic–source pair ---
-    for m in range(n_mics):
-        for s in range(n_srcs):
-            h = rir_array[m, s, :]
-            H[m, s, :] = np.fft.rfft(h, n=n_fft)
-
-    # --- Frequency axis ---
-    freqs = np.fft.rfftfreq(n_fft, 1 / fs)
-
-    return H, freqs
-
 '''def toeplitz_matrix(h: np.ndarray, block_len: int) -> np.ndarray:
     """Helper to construct a single Toeplitz matrix."""
     # Ensure h is a NumPy array with a standard float dtype
@@ -163,6 +113,54 @@ def compute_multi_toeplitz(rir_array: np.ndarray, block_len: int) -> np.ndarray:
             H_multi[:, m, s, :] = H_ms_toeplitz
             
     return torch.tensor(H_multi)'''
+
+def compute_H_matrix(rir_array, fs=16000, n_fft=None):
+    """
+    Compute the frequency-domain transfer matrix H[k]
+    from a set of impulse responses.
+
+    Parameters
+    ----------
+    rir_array : np.ndarray, shape (n_mics, n_srcs, n_samples)
+        Time-domain impulse responses for each mic–source pair.
+        rir_array[m, s, :] = impulse response from source s to mic m.
+    fs : int, optional
+        Sampling frequency in Hz (default: 16000).
+    n_fft : int, optional
+        FFT length. If None, uses next power of 2 above rir length.
+
+    Returns
+    -------
+    H : np.ndarray, shape (n_mics, n_srcs, n_freqs)
+        Frequency response matrix for all microphone–source pairs.
+    freqs : np.ndarray
+        Frequency vector (in Hz) for the frequency bins.
+    """
+    # --- Input validation ---
+    if rir_array.ndim != 3:
+        raise ValueError(f"Expected rir_array of shape (n_mics, n_srcs, n_samples), got {rir_array.shape}")
+
+    n_mics, n_srcs, n_samples = rir_array.shape
+
+    # --- Choose FFT length ---
+    if n_fft is None:
+        n_fft = 2 ** int(np.ceil(np.log2(n_samples)))  # next power of 2
+
+    n_freqs = n_fft // 2 + 1
+
+    # --- Allocate frequency-domain matrix ---
+    H = np.zeros((n_mics, n_srcs, n_freqs), dtype=np.complex128)
+
+    # --- Compute FFT for each mic–source pair ---
+    for m in range(n_mics):
+        for s in range(n_srcs):
+            h = rir_array[m, s, :]
+            H[m, s, :] = np.fft.rfft(h, n=n_fft)
+
+    # --- Frequency axis ---
+    freqs = np.fft.rfftfreq(n_fft, 1 / fs)
+
+    return H, freqs
 
 def C_i(AC_des, w_AC, AC_tilde):
     #print(np.real(AC_des * w_AC - AC_tilde))
@@ -299,7 +297,7 @@ def L_3_loss(test_filter_reshaped: torch.Tensor, candidate_filter_reshaped: torc
 def L_4_loss(q_opt, rir, x_input, fcentres, H, bright_indices, dark_indices, M_B, M_D):
     fd = torch.tensor(2**(1/6))
     delta_f = dgs.fs_target/dgs.J
-    L_2 = 0
+    L_4 = 0
     for freq in fcentres:
         f_low = freq/fd
         f_high = freq*fd
@@ -315,39 +313,15 @@ def L_4_loss(q_opt, rir, x_input, fcentres, H, bright_indices, dark_indices, M_B
 
         k_low = int(torch.ceil(f_low/delta_f))
         k_high = int(torch.ceil(f_high/delta_f))
-        L_2_ = 0
+        L_4_ = 0
         for k in range(k_low, k_high):
             AC_sim = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g[:,k], M_B, M_D)
             w_AC = w_ac(freq, ref_frequency=100, beta=1, min_weight=1)
             C = C_i(AC_des, w_AC, AC_sim)
-            L_2_ += C**2
-        L_2 += torch.sqrt(L_2_)
-        del L_2_
-    return L_2
-
-
-    L_3 = torch.tensor(0.0).to(dev)
-    
-    for m in bs:
-        mm = torch.tensor(0.0).to(dev) 
-        
-        for s in range(n_srcs):
-            E_tilde_num = energy_tilde(q_opt[s], H_time, N_time_steps, m, s, dev)
-            E_tilde_den = energy_tilde(q_opt[s], H_time, N_time_steps, m, -1, dev) 
-            
-            E_num = energy(H_time, m, s)
-            E_den = energy(H_time, m, -1)
-            
-            if E_tilde_den.item() == 0 or E_den.item() == 0:
-                diff_squared = torch.tensor(0.0).to(dev)
-            else:
-                diff_squared = (E_tilde_num / E_tilde_den - E_num / E_den)**2
-
-            mm += diff_squared
-
-        L_3 += torch.sqrt(mm)
-
-    return L_3
+            L_4_ += C**2
+        L_4 += torch.sqrt(L_4_)
+        del L_4_
+    return L_4
 
 fcentres = torch.tensor([1000, 2000])
 
