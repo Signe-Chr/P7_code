@@ -67,7 +67,7 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, x_inp
     n_input_samples = x_input.shape[-1]
     # The total combined impulse response length (h_combined) is n_rir_samples + filter_len - 1
     # The final pressure length (p) is h_combined_len + n_input_samples - 1
-    output_len = n_rir_samples + filter_len + n_input_samples - 2
+    output_len = n_input_samples
     
     # Zero pad x_input for convolution
     x_input_padded = F.pad(x_input, (0, output_len - n_input_samples), 'constant', 0)
@@ -153,7 +153,11 @@ def compute_pesq(original, measured, mode:str='wb'):
     return score
 
 def compute_psnr(original, measured):
-    mse = np.mean((original - measured)**2)
+    e = original - measured
+    print(original.shape, measured.shape, e.shape)
+    exit()
+    se = e**2
+    mse = np.mean(se)
     if mse == 0:
         return np.inf
     max_val = np.max(np.abs(original))
@@ -337,6 +341,7 @@ def performance_evaluation(
 
         print(f"Results: PESQ_b={pesq_b:.2f}, PESQ_d={pesq_d:.2f}, STOI_b={stoi_b:.2f}, STOI_d={stoi_d:.2f}")
         print(f"         PSNR_b={psnr_b:.2f}, PSNR_d={psnr_d:.2f}, AC={ac:.2f}")
+        exit()
 
     return results
 
