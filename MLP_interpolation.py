@@ -12,15 +12,19 @@ import Cross_validation_models as cvm
 import Dataset_class as dc
 import os
 import Dataset_generator_script as dgs
+from tqdm import tqdm
+import sys
 
 # ---- 3. Training function ----
-def train_model(model, data_loader, optimizer, device, wav): 
+def train_model(model, data_loader, optimizer, device, wav, YY): 
     model.train()
     total_loss = 0
     total = 0
+    L_1_loss = nn.MSELoss()
 
     # FIX 1: Change to unpack a single item, then manually index X and y
-    for data in data_loader:
+    loop = tqdm(data_loader, disable=not sys.stdout.isatty())
+    for data in loop:
         
         # We assume the single item 'data' is a list or tuple where the 
         # input tensor (X) is at index 0 and the target tensor (y) is at index 1.
@@ -29,18 +33,25 @@ def train_model(model, data_loader, optimizer, device, wav):
         # FIX 2: Move to device AND cast to float32 (Float) to avoid DType mismatch
         X = X.to(device).float() 
         y = y.to(device).float()
-        rir = data[5].to(device)
-        B_idx = data[2].to(device)
-        D_idx = data[3].to(device)
+        rir = data[5][0].to(device)
+        B_idx = torch.tensor(data[2]).to(device)
+        D_idx = torch.tensor(data[3]).to(device)
+        #print(B_idx, D_idx)
 
         
 
         optimizer.zero_grad()
         
-        outputs = model(X)
+        coefficients = model(X)
 
-        H = LF.compute_H_matrix(rir, fs=16000, n_fft=None)
-        loss = nn.MSELoss(outputs, y) + LF.L_2_loss(outputs, y)+ LF.L_3_loss(outputs, y, rir, rir, wav, B_idx) + LF.L_4_loss(outputs, rir, wav, H, B_idx, D_idx)
+        coefficients = torch.softmax(coefficients, 1)
+
+        outputs = torch.matmul(YY.T.float() , coefficients.T.float()).T
+
+        H = LF.compute_H_matrix(rir, fs=16000, n_fft=None)[0].to(device)
+
+        #print(H.shape)
+        loss = L_1_loss(outputs, y) + LF.L_2_loss(outputs, y) + LF.L_3_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, rir, wav, B_idx) + LF.L_4_loss(outputs.reshape(dc.L,dc.J), rir, wav, H, B_idx, D_idx)
         loss.backward()
         optimizer.step()
 
@@ -87,21 +98,19 @@ def main():
     a = os.listdir(data)
     dataset = dc.CustomDataset(data, a) 
 
-    data_loader = DataLoader(dataset, batch_size=1, shuffle=True)
+    data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Safely determine input and output size based on the dataset structure
     # This assumes dataset[0] returns a tuple/list (input_sample, target_sample)
-    if isinstance(dataset[0], (list, tuple)):
-        input_size = len(dataset[0][0]) 
-        output_size = len(dataset[0][1]) # Assuming target is at index 1
-    else:
-        # Fallback if the dataset returns a single concatenated tensor (less common)
-        print("Warning: Dataset structure is ambiguous. Assuming input/output size from the first sample.")
-        input_size = len(dataset[0])
-        output_size = len(dataset[0]) 
+
+    input_size = len(dataset[0][0])
+    output_size = len(dataset) # Assuming target is at index 1
+    
+    data_loader_y = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
+    YY = [batch for batch in data_loader_y][0][1].to(device)
 
     
     model_interpolation = cvm.FilterNet_interpolation(input_size, output_size).to(device)
@@ -110,17 +119,19 @@ def main():
     # Define loss and optimizer
     optimizer = optim.Adam(model_interpolation.parameters(), lr=1e-3)
     #criterion = nn.MSELoss()
-    wav = dgs.wav
+    wav = torch.from_numpy(dgs.wav).to(device)
 
     # Training loop
+
     for epoch in range(1, 21):
+        print("Epoch:", epoch)
         # We pass the criterion, as previously discussed
-        train_loss, train_acc = train_model(model_interpolation, data_loader, optimizer, device, wav) 
+        train_loss, train_acc = train_model(model_interpolation, data_loader, optimizer, device, wav, YY) 
         # Only print loss since accuracy is not applicable for MSELoss
         print(f"Epoch {epoch:02d}: Loss={train_loss:.4f}") 
 
     print("\nTraining complete!")
-
+    torch.save(model_interpolation.state_dict(), filename="MLP_interpolation_model.pth")
 
 if __name__ == "__main__":
     main()
