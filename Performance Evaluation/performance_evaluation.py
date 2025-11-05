@@ -58,7 +58,7 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, refer
     n_input_samples = reference.shape[-1]
     # The total combined impulse response length (h_combined) is n_rir_samples + filter_len - 1
     # The final pressure length (p) is h_combined_len + n_input_samples - 1
-    output_len = n_input_samples
+    output_len = n_input_samples    # We would like the output to match input as we are converting a sound signal
     
     # Zero pad reference for convolution
     reference_padded = F.pad(reference, (0, output_len - n_input_samples), 'constant', 0)
@@ -135,9 +135,6 @@ def compute_pesq(reference, measured, mode:str='wb'):
     return score
 
 def compute_psnr(reference, measured):
-    min_len = min(len(reference), len(measured))
-    reference = reference[:min_len]
-    measured = measured[:min_len]
     mse = np.mean((reference - measured)**2)
     if mse == 0:
         return np.inf
@@ -279,10 +276,8 @@ def performance_evaluation(
         p_dark_t   = p_dark_t / torch.max(torch.abs(p_dark_t))
 
         
-        # --- 4. Save degraded WAVs ---
-        if save == True:
-            bright_path = os.path.join(save_dir, f"degraded_bright_{i}.wav")
-            dark_path   = os.path.join(save_dir, f"degraded_dark_{i}.wav")
+        bright_path = os.path.join(save_dir, f"degraded_bright_{i}.wav")
+        dark_path   = os.path.join(save_dir, f"degraded_dark_{i}.wav")
 
         # Convert to NumPy and ensure 2D for WAV: [N_samples, N_channels]
         p_bright_np = p_bright_t.cpu().numpy().reshape(-1, 1)
@@ -290,8 +285,10 @@ def performance_evaluation(
         p_bright_np = np.asarray(p_bright_np, dtype=np.float32).ravel() # <-- gør 1D
         p_dark_np   = np.asarray(p_dark_np, dtype=np.float32).ravel() # <-- gør 1D
 
-        wavfile.write(bright_path, fs_wav, (p_bright_np * 32767).astype(np.int16))
-        wavfile.write(dark_path,   fs_wav, (p_dark_np   * 32767).astype(np.int16))
+        # --- 4. Save degraded WAVs ---
+        if save == True:
+            wavfile.write(bright_path, fs_wav, (p_bright_np * 32767).astype(np.int16))
+            wavfile.write(dark_path,   fs_wav, (p_dark_np   * 32767).astype(np.int16))
 
         # --- 5. Compute metrics ---
         pesq_b = compute_pesq(ref_path, bright_path)
