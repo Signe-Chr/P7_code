@@ -316,8 +316,8 @@ def L_4_loss(q_opt, rir, x_input, fcentres, H, bright_indices, dark_indices, M_B
         k_low = int(torch.ceil(f_low/delta_f))
         k_high = int(torch.ceil(f_high/delta_f))
         L_2_ = 0
-        for i in range(k_low, k_high):
-            AC_sim = AC_tilde(H[bright_indices][:,i], H[bright_indices][:,i], g[:,i], M_B, M_D)
+        for k in range(k_low, k_high):
+            AC_sim = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g[:,k], M_B, M_D)
             w_AC = w_ac(freq, ref_frequency=100, beta=1, min_weight=1)
             C = C_i(AC_des, w_AC, AC_sim)
             L_2_ += C**2
@@ -353,7 +353,6 @@ fcentres = torch.tensor([1000, 2000])
 
 # ---- 4. Train and save the model
 def train(data, wav, epochs, model, dev):
-     
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     L_1_loss = nn.MSELoss()
 
