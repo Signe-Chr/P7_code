@@ -101,7 +101,7 @@ def compute_pressure_with_input(rir: torch.Tensor, x_input: torch.Tensor) -> tor
 
     return p
 
-
+#---Compute Acoustic Contrast---
 def acoustic_contrast(p_C,bright_zone_mics_index,dark_zone_mics_index):
     p_B=p_C[bright_zone_mics_index]
     p_D=p_C[dark_zone_mics_index]
@@ -206,12 +206,8 @@ def compute_nSDR(p_C: torch.Tensor, wav_input: torch.Tensor,
     return mean_B,mean_D
 
 #---Compute STOI---
-# Install if you haven't yet:
-# pip install pystoi
 
 from pystoi import stoi
-import torch
-import numpy as np
 
 def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
                              bright_zone_mics_index: list[int],
@@ -236,6 +232,44 @@ def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
 
     return mean_B,mean_D
 
+import matplotlib.pyplot as plt
+import numpy as np
+
+def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D):
+    """
+    Creates boxplots for AC, PESQ, nSDR, and STOI for bright and dark zones.
+    
+    Parameters:
+        AC: np.array of acoustic contrast values
+        PESQ_B, PESQ_D: np.array of PESQ scores
+        NSDR_B, NSDR_D: np.array of nSDR scores
+        STOI_B, STOI_D: np.array of STOI scores
+    """
+
+    metrics = {
+        "AC (dB)": [AC],
+        "PESQ": [PESQ_B, PESQ_D],
+        "nSDR (dB)": [NSDR_B, NSDR_D],
+        "STOI": [STOI_B, STOI_D]
+    }
+    
+    zone_labels = {
+        "AC (dB)": ["All zones"],
+        "PESQ": ["Bright", "Dark"],
+        "nSDR (dB)": ["Bright", "Dark"],
+        "STOI": ["Bright", "Dark"]
+    }
+    
+    plt.figure(figsize=(12, 10))
+    
+    for i, (metric_name, data) in enumerate(metrics.items(), 1):
+        plt.subplot(2, 2, i)
+        plt.boxplot(data, labels=zone_labels[metric_name])
+        plt.title(metric_name)
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    plt.tight_layout()
+    plt.show()
 
 
 #---Compute average performance metrics across testset---
@@ -311,6 +345,8 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test
     avg_STOI_D = np.mean(STOI_D)
     min_STOI_D = np.min(STOI_D)
     max_STOI_D = np.max(STOI_D)
+    
+    plot_performance_metrics(AC, pesq_B, pesq_D, NSDR_B, NSDR_D, STOI_B, STOI_D)
 
     return avg_ac, min_ac, max_ac, avg_pesq_B, min_pesq_B, max_pesq_B, avg_pesq_D, min_pesq_D, max_pesq_D, avg_NSDR_B, min_NSDR_B, max_NSDR_B, avg_NSDR_D, min_NSDR_D, max_NSDR_D, avg_STOI_B, min_STOI_B, max_STOI_B, avg_STOI_D, min_STOI_D, max_STOI_D
 
