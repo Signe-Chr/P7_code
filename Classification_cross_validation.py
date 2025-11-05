@@ -39,6 +39,7 @@ bright_zone_mics_index=Q[2]
 dark_zone_mics_index=Q[3]
 n_srcs=Q[4]
 IR=Q[5]
+print(X.shape)
 
 #---Define more variables---
 M_B = len(bright_zone_mics_index)
