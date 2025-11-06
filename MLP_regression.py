@@ -133,17 +133,18 @@ def train(data, wav, epochs, model, dev):
             optimizer.zero_grad()
             pre_flat_outputs = model(batch_X)
             outputs = pre_flat_outputs.reshape(L, J)
-            H = torch.from_numpy(compute_H_matrix(batch_IR)[0]).to(dev)
+            H = compute_H_matrix(batch_IR)[0].to(dev)
             #H_B = H[bright_batch][0]
             #H_D = H[batch[3][0]][0]
 
             #H_time = compute_multi_toeplitz(batch_IR, len(batch_y[0])).to(dev)
-            loss = L_1_loss(outputs, batch_y) + L_2_loss(pre_flat_outputs, pre_flat_batch_y) + L_3_loss(outputs, batch_y, batch_IR, batch_IR, wav, bright_batch) + L_4_loss(batch_y, batch_IR, wav, H, bright_batch, dark_batch)
+            loss = L_1_loss(outputs, batch_y) + L_2_loss(pre_flat_outputs, pre_flat_batch_y) + L_3_loss(outputs, batch_y, batch_IR, batch_IR, wav, bright_batch) + L_4_loss(batch_y, outputs, batch_IR, wav, H, bright_batch, dark_batch)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
 
             loop.set_postfix(loss=f"{total_loss/(loop.n+1):.4f}")
+            torch.save(model.state_dict(), f"MLP_regression_checkpoint.pth")
         #if (epoch + 1) % 20 == 0:
         #print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
     return model
@@ -187,10 +188,19 @@ if __name__ == "__main__":
     #testset = CustomDataset(data_dir, test_points)
     p_features = len(trainset[0][0])
     out_features = len(trainset[0][1])
-    train_loader = DataLoader(trainset, batch_size=1, shuffle=True, num_workers=cpu_count()//3*2)
+    compute_cpus = cpu_count()-1
+    torch.set_num_threads(compute_cpus)
+    train_loader = DataLoader(trainset, batch_size=1, shuffle=True, num_workers=1)
     #test_loader = DataLoader(testset, shuffle=False)
     wav = dgs.wav / np.max(np.abs(dgs.wav))
-    model = train(train_loader, torch.from_numpy(wav).to(device), epochs=5, dev=device, model=cvm.model_.to(device))
+    model = cvm.model_.to(device)
+    if os.path.exists("MLP_regression_checkpoint.pth"):
+        model.load_state_dict(torch.load("MLP_regression_checkpoint.pth"))
+        print("Succesfully loaded the latest checkpoint of the model")
+    elif os.path.exists("MLP_regression.pth"):
+        model.load_state_dict(torch.load("MLP_regression.pth"))
+        print("Succesfully loaded a previously trained model")
+    model = train(train_loader, torch.from_numpy(wav).to(device), epochs=5, dev=device, model=model)
     torch.save(model.state_dict(), f"MLP_regression.pth")
     """for i, model in enumerate(cvm.L[]):
         model = train(train_loader, epochs=5, dev=device, model=model.to(device))
