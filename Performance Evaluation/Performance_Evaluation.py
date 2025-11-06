@@ -9,7 +9,6 @@ from pesq import pesq
 from pystoi import stoi
 import torch.nn.functional as F
 from tqdm import tqdm
-from multiprocessing import Pool, cpu_count
 
 # -------------------------
 # Hjælpefunktioner
