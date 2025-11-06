@@ -164,7 +164,7 @@ def compute_pesq_unfiltered(
 import torch
 import numpy as np
 
-def compute_nSDR(p_C: torch.Tensor, wav_input: torch.Tensor,
+def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
                              bright_zone_mics_index: list[int],
                              dark_zone_mics_index: list[int]):
     """
@@ -181,7 +181,7 @@ def compute_nSDR(p_C: torch.Tensor, wav_input: torch.Tensor,
     """
     ref = wav_input.squeeze().detach().cpu().numpy().astype(np.float32)
     
-    def compute_zone_nSDR(mic_indices):
+    def compute_zone_nSDP(mic_indices):
         nSDR_list = []
         for m in mic_indices:
             deg = p_C[m, :].detach().cpu().numpy().astype(np.float32)
@@ -200,8 +200,8 @@ def compute_nSDR(p_C: torch.Tensor, wav_input: torch.Tensor,
         nSDR_list = np.array(nSDR_list)
         return np.mean(nSDR_list)
     
-    mean_B = compute_zone_nSDR(bright_zone_mics_index)
-    mean_D = compute_zone_nSDR(dark_zone_mics_index)
+    mean_B = compute_zone_nSDP(bright_zone_mics_index)
+    mean_D = compute_zone_nSDP(dark_zone_mics_index)
     
     return mean_B,mean_D
 
@@ -297,7 +297,7 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test
         AC_i = float(acoustic_contrast(p_C, BZ_idx, DZ_idx))
         
         # Compute NSDR
-        mean_NSDR_B,mean_NSDR_D=compute_nSDR(p_C,wav_input,BZ_idx,DZ_idx)
+        mean_NSDR_B,mean_NSDR_D=compute_nSDP(p_C,wav_input,BZ_idx,DZ_idx)
         
         #Compute STOI
         mean_STOI_B,mean_STOI_D=compute_STOI(p_C, wav_input, BZ_idx, DZ_idx)
