@@ -10,7 +10,7 @@ from Dataset_generator_script import room_indices as ri
 from scipy.io import wavfile
 from pesq import pesq
 import torchaudio
-from Loss_functions import compute_H_matrix, AC_tilde,w_ac,C_i
+from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
 import Dataset_generator_script as dgs
 
 data_random_selection = torch.load("Saved Filters/random_selection_data.pt")
@@ -126,15 +126,6 @@ def acoustic_contrast(p_C,bright_zone_mics_index,dark_zone_mics_index):
     M_D=len(dark_zone_mics_index)
     AC=(M_D / M_B) * (e_B / e_D) if e_D.item() != 0 else torch.tensor(1e10)
     return 10*torch.log10(AC)
-#---Compute Cosine Similairty---
-def compute_cosine_similarity(true_filter, predicted_filter):
-    true_flat = true_filter.flatten()
-    pred_flat = predicted_filter.flatten()
-    dot_product = np.dot(true_flat, pred_flat)
-    norm_true = np.linalg.norm(true_flat)
-    norm_pred = np.linalg.norm(pred_flat)
-    cosine_similarity = dot_product / (norm_true * norm_pred + 1e-12)
-    return cosine_similarity
 
 
 #---Compute PESQ---
@@ -257,70 +248,14 @@ def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
 
     return mean_B,mean_D
 
-def MSE(true_filter: torch.Tensor, predicted_filter: torch.Tensor):
-    true_flat = true_filter.flatten()
-    pred_flat = predicted_filter.flatten()
-    if true_flat.dtype != pred_flat.dtype:
-        pred_flat = pred_flat.to(true_flat.dtype)
-    return torch.mean((true_flat - pred_flat) ** 2)
-
-def MSEP(true_filter: torch.Tensor, predicted_filter: torch.Tensor,
-                                  rir_test: torch.Tensor, 
-                                  x_input: torch.Tensor, B_idx: list, D_idx: list) -> torch.Tensor:
-    """
-    Compute MSPE (Mean Squared Pressure Error) only in the Bright Zone (B_idx)
-    between the desired pressure (from test filter/RIR) and the predicted pressure 
-    (from candidate filter/train RIR).
-    """
-    
-    # 1. Calculate Desired Pressure (Reference: Test Filter + Test RIR)
-    p_des_full = compute_pressure_with_input(rir_test, true_filter, x_input) # [n_mics, n_samples]
-    p_des_B = p_des_full[B_idx] # [M_B, n_samples]
-    p_des_D = p_des_full[D_idx]
-
-    # 2. Calculate Predicted Pressure (Candidate: Candidate Filter + Train RIR)
-    p_pred_full = compute_pressure_with_input(rir_test, predicted_filter, x_input) # [n_mics, n_samples]
-    p_pred_B = p_pred_full[B_idx] # [M_B, n_samples]
-    p_pred_D = p_pred_full[D_idx]
-
-    # 3. Compute MSE
-    msep_loss_B = torch.mean((p_pred_B - p_des_B) ** 2)
-    msep_loss_D = torch.mean((p_pred_D - p_des_D) ** 2)
-    return msep_loss_B, msep_loss_D
-
-def AC_loss(q_true, q_pred, rir, x_input, H, bright_indices, dark_indices):
-    M_B = len(bright_indices)
-    M_D = len(dark_indices)
-    fcentres = torch.tensor([1000, 2000])
-    fd = torch.tensor(2**(1/6))
-    delta_f = dgs.fs_target/dgs.J
-    g = torch.fft.fft(q_pred, axis = 0)
-    g_true = torch.fft.fft(q_true, axis = 0)
-    L_4 = 0
-    for freq in fcentres:
-        f_low = freq/fd
-        f_high = freq*fd
-
-        k_low = int(torch.ceil(f_low/delta_f))
-        k_high = int(torch.ceil(f_high/delta_f))
-        L_4_ = 0
-        for k in range(k_low, k_high):
-            AC_des = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g_true[:,k], M_B, M_D)
-            AC_sim = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g[:,k], M_B, M_D)
-            w_AC = w_ac(freq, ref_frequency=100, beta=1, min_weight=1)
-            C = C_i(AC_des, w_AC, AC_sim)
-            L_4_ += C**2
-        L_4 += torch.sqrt(L_4_)
-        del L_4_
-    return L_4
 
 def total_loss(true_filter,predicted_filter,rir_test,wav_input,B_idx,D_idx):
-    mse_loss = MSE(true_filter,predicted_filter)
-    cosine_loss = 1-compute_cosine_similarity(true_filter,predicted_filter)
-    msep_loss_B, _ = MSEP(true_filter,predicted_filter,rir_test,wav_input,B_idx,D_idx)
+    mse_loss = MSE(predicted_filter, true_filter)
+    cosine_loss = Cosine_similarity(predicted_filter, true_filter)
+    msep_loss_B, _ = MSEP(predicted_filter, true_filter, rir_test, wav_input, B_idx, D_idx)
     MSPE_loss = msep_loss_B
     H, _ = compute_H_matrix(rir_test)
-    AC_loss = AC_loss(true_filter, predicted_filter, rir_test, x_input, H, B_idx, D_idx)
+    AC_loss = AC_loss(predicted_filter, true_filter, rir_test, x_input, H, B_idx, D_idx)
     return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_loss)
 
 import matplotlib.pyplot as plt
