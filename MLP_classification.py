@@ -59,7 +59,7 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr = 1e-3)
 
     # Training loop
-    for epoch in range(1, 21):
+    for epoch in range(1, 200):
         train_loss, train_acc = train_epoch(model, data_loader, criterion, optimizer, device)
         print(f"Epoch {epoch:02d} | Loss: {train_loss:.4f} | Acc: {train_acc:.2f}%")
 
