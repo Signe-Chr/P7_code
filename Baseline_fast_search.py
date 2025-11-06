@@ -79,7 +79,6 @@ def ANN_Search_and_Refine(
     fcentres: torch.Tensor, M_B: int, M_D: int, x_input: torch.Tensor, k_neighbors: int = 20
 ):
     N_test = len(test_filters)
-    L_1_loss = nn.MSELoss()
     
     # 1. Build the K-D Tree Index on the dictionary filters (y_train)
     dictionary_np = dictionary.cpu().numpy()
@@ -122,23 +121,23 @@ def ANN_Search_and_Refine(
             
             # 1. MSE Loss (Filter Coefficients)
             t_start = time.time() if i == 0 else 0
-            mse_loss = L_1_loss(test_filter_i_flat, candidate_filter_j_flat)
+            mse_loss = LF.MSE(test_filter_i_flat, candidate_filter_j_flat)
             if i == 0: mse_times.append(time.time() - t_start)
 
             # 2. Cosine Similarity Loss (Filter Coefficients)
             t_start = time.time() if i == 0 else 0
-            cosine_loss = LF.L_2_loss(test_filter_i_flat, candidate_filter_j_flat)
+            cosine_loss = LF.Cosine_similarity(test_filter_i_flat, candidate_filter_j_flat)
             if i == 0: cosine_times.append(time.time() - t_start)
             
             # 3. AC Loss (Acoustic Contrast - requires input and train/test RIR)
             t_start = time.time() if i == 0 else 0
-            ac_loss = LF.L_3_loss(test_filter_i_reshaped, candidate_filter_j_reshaped, rir_test_i, rir_train_j, x_input, bright_zone_mics_index)
+            H = LF.compute_H_matrix(rir_train_j)[0].to(device)
+            ac_loss = LF.AC_loss(test_filter_i_reshaped, candidate_filter_j_reshaped, H, bright_zone_mics_index, dark_zone_mics_index)
             if i == 0: ac_times.append(time.time() - t_start)
             
             # 4. MSEP Loss (Mean Squared Pressure Error - requires input and train/test RIR)
             t_start = time.time() if i == 0 else 0
-            H = LF.compute_H_matrix(rir_train_j)[0].to(device)
-            msep_loss = LF.AC_loss(test_filter_i_reshaped, candidate_filter_j_reshaped, H, dark_zone_mics_index, bright_zone_mics_index)
+            msep_loss = LF.MSEP(test_filter_i_reshaped, candidate_filter_j_reshaped, rir_train_j, bright_zone_mics_index, dark_zone_mics_index)
             if i == 0: msep_times.append(time.time() - t_start)
             
             combined_loss = (lamda_mse * mse_loss) + (lambda_cosine * cosine_loss) + \

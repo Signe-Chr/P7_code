@@ -153,17 +153,19 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, x_inp
         p[m, :] = p_m
     return p
 
-def Cosine_similarity(test_filter_flat: torch.Tensor, candidate_filter_flat: torch.Tensor):
+MSE = torch.nn.MSELoss()
+
+def Cosine_similarity(predicted_filter: torch.Tensor, true_filter: torch.Tensor):
     """Cosine distance between two flattened filters."""
-    y_test_norm = F.normalize(test_filter_flat, p=2, dim=1)
-    y_cand_norm = F.normalize(candidate_filter_flat, p=2, dim=1)
+    y_test_norm = F.normalize(predicted_filter, p=2, dim=1)
+    y_cand_norm = F.normalize(true_filter, p=2, dim=1)
     similarity = torch.mm(y_test_norm, y_cand_norm.T)
     cosine_distance = 1 - similarity.squeeze()
     return cosine_distance
 
-def MSEP(test_filter_reshaped: torch.Tensor, candidate_filter_reshaped: torch.Tensor,
-                                  rir_test: torch.Tensor, rir_train: torch.Tensor, 
-                                  x_input: torch.Tensor, B_idx: list) -> torch.Tensor:
+def MSEP(predicted_filter: torch.Tensor, true_filter: torch.Tensor,
+         rir_test: torch.Tensor, x_input: torch.Tensor,
+         B_idx: list, D_idx: list) -> torch.Tensor:
     """
     Compute MSPE (Mean Squared Pressure Error) only in the Bright Zone (B_idx)
     between the desired pressure (from test filter/RIR) and the predicted pressure 
@@ -171,16 +173,19 @@ def MSEP(test_filter_reshaped: torch.Tensor, candidate_filter_reshaped: torch.Te
     """
     
     # 1. Calculate Desired Pressure (Reference: Test Filter + Test RIR)
-    p_des_full = compute_pressure_with_input(rir_test, test_filter_reshaped, x_input) # [n_mics, n_samples]
+    p_des_full = compute_pressure_with_input(rir_test, true_filter, x_input) # [n_mics, n_samples]
     p_des_B = p_des_full[B_idx] # [M_B, n_samples]
+    p_des_D = p_des_full[D_idx]
 
     # 2. Calculate Predicted Pressure (Candidate: Candidate Filter + Train RIR)
-    p_pred_full = compute_pressure_with_input(rir_train, candidate_filter_reshaped, x_input) # [n_mics, n_samples]
+    p_pred_full = compute_pressure_with_input(rir_test, predicted_filter, x_input) # [n_mics, n_samples]
     p_pred_B = p_pred_full[B_idx] # [M_B, n_samples]
+    p_pred_D = p_pred_full[D_idx]
 
     # 3. Compute MSE
-    msep_loss = torch.mean((p_pred_B - p_des_B) ** 2)
-    return msep_loss
+    msep_loss_B = torch.mean((p_pred_B - p_des_B) ** 2)
+    msep_loss_D = torch.mean((p_pred_D - p_des_D) ** 2)
+    return msep_loss_B, msep_loss_D
 
 def AC_loss(q_pred, q_true, H, bright_indices, dark_indices):
     M_B = len(bright_indices)
@@ -190,20 +195,20 @@ def AC_loss(q_pred, q_true, H, bright_indices, dark_indices):
     delta_f = dgs.fs_target/dgs.J
     g = torch.fft.fft(q_pred, axis = 0)
     g_true = torch.fft.fft(q_true, axis = 0)
-    L_4 = 0
+    AC_loss_total = 0
     for freq in fcentres:
         f_low = freq/fd
         f_high = freq*fd
         k_low = int(torch.ceil(f_low/delta_f))
         k_high = int(torch.ceil(f_high/delta_f))
-        L_4_ = 0
+        AC_loss_temp = 0
         for k in range(k_low, k_high):
             AC_des = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g_true[:,k], M_B, M_D)
             AC_sim = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g[:,k], M_B, M_D)
             w_AC = w_ac(freq, ref_frequency=100, beta=1, min_weight=1)
             C = C_i(AC_des, w_AC, AC_sim)
-            L_4_ += C**2
-        L_4 += torch.sqrt(L_4_)
-        del L_4_
-    return L_4
+            AC_loss_temp += C**2
+        AC_loss_total += torch.sqrt(AC_loss_temp)
+        del AC_loss_temp
+    return AC_loss_total
 
