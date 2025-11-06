@@ -47,20 +47,20 @@ RIRs_test=temp_var_test[5]
 
 #---Perform random selection between filters for the entire test set---
 
-def random_selection(X_test,dictionary,seed_value):
+def random_selection(X_test, dictionary, seed_value):
     torch.manual_seed(seed_value)
     N_dic=dictionary.shape[0]
     N_test=X_test.shape[0]
     random_indices=torch.randint(low=0,high=N_dic,size=(N_test,))
     selected_filters=dictionary[random_indices]
-    return X_test,selected_filters, random_indices
+    return X_test, selected_filters, random_indices
 
-X_test,selected_filters, random_indices=random_selection(X_test,filters_train,42)
+X_test, selected_filters, random_indices = random_selection(X_test, filters_train, 42)
 
 torch.save({
     'selected_filters': selected_filters,
     'random_indices': random_indices,
-    'X_test':X_test
+    'X_test': X_test
 }, "random_selection_data.pt")
 
 """
