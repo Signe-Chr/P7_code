@@ -138,7 +138,7 @@ def ANN_Search_and_Refine(
             # 4. MSEP Loss (Mean Squared Pressure Error - requires input and train/test RIR)
             t_start = time.time() if i == 0 else 0
             H = LF.compute_H_matrix(rir_train_j)[0].to(device)
-            msep_loss = LF.L_4_loss(candidate_filter_j_reshaped, test_filter_i_reshaped, rir_train_j, x_input, H, dark_zone_mics_index, bright_zone_mics_index)
+            msep_loss = LF.L_4_loss(test_filter_i_reshaped, candidate_filter_j_reshaped, H, dark_zone_mics_index, bright_zone_mics_index)
             if i == 0: msep_times.append(time.time() - t_start)
             
             combined_loss = (lamda_mse * mse_loss) + (lambda_cosine * cosine_loss) + \

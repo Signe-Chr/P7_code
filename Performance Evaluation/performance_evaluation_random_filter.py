@@ -10,8 +10,10 @@ from Dataset_generator_script import room_indices as ri
 from scipy.io import wavfile
 from pesq import pesq
 import torchaudio
+from Loss_functions import compute_H_matrix, AC_tilde,w_ac,C_i
+import Dataset_generator_script as dgs
 
-data_random_selection = torch.load("random_selection_data.pt")
+data_random_selection = torch.load("Saved Filters/random_selection_data.pt")
 selected_filters = data_random_selection['selected_filters']
 
 
@@ -124,6 +126,16 @@ def acoustic_contrast(p_C,bright_zone_mics_index,dark_zone_mics_index):
     M_D=len(dark_zone_mics_index)
     AC=(M_D / M_B) * (e_B / e_D) if e_D.item() != 0 else torch.tensor(1e10)
     return 10*torch.log10(AC)
+#---Compute Cosine Similairty---
+def compute_cosine_similarity(true_filter, predicted_filter):
+    true_flat = true_filter.flatten()
+    pred_flat = predicted_filter.flatten()
+    dot_product = np.dot(true_flat, pred_flat)
+    norm_true = np.linalg.norm(true_flat)
+    norm_pred = np.linalg.norm(pred_flat)
+    cosine_similarity = dot_product / (norm_true * norm_pred + 1e-12)
+    return cosine_similarity
+
 
 #---Compute PESQ---
 def compute_pesq_unfiltered(
@@ -245,10 +257,76 @@ def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
 
     return mean_B,mean_D
 
+def MSE(true_filter: torch.Tensor, predicted_filter: torch.Tensor):
+    true_flat = true_filter.flatten()
+    pred_flat = predicted_filter.flatten()
+    if true_flat.dtype != pred_flat.dtype:
+        pred_flat = pred_flat.to(true_flat.dtype)
+    return torch.mean((true_flat - pred_flat) ** 2)
+
+def MSEP(true_filter: torch.Tensor, predicted_filter: torch.Tensor,
+                                  rir_test: torch.Tensor, 
+                                  x_input: torch.Tensor, B_idx: list, D_idx: list) -> torch.Tensor:
+    """
+    Compute MSPE (Mean Squared Pressure Error) only in the Bright Zone (B_idx)
+    between the desired pressure (from test filter/RIR) and the predicted pressure 
+    (from candidate filter/train RIR).
+    """
+    
+    # 1. Calculate Desired Pressure (Reference: Test Filter + Test RIR)
+    p_des_full = compute_pressure_with_input(rir_test, true_filter, x_input) # [n_mics, n_samples]
+    p_des_B = p_des_full[B_idx] # [M_B, n_samples]
+    p_des_D = p_des_full[D_idx]
+
+    # 2. Calculate Predicted Pressure (Candidate: Candidate Filter + Train RIR)
+    p_pred_full = compute_pressure_with_input(rir_test, predicted_filter, x_input) # [n_mics, n_samples]
+    p_pred_B = p_pred_full[B_idx] # [M_B, n_samples]
+    p_pred_D = p_pred_full[D_idx]
+
+    # 3. Compute MSE
+    msep_loss_B = torch.mean((p_pred_B - p_des_B) ** 2)
+    msep_loss_D = torch.mean((p_pred_D - p_des_D) ** 2)
+    return msep_loss_B, msep_loss_D
+
+def L_4_loss(q_true, q_pred, rir, x_input, H, bright_indices, dark_indices):
+    M_B = len(bright_indices)
+    M_D = len(dark_indices)
+    fcentres = torch.tensor([1000, 2000])
+    fd = torch.tensor(2**(1/6))
+    delta_f = dgs.fs_target/dgs.J
+    g = torch.fft.fft(q_pred, axis = 0)
+    g_true = torch.fft.fft(q_true, axis = 0)
+    L_4 = 0
+    for freq in fcentres:
+        f_low = freq/fd
+        f_high = freq*fd
+
+        k_low = int(torch.ceil(f_low/delta_f))
+        k_high = int(torch.ceil(f_high/delta_f))
+        L_4_ = 0
+        for k in range(k_low, k_high):
+            AC_des = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g_true[:,k], M_B, M_D)
+            AC_sim = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g[:,k], M_B, M_D)
+            w_AC = w_ac(freq, ref_frequency=100, beta=1, min_weight=1)
+            C = C_i(AC_des, w_AC, AC_sim)
+            L_4_ += C**2
+        L_4 += torch.sqrt(L_4_)
+        del L_4_
+    return L_4
+
+def total_loss(true_filter,predicted_filter,rir_test,wav_input,B_idx,D_idx):
+    mse_loss = MSE(true_filter,predicted_filter)
+    cosine_loss = 1-compute_cosine_similarity(true_filter,predicted_filter)
+    msep_loss_B, _ = MSEP(true_filter,predicted_filter,rir_test,wav_input,B_idx,D_idx)
+    MSPE_loss = msep_loss_B
+    H, _ = compute_H_matrix(rir_test)
+    AC_loss = L_4_loss(true_filter, predicted_filter, rir_test, x_input, H, B_idx, D_idx)
+    return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_loss)
+
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D):
+def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D,total_loss):
     """
     Creates boxplots for AC, PESQ, nSDR, and STOI for bright and dark zones.
     
@@ -262,29 +340,31 @@ def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D)
     metrics = {
         "AC (dB)": [AC],
         "PESQ": [PESQ_B, PESQ_D],
-        "nSDR (dB)": [NSDR_B, NSDR_D],
-        "STOI": [STOI_B, STOI_D]
+        "nSDP (dB)": [NSDR_B, NSDR_D],
+        "STOI": [STOI_B, STOI_D],
+        "Total Loss": [total_loss]
     }
     
     zone_labels = {
         "AC (dB)": ["All zones"],
         "PESQ": ["Bright", "Dark"],
-        "nSDR (dB)": ["Bright", "Dark"],
-        "STOI": ["Bright", "Dark"]
+        "nSDP (dB)": ["Bright", "Dark"],
+        "STOI": ["Bright", "Dark"],
+        "Total Loss": ["All zones"]
     }
     
     plt.figure(figsize=(12, 10))
     
     for i, (metric_name, data) in enumerate(metrics.items(), 1):
-        plt.subplot(2, 2, i)
-        plt.boxplot(data, labels=zone_labels[metric_name])
+        plt.subplot(3, 2, i)
+        plt.boxplot(data, labels=zone_labels[metric_name],whis=[0,100])
         plt.title(metric_name)
         plt.grid(axis='y', linestyle='--', alpha=0.7)
     
     plt.tight_layout()
     plt.show()
 
-def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test):
+def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test,true_filter):
     """
     Computes AC, PESQ, nSDR, and STOI for the entire test set using selected filters.
     
@@ -301,6 +381,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     AC_list, pesq_B_list, pesq_D_list = [], [], []
     NSDR_B_list, NSDR_D_list = [], []
     STOI_B_list, STOI_D_list = [], []
+    tot_loss_list = []
 
     for i in range(RIR_test.shape[0]):
         print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
@@ -309,6 +390,8 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         filter_len = 1024
         filters_flat = selected_filters[i]  # [3072]
         filters = filters_flat.reshape(n_srcs, filter_len)  # [3, 1024]
+        true_filters_flat=true_filter[i]
+        true_filters=true_filters_flat.reshape(n_srcs,filter_len)
 
 
         # Compute pressures with filters
@@ -319,6 +402,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         mean_pesq_B, mean_pesq_D = compute_pesq_unfiltered(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
         mean_NSDR_B, mean_NSDR_D = compute_nSDP(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
         mean_STOI_B, mean_STOI_D = compute_STOI(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
+        total_loss_i=total_loss(true_filters,filters,rirs,wav_input,bright_zone_mics_index_test,dark_zone_mics_index_test)
 
         # Append results
         AC_list.append(AC_i)
@@ -328,6 +412,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         NSDR_D_list.append(mean_NSDR_D)
         STOI_B_list.append(mean_STOI_B)
         STOI_D_list.append(mean_STOI_D)
+        tot_loss_list.append(total_loss_i)
 
     # Convert to numpy arrays
     AC_list = np.array(AC_list)
@@ -337,6 +422,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     NSDR_D_list = np.array(NSDR_D_list)
     STOI_B_list = np.array(STOI_B_list)
     STOI_D_list = np.array(STOI_D_list)
+    tot_loss_list = np.array(tot_loss_list)
 
     # Compute statistics
     results = {
@@ -346,15 +432,16 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         "NSDR_B": (np.mean(NSDR_B_list), np.min(NSDR_B_list), np.max(NSDR_B_list)),
         "NSDR_D": (np.mean(NSDR_D_list), np.min(NSDR_D_list), np.max(NSDR_D_list)),
         "STOI_B": (np.mean(STOI_B_list), np.min(STOI_B_list), np.max(STOI_B_list)),
-        "STOI_D": (np.mean(STOI_D_list), np.min(STOI_D_list), np.max(STOI_D_list))
+        "STOI_D": (np.mean(STOI_D_list), np.min(STOI_D_list), np.max(STOI_D_list)),
+        "Total Loss":(np.mean(tot_loss_list), np.min(tot_loss_list),   np.max(tot_loss_list))
     }
 
     # Optional: plot metrics
-    plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDR_B_list, NSDR_D_list, STOI_B_list, STOI_D_list)
+    plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDR_B_list, NSDR_D_list, STOI_B_list, STOI_D_list,tot_loss_list)
 
     return results
 # Assuming `selected_filters_test` comes from your random selection
-results = average_performance_metrics_with_filters(RIRs_test, filters_test, x_input, bright_zone_mics_index, dark_zone_mics_index)
+results = average_performance_metrics_with_filters(RIRs_test, selected_filters, x_input, bright_zone_mics_index, dark_zone_mics_index,filters_test)
 
 print(f"AC (mean, min, max): {results['AC']}")
 print(f"PESQ Bright Zone (mean, min, max): {results['PESQ_B']}")
@@ -363,3 +450,4 @@ print(f"NSDR Bright Zone (mean, min, max): {results['NSDR_B']}")
 print(f"NSDR Dark Zone (mean, min, max): {results['NSDR_D']}")
 print(f"STOI Bright Zone (mean, min, max): {results['STOI_B']}")
 print(f"STOI Dark Zone (mean, min, max): {results['STOI_D']}")
+print(f"Total loss Bright Zone (mean, min, max):{results['Total Loss']}")
