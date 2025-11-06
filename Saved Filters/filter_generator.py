@@ -3,37 +3,45 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 import torch
 import numpy as np
-from Cross_validation_models import FilterNet
+from Cross_validation_models import FilterNet_, model_  # brug din eksisterende model instans
 
-# Sti til data og model
 data_dir = "Signes_data"
-model_path = "filter_mlp_model_full.pth"  # Skift til din modelfil
+output_file = "Saved Filters/regression_filters.pt"
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Load model
-model = torch.load(model_path, weights_only=False)
-model.eval()  # Sæt modellen i evaluerings-mode
+# Load model (fra checkpoint)
+input_size = len(model_[0][0]) if hasattr(model_, "__getitem__") else 9  # fallback 9
+output_size = len(model_[0][1]) if hasattr(model_, "__getitem__") else model_.net[-1].out_features
 
-# Loop igennem alle .npy filer i data_dir
+model = FilterNet_(input_size, output_size).to(device)
+model.load_state_dict(torch.load("MLP_regression_checkpoint.pth", map_location=device))
+model.eval()
+
+all_outputs = {}
+
 for filename in os.listdir(data_dir):
     if filename.endswith(".npy"):
         file_path = os.path.join(data_dir, filename)
-        
-        # Load data
-        data = np.load(file_path)
-        # Konverter til PyTorch tensor (hvis nødvendigt, tilføj .float() eller .unsqueeze())
-        data_tensor = torch.from_numpy(data).float()
-        
-        # Hvis modellen forventer batch dimension, tilføj dim
-        if data_tensor.ndim == len(model.input_shape) - 1:  # eksempel: model input er (batch, features)
-            data_tensor = data_tensor.unsqueeze(0)
-        
+        data_dict = np.load(file_path, allow_pickle=True).item()
+
+        # Byg input X
+        X_new = np.concatenate([
+            [data_dict.get('RT60', 0)],
+            [data_dict.get('Phone_tilt', 0)],
+            [data_dict.get('User_orientation', 0)],
+            np.array(data_dict.get('Spatial_position', [0,0,0])).ravel(),
+            np.array(data_dict.get('room_dim', [0,0,0]))
+        ])
+
+        X_tensor = torch.tensor(X_new, dtype=torch.float32).unsqueeze(0).to(device)  # batch=1
+
         # Forward pass
         with torch.no_grad():
-            output = model(data_tensor)
-        
-        # Gem output som .pt fil
-        output_file = os.path.join(data_dir, filename.replace(".npy", "_output.pt"))
-        torch.save(output, output_file)
-        print(f"Saved output for {filename} to {output_file}")
+            output = model(X_tensor)
 
-print("All files processed.")
+        # Gem output i dict
+        all_outputs[filename] = output.cpu()
+
+# Gem alle output i én .pt fil
+torch.save(all_outputs, output_file)
+print(f"All outputs saved in '{output_file}'")
