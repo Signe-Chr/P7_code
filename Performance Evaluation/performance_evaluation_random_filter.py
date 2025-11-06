@@ -327,6 +327,7 @@ def total_loss(true_filter,predicted_filter,rir_test,wav_input,B_idx,D_idx):
     MSPE_loss=msep_loss_B
     H, freqs = compute_H_matrix(rir_test)
     AC_loss=L_4_loss(true_filter, predicted_filter, rir_test, x_input, H, B_idx, D_idx)
+    print(f'mse{mse_loss},cosine_sim:{cosine_loss},msep:{mse_loss},AC_loss:{AC_loss}')
     return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_loss)
 
 import matplotlib.pyplot as plt
