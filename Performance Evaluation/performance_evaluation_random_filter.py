@@ -356,7 +356,7 @@ def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D,
         "PESQ": ["Bright", "Dark"],
         "nSDR (dB)": ["Bright", "Dark"],
         "STOI": ["Bright", "Dark"],
-        "Total loss": ["Bright"]
+        "Total Loss": ["Bright"]
     }
     
     plt.figure(figsize=(12, 10))
@@ -439,7 +439,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         "NSDR_D": (np.mean(NSDR_D_list), np.min(NSDR_D_list), np.max(NSDR_D_list)),
         "STOI_B": (np.mean(STOI_B_list), np.min(STOI_B_list), np.max(STOI_B_list)),
         "STOI_D": (np.mean(STOI_D_list), np.min(STOI_D_list), np.max(STOI_D_list)),
-        "total_loss":(np.mean(tot_loss_list), np.min(tot_loss_list),   np.max(tot_loss_list))
+        "Total Loss":(np.mean(tot_loss_list), np.min(tot_loss_list),   np.max(tot_loss_list))
     }
 
     # Optional: plot metrics
