@@ -85,7 +85,7 @@ def acoustic_contrast(rir, filt, reference, bright_idx, dark_idx):
 # Performance evaluation
 # -------------------------
 
-def performance_evaluation_pt(pt_path, reference_wav_path, rir_tensor, bright_idx, dark_idx, save_path="average_performance.txt"):
+def performance_evaluation_pt(pt_path, reference_wav_path, rir_tensor, bright_idx, dark_idx, save_path="performance.txt"):
     # Load reference
     fs, wav = wavfile.read(reference_wav_path)
     if wav.ndim > 1:
@@ -93,9 +93,21 @@ def performance_evaluation_pt(pt_path, reference_wav_path, rir_tensor, bright_id
     reference = wav / np.max(np.abs(wav))
     reference_tensor = torch.from_numpy(reference.astype(np.float32)).unsqueeze(0)
 
-    # Load .pt data
+        # Load .pt data
     data = torch.load(pt_path)
-    filters_list = data['selected_filters']  # [n_trials, filter_len_total]
+
+    # Understøt både gamle og nye formater
+    if isinstance(data, dict) and 'selected_filters' in data:
+        filters_list = data['selected_filters']  # [n_trials, filter_len_total]
+        print(f"Indlæste {len(filters_list)} filtre fra gammel struktur ({pt_path})")
+    elif isinstance(data, dict):
+        # Ny struktur: dict med {filename: predicted_filter_tensor}
+        filters_list = list(data.values())
+        print(f"Indlæste {len(filters_list)} filtre fra regressionstruktur ({pt_path})")
+        first_key = list(data.keys())[0]
+        print(f"Eksempel: {first_key} -> shape {data[first_key].shape}")
+    else:
+        raise ValueError(f"Ukendt dataformat i {pt_path}")
     
     # Metrics
     PESQ_B_list, PESQ_D_list = [], []
@@ -163,7 +175,9 @@ def performance_evaluation_pt(pt_path, reference_wav_path, rir_tensor, bright_id
 # -------------------------
 
 if __name__ == "__main__":
-    pt_file = "Saved Filters/random_selection_data.pt"
+    
+    file_names = ("Saved Filters/regression_filters.pt", "Saved Filters/random_selection_data.pt")
+    pt_file = file_names[0]  # vælg hvilken .pt fil der skal evalueres
     reference_wav = "Performance Evaluation/reference.wav"
     
     # RIR skal være tensor med shape [n_mics, n_srcs, n_rir_samples]

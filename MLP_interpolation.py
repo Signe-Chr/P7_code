@@ -50,7 +50,7 @@ def train_model(model, data_loader, optimizer, device, wav, YY):
         H = LF.compute_H_matrix(rir, fs=16000, n_fft=None)[0].to(device)
 
         #print(H.shape)
-        loss = LF.MSE(outputs, y) + LF.Cosine_similarity(outputs, y) + LF.MSEP(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, rir, wav, B_idx) + LF.AC_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), H, B_idx, D_idx)
+        loss = LF.MSE(outputs, y) + LF.Cosine_similarity(outputs, y) + LF.MSEP(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, wav, B_idx, D_idx)[0] + LF.AC_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), H, B_idx, D_idx)
         loss.backward()
         optimizer.step()
 
