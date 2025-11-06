@@ -1,11 +1,11 @@
-import os
-import numpy as np
 import torch
+import numpy as np
 from scipy.io import wavfile
-from scipy.signal import resample, convolve
+from scipy.signal import convolve
 from pesq import pesq
 from pystoi import stoi
 import torch.nn.functional as F
+from tqdm import tqdm  # progressbar
 
 # -------------------------
 # Hjælpefunktioner
@@ -22,14 +22,13 @@ def compute_PSNR(reference, measured):
     if mse == 0:
         return np.inf
     max_val = np.max(np.abs(reference))
-    psnr = 20 * np.log10(max_val / np.sqrt(mse))
-    return psnr
+    return 20 * np.log10(max_val / np.sqrt(mse))
 
 def compute_CC(reference, measured):
-    reference_mean = np.mean(reference)
-    measured_mean = np.mean(measured)
-    numerator = np.sum((reference - reference_mean) * (measured - measured_mean))
-    denominator = np.sqrt(np.sum((reference - reference_mean)**2) * np.sum((measured - measured_mean)**2))
+    ref_mean = np.mean(reference)
+    meas_mean = np.mean(measured)
+    numerator = np.sum((reference - ref_mean) * (measured - meas_mean))
+    denominator = np.sqrt(np.sum((reference - ref_mean)**2) * np.sum((measured - meas_mean)**2))
     return numerator / denominator if denominator != 0 else 0
 
 def compute_pressure_unfiltered(rir: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
@@ -52,22 +51,12 @@ def compute_pressure_unfiltered(rir: torch.Tensor, reference: torch.Tensor) -> t
     return p
 
 def compute_pressure_filtered(filters, unfiltered):
-    """
-    Convolve each source with its filter and sum across sources.
-    Keeps all microphones.
-    
-    filters: [n_srcs, filter_len]
-    unfiltered: [n_mics, n_samples]
-    """
     n_mics, n_samples = unfiltered.shape
     n_srcs, filter_len = filters.shape
     filtered = np.zeros((n_mics, n_samples + filter_len - 1))
-    
     for s in range(n_srcs):
         for m in range(n_mics):
             filtered[m] += convolve(unfiltered[m], filters[s], mode='full')
-    
-    # Normaliser
     filtered /= np.max(np.abs(filtered))
     return filtered
 
@@ -78,48 +67,44 @@ def acoustic_contrast(rir, filt, reference, bright_idx, dark_idx):
     e_D = np.sum(p_C[dark_idx]**2)
     M_B = len(bright_idx)
     M_D = len(dark_idx)
-    AC = (M_D / M_B) * (e_B / e_D) if e_D != 0 else 1e10
-    return AC
+    return (M_D / M_B) * (e_B / e_D) if e_D != 0 else 1e10
 
 # -------------------------
-# Performance evaluation for alle filer
+# Performance evaluation fra .pt fil med reference og progressbar
 # -------------------------
 
-def performance_evaluation_all(folder_path, reference_wav_path, save_path="average_performance.txt"):
-    files = sorted([f for f in os.listdir(folder_path) if f.endswith(".npy")])
+def performance_evaluation_pt(pt_path, reference_wav_path, bright_idx, dark_idx, save_path="average_performance.txt"):
+    # Load reference
+    fs, wav = wavfile.read(reference_wav_path)
+    if wav.ndim > 1:
+        wav = np.mean(wav, axis=1)
+    reference = wav / np.max(np.abs(wav))
     
+    # Load data
+    data = torch.load(pt_path)
+    filters_list = data['selected_filters']
+    X_test_list = data['X_test']
+    rir_list = data.get('RIR', [None] * len(X_test_list))  # Optional
+
+    # Metrics
     PESQ_B_list, PESQ_D_list = [], []
     STOI_B_list, STOI_D_list = [], []
     PSNR_B_list, PSNR_D_list = [], []
     CC_B_list, CC_D_list = [], []
     AC_list = []
 
-    # Load reference audio
-    fs, wav = wavfile.read(reference_wav_path)
-    if wav.ndim > 1:
-        wav = np.mean(wav, axis=1)
-    wav = wav / np.max(np.abs(wav))
-    reference = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
-
-    for filename in files:
-        filepath = os.path.join(folder_path, filename)
-        data_dict = np.load(filepath, allow_pickle=True).item()
-
-        IR = torch.from_numpy(data_dict['IR']).float()           # [n_mics, n_srcs, n_rir_samples]
-        filters = data_dict['q_matrix'].astype(np.float32)       # [n_srcs, filter_len]
-        bright_idx = data_dict['bright_zone_mics_index']        # fx [12]
-        dark_idx = data_dict['dark_zone_mics_index']            # fx [0..11]
-
-        # Simuler tryk
-        unfiltered = compute_pressure_unfiltered(IR, reference)
-        filtered = compute_pressure_filtered(filters, unfiltered.numpy())
-
-        # Bright / Dark zone
-        bright_np = filtered[bright_idx].mean(axis=0)
-        dark_np   = filtered[dark_idx].mean(axis=0)
-        ref_np = reference.squeeze().numpy()
-        bright_np = bright_np[:len(ref_np)]
-        dark_np   = dark_np[:len(ref_np)]
+    for filt, X_test, rir in tqdm(zip(filters_list, X_test_list, rir_list), total=len(X_test_list), desc="Evaluating"):
+        filt_np = filt.numpy() if torch.is_tensor(filt) else np.array(filt)
+        X_test_np = X_test.numpy() if torch.is_tensor(X_test) else np.array(X_test)
+        
+        bright_np = X_test_np[bright_idx].mean(axis=0)
+        dark_np = X_test_np[dark_idx].mean(axis=0)
+        
+        # Trim reference til samme længde
+        ref_len = min(len(reference), len(bright_np))
+        ref_np = reference[:ref_len]
+        bright_np = bright_np[:ref_len]
+        dark_np = dark_np[:ref_len]
 
         # Metrics
         PESQ_B_list.append(compute_pesq_np(ref_np, bright_np))
@@ -130,9 +115,13 @@ def performance_evaluation_all(folder_path, reference_wav_path, save_path="avera
         PSNR_D_list.append(compute_PSNR(ref_np, dark_np))
         CC_B_list.append(compute_CC(ref_np, bright_np))
         CC_D_list.append(compute_CC(ref_np, dark_np))
-        AC_list.append(acoustic_contrast(IR, filters, reference, bright_idx, dark_idx))
 
-    # Gennemsnit
+        # Acoustic contrast hvis RIR findes
+        if rir is not None:
+            rir_tensor = rir if torch.is_tensor(rir) else torch.from_numpy(np.array(rir))
+            reference_tensor = torch.from_numpy(ref_np).unsqueeze(0)
+            AC_list.append(acoustic_contrast(rir_tensor, filt_np, reference_tensor, bright_idx, dark_idx))
+
     avg_metrics = {
         "PESQ_B": np.mean(PESQ_B_list),
         "PESQ_D": np.mean(PESQ_D_list),
@@ -142,10 +131,11 @@ def performance_evaluation_all(folder_path, reference_wav_path, save_path="avera
         "PSNR_D": np.mean(PSNR_D_list),
         "CC_B": np.mean(CC_B_list),
         "CC_D": np.mean(CC_D_list),
-        "Acoustic_Contrast": np.mean(AC_list)
     }
 
-    # Gem til fil
+    if AC_list:
+        avg_metrics["Acoustic_Contrast"] = np.mean(AC_list)
+
     with open(save_path, "w") as f:
         for k, v in avg_metrics.items():
             f.write(f"{k}: {v:.4f}\n")
@@ -157,7 +147,8 @@ def performance_evaluation_all(folder_path, reference_wav_path, save_path="avera
 # Kør evaluering
 # -------------------------
 if __name__ == "__main__":
-    folder = "Signes_data"
-    reference_wav = "relaxing-guitar-loop-v5-245859.wav"
-    performance_evaluation_all(folder, reference_wav)
-
+    pt_file = "random_selection_data.pt"
+    reference_wav = "Performance Evaluation/reference.wav"
+    bright_idx = [12]        # eksempel
+    dark_idx = list(range(12))  # eksempel
+    performance_evaluation_pt(pt_file, reference_wav, bright_idx, dark_idx)
