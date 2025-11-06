@@ -346,7 +346,7 @@ def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D,
     metrics = {
         "AC (dB)": [AC],
         "PESQ": [PESQ_B, PESQ_D],
-        "nSDR (dB)": [NSDR_B, NSDR_D],
+        "nSDP (dB)": [NSDR_B, NSDR_D],
         "STOI": [STOI_B, STOI_D],
         "Total Loss": [total_loss]
     }
@@ -354,16 +354,16 @@ def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D,
     zone_labels = {
         "AC (dB)": ["All zones"],
         "PESQ": ["Bright", "Dark"],
-        "nSDR (dB)": ["Bright", "Dark"],
+        "nSDP (dB)": ["Bright", "Dark"],
         "STOI": ["Bright", "Dark"],
-        "Total Loss": ["Bright"]
+        "Total Loss": ["All zones"]
     }
     
     plt.figure(figsize=(12, 10))
     
     for i, (metric_name, data) in enumerate(metrics.items(), 1):
         plt.subplot(3, 2, i)
-        plt.boxplot(data, labels=zone_labels[metric_name])
+        plt.boxplot(data, labels=zone_labels[metric_name],whis=[0,100])
         plt.title(metric_name)
         plt.grid(axis='y', linestyle='--', alpha=0.7)
     
@@ -456,4 +456,4 @@ print(f"NSDR Bright Zone (mean, min, max): {results['NSDR_B']}")
 print(f"NSDR Dark Zone (mean, min, max): {results['NSDR_D']}")
 print(f"STOI Bright Zone (mean, min, max): {results['STOI_B']}")
 print(f"STOI Dark Zone (mean, min, max): {results['STOI_D']}")
-print(f"Total loss Bright Zone (mean, min, max):{results['total_loss']}")
+print(f"Total loss Bright Zone (mean, min, max):{results['Total Loss']}")
