@@ -31,7 +31,6 @@ data = [batch for batch in data_loader][0]
 
 bright_zone_mics_index = dataset[0][2]
 dark_zone_mics_index = dataset[0][3]
-# Get indices (M_B and M_D are needed for loss function)
 
 
 
