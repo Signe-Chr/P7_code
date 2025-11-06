@@ -193,19 +193,21 @@ def L_4_loss(q_true, q_pred, rir, x_input, H, bright_indices, dark_indices):
         f_low = freq/fd
         f_high = freq*fd
         g = torch.fft.fft(q_pred, axis = 0)
-        p_des_full = compute_pressure_with_input(rir, q_true, x_input)
+        g_true = torch.fft.fft(q_true, axis = 0)
+        """p_des_full = compute_pressure_with_input(rir, q_true, x_input)
         p_des_B = p_des_full[bright_indices]
         p_des_D = p_des_full[dark_indices]
         
         # AC_des is generally calculated in terms of pressure magnitude difference or ratio (in linear scale)
         E_des_B = torch.sum(p_des_B ** 2)
         E_des_D = torch.sum(p_des_D ** 2)
-        AC_des = (M_D / M_B) * (E_des_B / E_des_D) if E_des_D.item() != 0 else torch.tensor(1e10)
+        AC_des = (M_D / M_B) * (E_des_B / E_des_D) if E_des_D.item() != 0 else torch.tensor(1e10)"""
 
         k_low = int(torch.ceil(f_low/delta_f))
         k_high = int(torch.ceil(f_high/delta_f))
         L_4_ = 0
         for k in range(k_low, k_high):
+            AC_des = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g_true[:,k], M_B, M_D)
             AC_sim = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g[:,k], M_B, M_D)
             w_AC = w_ac(freq, ref_frequency=100, beta=1, min_weight=1)
             C = C_i(AC_des, w_AC, AC_sim)
