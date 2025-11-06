@@ -1,3 +1,6 @@
+import os, sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(parent_dir)
 import torch
 import numpy as np
 from scipy.io import wavfile
@@ -101,12 +104,14 @@ def performance_evaluation_pt(pt_path, reference_wav_path, rir_tensor, bright_id
     CC_B_list, CC_D_list = [], []
     AC_list = []
 
+    # Compute unfiltered pressure
+    unfiltered = compute_pressure_unfiltered(rir_tensor, reference_tensor).numpy()
+    
     for filt_flat in tqdm(filters_list, total=len(filters_list), desc="Evaluating"):
         # Reshape filter til [n_srcs=3, filter_len]
         filt_np = filt_flat.numpy().reshape(3, -1) if torch.is_tensor(filt_flat) else np.array(filt_flat).reshape(3, -1)
 
-        # Compute unfiltered pressure
-        unfiltered = compute_pressure_unfiltered(rir_tensor, reference_tensor).numpy()
+        
 
         # Apply filters
         filtered = compute_pressure_filtered(filt_np, unfiltered)
@@ -163,7 +168,12 @@ if __name__ == "__main__":
     
     # RIR skal være tensor med shape [n_mics, n_srcs, n_rir_samples]
     # Fx load fra .npy fil: rir_tensor = torch.from_numpy(np.load("rir.npy")).float()
-    rir_tensor = torch.load("Performance Evaluation/test_ir.pt",weights_only=False)  # erstat med din RIR
+    #rir_tensor = torch.load("Performance Evaluation/test_ir.pt",weights_only=False)  # erstat med din RIR
+
+    n_mics = 13
+    n_srcs = 3
+    n_rir_samples = 1024  # fx
+    rir_tensor = torch.randn(n_mics, n_srcs, n_rir_samples)
 
     bright_idx = [0]               # 1 bright zone mikrofon
     dark_idx = list(range(1, 13))  # 12 dark zone mikrofoner
