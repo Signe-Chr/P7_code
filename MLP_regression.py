@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import Cross_validation_models as cvm
 import Dataset_generator_script as dgs
-from Loss_functions import Cosine_similarity, MSEP, AC_loss, compute_H_matrix
+from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
 from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
 from multiprocessing import cpu_count
@@ -12,7 +12,6 @@ from tqdm import tqdm
 
 def train(data, wav, epochs, model, dev):
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    MSE_loss = torch.nn.MSELoss()
 
     for epoch in range(epochs):
         model.train()
@@ -20,18 +19,18 @@ def train(data, wav, epochs, model, dev):
 
         loop = tqdm(data, desc=f"Epoch {epoch+1}/{epochs}", disable=not sys.stdout.isatty())
         for batch in loop:
-            batch_X, pre_flat_batch_y = batch[0].to(dev, dtype=torch.float32), batch[1].to(dev, dtype=torch.float32)
-            batch_y = pre_flat_batch_y.reshape(L, J)
+            batch_X, flat_batch_y = batch[0].to(dev, dtype=torch.float32), batch[1].to(dev, dtype=torch.float32)
+            batch_y = flat_batch_y.reshape(L, J)
             batch_IR = batch[5][0]
             bright_batch = batch[2][0]
             dark_batch = batch[3][0]
 
             optimizer.zero_grad()
-            pre_flat_outputs = model(batch_X)
-            outputs = pre_flat_outputs.reshape(L, J)
+            flat_outputs = model(batch_X)
+            outputs = flat_outputs.reshape(L, J)
             H = compute_H_matrix(batch_IR)[0].to(dev)
 
-            loss = MSE_loss(outputs, batch_y) + Cosine_similarity(pre_flat_outputs, pre_flat_batch_y) + MSEP(outputs, batch_y, batch_IR, batch_IR, wav, bright_batch) + AC_loss(outputs, batch_y, H, bright_batch, dark_batch)
+            loss = MSE(outputs, batch_y) + Cosine_similarity(flat_outputs, flat_batch_y) + MSEP(outputs, batch_y, batch_IR, batch_IR, wav, bright_batch, dark_batch)[0] + AC_loss(outputs, batch_y, H, bright_batch, dark_batch)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
