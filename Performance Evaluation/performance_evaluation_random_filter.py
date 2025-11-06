@@ -255,8 +255,8 @@ def total_loss(true_filter,predicted_filter,rir_test,wav_input,B_idx,D_idx):
     msep_loss_B, _ = MSEP(predicted_filter, true_filter, rir_test, wav_input, B_idx, D_idx)
     MSPE_loss = msep_loss_B
     H, _ = compute_H_matrix(rir_test)
-    AC_loss = AC_loss(predicted_filter, true_filter, rir_test, x_input, H, B_idx, D_idx)
-    return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_loss)
+    AC_los = AC_loss(predicted_filter, true_filter, H, B_idx, D_idx)
+    return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_los)
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -323,9 +323,9 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
         n_srcs = 3
         filter_len = 1024
-        filters_flat = selected_filters[i]  # [3072]
+        filters_flat = selected_filters[i].float()  # [3072]
         filters = filters_flat.reshape(n_srcs, filter_len)  # [3, 1024]
-        true_filters_flat=true_filter[i]
+        true_filters_flat=true_filter[i].float()
         true_filters=true_filters_flat.reshape(n_srcs,filter_len)
 
 
@@ -337,7 +337,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         mean_pesq_B, mean_pesq_D = compute_pesq_unfiltered(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
         mean_NSDR_B, mean_NSDR_D = compute_nSDP(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
         mean_STOI_B, mean_STOI_D = compute_STOI(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
-        total_loss_i=total_loss(true_filters,filters,rirs,wav_input,bright_zone_mics_index_test,dark_zone_mics_index_test)
+        total_loss_i = total_loss(true_filters, filters, rirs, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
 
         # Append results
         AC_list.append(AC_i)
