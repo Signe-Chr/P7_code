@@ -133,7 +133,7 @@ def train(data, wav, epochs, model, dev):
             optimizer.zero_grad()
             pre_flat_outputs = model(batch_X)
             outputs = pre_flat_outputs.reshape(L, J)
-            H = torch.from_numpy(compute_H_matrix(batch_IR)[0]).to(dev)
+            H = compute_H_matrix(batch_IR)[0].to(dev)
             #H_B = H[bright_batch][0]
             #H_D = H[batch[3][0]][0]
 
