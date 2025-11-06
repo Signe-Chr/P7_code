@@ -9,6 +9,9 @@ import Dataset_generator_script as dgs
 from scipy.io import wavfile
 import Loss_functions as LF
 import torch.nn as nn
+import Dataset_class as dc
+import os
+from torch.utils.data import DataLoader
 
 # --- CONFIGURATION ---
 L = 3       # Loudspeaker (Sources)
@@ -19,60 +22,37 @@ print(f"Using device: {device}")
 
 # ---- 1. Load and Prepare Data ----
 
-data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
+data_dir = "Signes_data"
+a = os.listdir(data_dir)
+dataset = dc.CustomDataset(data_dir, a) 
 
-# Get indices (M_B and M_D are needed for loss function)
-bright_zone_mics_index = data["VAST_0_0_0_0"].get('bright_zone_mics_index', [])
-dark_zone_mics_index = data["VAST_0_0_0_0"].get('dark_zone_mics_index', [])
+data_loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
+data = [batch for batch in data_loader][0]
+
+bright_zone_mics_index = dataset[0][2]
+dark_zone_mics_index = dataset[0][3]
+
+
 
 M_B = len(bright_zone_mics_index)
 M_D = len(dark_zone_mics_index)
-n_srcs = L # Based on the L=3 setting
+n_srcs = dataset[0][4]
 
-X_list, y_list, IR_list = [], [], []
 
-for key, inner in data.items():
-    rt60 = inner.get('RT60', 0.0)
-    phone_tilt = inner.get('Phone_tilt', 0.0)
-    user_orient = inner.get('User_orientation', 0.0)
-    spatial = np.array(inner.get('Spatial_position', [0,0,0]), dtype=np.float32).ravel()
-    room_dim = np.array(inner.get('room_dim', [0,0,0]), dtype=np.float32).ravel()
-    IR = inner.get('IR', np.zeros((M_B + M_D, L, 1), dtype=np.float32)) 
-    
-    X = np.concatenate([
-        [rt60], [phone_tilt], [user_orient], spatial, room_dim
-    ])
-    
-    q_matrix = inner.get('q_matrix', np.zeros((L, J), dtype=np.float32)) 
-    y = np.ravel(q_matrix)
-    
-    IR_list.append(IR)
-    X_list.append(X)
-    y_list.append(y)
+X = data[0].float() #np.stack(X_list).astype(np.float32)
+y = data[1].float()
+IR_array = data[5].float() # [N_total, n_mics, n_srcs, n_samples]
 
-X = np.stack(X_list).astype(np.float32)
-y = np.stack(y_list).astype(np.float32)
-IR_array = np.stack(IR_list).astype(np.float32) # [N_total, n_mics, n_srcs, n_samples]
 
-# ---- 1b. Load Dummy Input Signal (REPLACE WITH REAL WAV LOADING) ----
-# Since the WAV file is not available, we create a dummy input signal.
-# Assumes x_input is [1, n_samples] and the max sample length (N) is IR_array.shape[-1]
-if not hasattr(dgs, 'fs_target'): dgs.fs_target = 16000
-N_samples = IR_array.shape[-1]
-np.random.seed(42)
-#dummy_input = np.random.randn(dgs.fs_target * 2) # 2 seconds of noise at 16kHz
-#dummy_input = dummy_input[:N_samples] # Truncate to match RIR length
-#dummy_input = dummy_input / np.max(np.abs(dummy_input)) # Normalize
 wav_path = "relaxing-guitar-loop-v5-245859.wav"
 fs_wav, wav = wavfile.read(wav_path)
 if wav.ndim > 1:
     wav = np.mean(wav, axis=1)
 wav = wav[5*fs_wav : 7*fs_wav]
-wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
+wav = wav / np.max(np.abs(wav))
 x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
 x_input = x_input.to(device)
-#x_input = torch.from_numpy(input_.astype(np.float32)).unsqueeze(0).to(device) # [1, n_input_samples]
-#print(f"Using dummy input signal of length {x_input.shape[1]}")
+
 
 
 # ---- 2. Train/Test Split and Scaling ----
@@ -84,14 +64,13 @@ X_train_indices, X_test_indices, _, _ = train_test_split(
 
 scaler_X.fit(X[X_train_indices]) 
 
-y_train = torch.tensor(y[X_train_indices], dtype=torch.float32).to(device)
-y_test = torch.tensor(y[X_test_indices], dtype=torch.float32).to(device)
-IR_train = torch.tensor(IR_array[X_train_indices], dtype=torch.float32).to(device)
-IR_test = torch.tensor(IR_array[X_test_indices], dtype=torch.float32).to(device)
+y_train = y[X_train_indices].to(device)
+y_test = y[X_test_indices].to(device)
+IR_train = IR_array[X_train_indices].to(device)
+IR_test = IR_array[X_test_indices].to(device)
 
 print(f"Dictionary size (y_train): {y_train.shape}")
 print(f"Query size (y_test): {y_test.shape}")
-
 
 # ---- 4. K-20 ANN Search and Refinement (MODIFIED) ----
 
@@ -153,14 +132,13 @@ def ANN_Search_and_Refine(
             
             # 3. AC Loss (Acoustic Contrast - requires input and train/test RIR)
             t_start = time.time() if i == 0 else 0
-            print(test_filter_i_flat.shape)
-            ac_loss = LF.L_3_loss(test_filter_i_flat, candidate_filter_j_flat, rir_test_i, rir_train_j, x_input, [12])
+            ac_loss = LF.L_3_loss(test_filter_i_reshaped, candidate_filter_j_reshaped, rir_test_i, rir_train_j, x_input, bright_zone_mics_index)
             if i == 0: ac_times.append(time.time() - t_start)
             
             # 4. MSEP Loss (Mean Squared Pressure Error - requires input and train/test RIR)
             t_start = time.time() if i == 0 else 0
-            H = LF.compute_H_matrix(rir_train_j)
-            msep_loss = LF.L_4_loss(candidate_filter_j_flat, test_filter_i_reshaped, rir_train_j, x_input, H, [0,1,2,3,4,5,6,7,8,9,10,11], [12]) #L_4_loss(q_opt, rir, x_input, H, bright_indices, dark_indices)
+            H = LF.compute_H_matrix(rir_train_j)[0].to(device)
+            msep_loss = LF.L_4_loss(candidate_filter_j_reshaped, test_filter_i_reshaped, rir_train_j, x_input, H, dark_zone_mics_index, bright_zone_mics_index)
             if i == 0: msep_times.append(time.time() - t_start)
             
             combined_loss = (lamda_mse * mse_loss) + (lambda_cosine * cosine_loss) + \

@@ -15,31 +15,7 @@ from Dataset_generator_script import room_indices as ri
 from MLP_classification import SoftFilterNet
 
 
-def resample_to_16k_np(wav_path):
-    fs, audio = wavfile.read(wav_path)
-    # convert to float32 in [-1,1]
-    if audio.dtype != np.float32:
-        if audio.ndim > 1:
-            audio = np.mean(audio, axis=1)
-        audio = audio.astype(np.float32)
-        audio /= np.max(np.abs(audio))
-    if fs != 16000:
-        n_samples = int(len(audio) * 16000 / fs)
-        audio = resample(audio, n_samples)
-    return audio
 
-def load_data():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    data_dir = "Signes_data"
-    full_data = os.listdir(data_dir)
-    data_points = []
-    for data in full_data:
-        if int(data.split("_")[1]) in ri:
-            data_points.append(data)
-    data = CustomDataset(data_dir,data_points)
-    data_loader = DataLoader(data, batch_size=len(data), shuffle=True)
-    Q = [batch for batch in data_loader][0]
-    return Q, device
 
 def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
     """
@@ -363,10 +339,10 @@ def generate_measured_path(filters, unfiltered):
     filtered /= np.max(np.abs(filtered))
     return filtered
 
-def performance_evaluation2(
+def performance_evaluation(
     test_features, filters, RIRs,
     reference, fs_wav,
-    bright_zone_mics_index, dark_zone_mics_index, save=False
+    bright_zone_mics_index, dark_zone_mics_index, unfiltered_pressure, save=False
 ):
     """
     Simulates pressure fields for all test samples, saves degraded audio
@@ -382,11 +358,9 @@ def performance_evaluation2(
     ref_np = reference.squeeze().cpu().numpy()
     ref_np /= np.max(np.abs(ref_np))
     ref_np = np.asarray(ref_np, dtype=np.float32).ravel()  # <-- gør 1D
-    #reference = ref_np[:]
+    reference = ref_np[:]
 
     wavfile.write(ref_path, fs_wav, (ref_np * 32767).astype(np.int16))
-    
-    unfiltered = compute_pressure_with_input2(RIRs[0], reference).cpu().numpy()
 
     results = []
 
@@ -400,7 +374,7 @@ def performance_evaluation2(
         reference = reference.float().to(reference.device)
 
         # --- 1. Compute acoustic pressure ---
-        filtered = generate_measured_path(filter, unfiltered)
+        filtered = compute_pressure_with_input(rir, filter, reference)
         
         # --- 2. Extract bright & dark zone pressures ---
         p_bright = filtered[bright_zone_mics_index[i]]
@@ -437,11 +411,11 @@ def performance_evaluation2(
         stoi_b = compute_STOI(ref_path, bright_path)
         stoi_d = compute_STOI(ref_path, dark_path)
 
-        psnr_b = compute_psnr(ref_np, p_bright_np)
-        psnr_d = compute_psnr(ref_np, p_dark_np)
+        psnr_b = compute_psnr(ref_path, p_bright_np)
+        psnr_d = compute_psnr(ref_path, p_dark_np)
 
-        cc_b = compute_CC(ref_np, p_bright_np)
-        cc_d = compute_CC(ref_np, p_dark_np)
+        cc_b = compute_CC(ref_path, p_bright_np)
+        cc_d = compute_CC(ref_path, p_dark_np)
 
         ac = acoustic_contrast(rir, filter, reference, bright_zone_mics_index, dark_zone_mics_index)
 
@@ -502,5 +476,5 @@ if __name__== "__main__":
     bright_zone_mics_index_test = [bright_zone_mics_index[0], bright_zone_mics_index[1]]
     dark_zone_mics_index_test   = [dark_zone_mics_index[0], dark_zone_mics_index[1]]
 
-    performance_evaluation2(X_test, filter_test, test_RIRs, reference, fs_wav, bright_zone_mics_index_test, dark_zone_mics_index_test)
+    performance_evaluation(X_test, filter_test, test_RIRs, reference, fs_wav, bright_zone_mics_index_test, dark_zone_mics_index_test)
 
