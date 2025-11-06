@@ -190,8 +190,8 @@ def compute_nSDR(p_C: torch.Tensor, wav_input: torch.Tensor,
             s_target = ref[:min_len]
             s_est = deg[:min_len]
 
-            numerator = np.sum(s_target**2)
-            denominator = np.sum((s_target - s_est)**2)
+            denominator = np.sum(s_target**2)
+            numerator = np.sum((s_target - s_est)**2)
             if denominator == 0:
                 nSDR_val = 1e10
             else:
