@@ -34,4 +34,4 @@ class CustomDataset(Dataset):
             room_dim
         ])
         y = np.ravel(dic.get('q_matrix', np.zeros(L*J)))
-        return X, y, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR
+        return X, y, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR, idx
