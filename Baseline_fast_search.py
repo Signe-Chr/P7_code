@@ -40,9 +40,9 @@ M_D = len(dark_zone_mics_index)
 n_srcs = dataset[0][4]
 
 
-X = data[0] #np.stack(X_list).astype(np.float32)
-y = data[1]
-IR_array = data[5] # [N_total, n_mics, n_srcs, n_samples]
+X = data[0].float() #np.stack(X_list).astype(np.float32)
+y = data[1].float()
+IR_array = data[5].float() # [N_total, n_mics, n_srcs, n_samples]
 
 
 wav_path = "relaxing-guitar-loop-v5-245859.wav"
@@ -66,14 +66,13 @@ X_train_indices, X_test_indices, _, _ = train_test_split(
 
 scaler_X.fit(X[X_train_indices]) 
 
-y_train = torch.tensor(y[X_train_indices], dtype=torch.float32).to(device)
-y_test = torch.tensor(y[X_test_indices], dtype=torch.float32).to(device)
-IR_train = torch.tensor(IR_array[X_train_indices], dtype=torch.float32).to(device)
-IR_test = torch.tensor(IR_array[X_test_indices], dtype=torch.float32).to(device)
+y_train = y[X_train_indices].to(device)
+y_test = y[X_test_indices].to(device)
+IR_train = IR_array[X_train_indices].to(device)
+IR_test = IR_array[X_test_indices].to(device)
 
 print(f"Dictionary size (y_train): {y_train.shape}")
 print(f"Query size (y_test): {y_test.shape}")
-
 
 # ---- 4. K-20 ANN Search and Refinement (MODIFIED) ----
 
@@ -140,7 +139,7 @@ def ANN_Search_and_Refine(
             
             # 4. MSEP Loss (Mean Squared Pressure Error - requires input and train/test RIR)
             t_start = time.time() if i == 0 else 0
-            H, _ = LF.compute_H_matrix(rir_train_j).to(device)
+            H = LF.compute_H_matrix(rir_train_j)[0].to(device)
             msep_loss = LF.L_4_loss(candidate_filter_j_reshaped, test_filter_i_reshaped, rir_train_j, x_input, H, dark_zone_mics_index, bright_zone_mics_index)
             if i == 0: msep_times.append(time.time() - t_start)
             
