@@ -288,7 +288,7 @@ def MSEP(true_filter: torch.Tensor, predicted_filter: torch.Tensor,
     msep_loss_D = torch.mean((p_pred_D - p_des_D) ** 2)
     return msep_loss_B, msep_loss_D
 
-def L_4_loss(q_true, q_pred, rir, x_input, H, bright_indices, dark_indices):
+def AC_loss(q_true, q_pred, rir, x_input, H, bright_indices, dark_indices):
     M_B = len(bright_indices)
     M_D = len(dark_indices)
     fcentres = torch.tensor([1000, 2000])
@@ -320,7 +320,7 @@ def total_loss(true_filter,predicted_filter,rir_test,wav_input,B_idx,D_idx):
     msep_loss_B, _ = MSEP(true_filter,predicted_filter,rir_test,wav_input,B_idx,D_idx)
     MSPE_loss = msep_loss_B
     H, _ = compute_H_matrix(rir_test)
-    AC_loss = L_4_loss(true_filter, predicted_filter, rir_test, x_input, H, B_idx, D_idx)
+    AC_loss = AC_loss(true_filter, predicted_filter, rir_test, x_input, H, B_idx, D_idx)
     return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_loss)
 
 import matplotlib.pyplot as plt

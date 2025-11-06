@@ -153,7 +153,7 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, x_inp
         p[m, :] = p_m
     return p
 
-def L_2_loss(test_filter_flat: torch.Tensor, candidate_filter_flat: torch.Tensor):
+def Cosine_similarity(test_filter_flat: torch.Tensor, candidate_filter_flat: torch.Tensor):
     """Cosine distance between two flattened filters."""
     y_test_norm = F.normalize(test_filter_flat, p=2, dim=1)
     y_cand_norm = F.normalize(candidate_filter_flat, p=2, dim=1)
@@ -161,7 +161,7 @@ def L_2_loss(test_filter_flat: torch.Tensor, candidate_filter_flat: torch.Tensor
     cosine_distance = 1 - similarity.squeeze()
     return cosine_distance
 
-def L_3_loss(test_filter_reshaped: torch.Tensor, candidate_filter_reshaped: torch.Tensor,
+def MSEP(test_filter_reshaped: torch.Tensor, candidate_filter_reshaped: torch.Tensor,
                                   rir_test: torch.Tensor, rir_train: torch.Tensor, 
                                   x_input: torch.Tensor, B_idx: list) -> torch.Tensor:
     """
@@ -182,7 +182,7 @@ def L_3_loss(test_filter_reshaped: torch.Tensor, candidate_filter_reshaped: torc
     msep_loss = torch.mean((p_pred_B - p_des_B) ** 2)
     return msep_loss
 
-def L_4_loss(q_pred, q_true, H, bright_indices, dark_indices):
+def AC_loss(q_pred, q_true, H, bright_indices, dark_indices):
     M_B = len(bright_indices)
     M_D = len(dark_indices)
     fcentres = torch.tensor([1000, 2000])
