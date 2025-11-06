@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from Loss_functions_baseline import L_2_loss, compute_H_B_H_D_torch, AC_tilde, compute_pressure
+from Loss_functions import L_2_loss, compute_H_B_H_D_torch, AC_tilde, compute_pressure
 np.random.seed(69420)
 # ---- 1. Load data from VAST archive
 data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()

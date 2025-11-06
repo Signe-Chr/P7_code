@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from Loss_functions_baseline import compute_pressure_with_input,L_2_loss_with_input,AC_loss_with_input
+from Loss_functions import compute_pressure_with_input,L_2_loss_with_input,AC_loss_with_input
 from scipy.io import wavfile
 np.random.seed(69420)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

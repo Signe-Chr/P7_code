@@ -20,7 +20,6 @@ def train_model(model, data_loader, optimizer, device, wav, YY):
     model.train()
     total_loss = 0
     total = 0
-    L_1_loss = nn.MSELoss()
 
     # FIX 1: Change to unpack a single item, then manually index X and y
     loop = tqdm(data_loader, disable=not sys.stdout.isatty())
@@ -51,7 +50,7 @@ def train_model(model, data_loader, optimizer, device, wav, YY):
         H = LF.compute_H_matrix(rir, fs=16000, n_fft=None)[0].to(device)
 
         #print(H.shape)
-        loss = L_1_loss(outputs, y) + LF.L_2_loss(outputs, y) + LF.L_3_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, rir, wav, B_idx) + LF.AC_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), H, B_idx, D_idx)
+        loss = LF.MSE(outputs, y) + LF.Cosine_similarity(outputs, y) + LF.MSEP(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, rir, wav, B_idx) + LF.AC_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), H, B_idx, D_idx)
         loss.backward()
         optimizer.step()
 

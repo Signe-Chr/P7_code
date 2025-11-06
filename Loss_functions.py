@@ -195,20 +195,20 @@ def AC_loss(q_pred, q_true, H, bright_indices, dark_indices):
     delta_f = dgs.fs_target/dgs.J
     g = torch.fft.fft(q_pred, axis = 0)
     g_true = torch.fft.fft(q_true, axis = 0)
-    L_4 = 0
+    AC_loss_total = 0
     for freq in fcentres:
         f_low = freq/fd
         f_high = freq*fd
         k_low = int(torch.ceil(f_low/delta_f))
         k_high = int(torch.ceil(f_high/delta_f))
-        L_4_ = 0
+        AC_loss_temp = 0
         for k in range(k_low, k_high):
             AC_des = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g_true[:,k], M_B, M_D)
             AC_sim = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g[:,k], M_B, M_D)
             w_AC = w_ac(freq, ref_frequency=100, beta=1, min_weight=1)
             C = C_i(AC_des, w_AC, AC_sim)
-            L_4_ += C**2
-        L_4 += torch.sqrt(L_4_)
-        del L_4_
-    return L_4
+            AC_loss_temp += C**2
+        AC_loss_total += torch.sqrt(AC_loss_temp)
+        del AC_loss_temp
+    return AC_loss_total
 
