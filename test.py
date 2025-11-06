@@ -163,7 +163,12 @@ if __name__ == "__main__":
     
     # RIR skal være tensor med shape [n_mics, n_srcs, n_rir_samples]
     # Fx load fra .npy fil: rir_tensor = torch.from_numpy(np.load("rir.npy")).float()
-    rir_tensor = torch.load("Performance Evaluation/test_ir.pt",weights_only=False)  # erstat med din RIR
+    #rir_tensor = torch.load("Performance Evaluation/test_ir.pt",weights_only=False)  # erstat med din RIR
+
+    n_mics = 13
+    n_srcs = 3
+    n_rir_samples = 1024  # fx
+    rir_tensor = torch.randn(n_mics, n_srcs, n_rir_samples)
 
     bright_idx = [0]               # 1 bright zone mikrofon
     dark_idx = list(range(1, 13))  # 12 dark zone mikrofoner
