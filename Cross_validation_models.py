@@ -1,5 +1,6 @@
 import numpy as np
 import torch.nn as nn
+import torch
 
 L = []
 
@@ -92,3 +93,17 @@ class FilterNet_interpolation(nn.Module):
                     return self.net(x)
 
 #model_interpolation = FilterNet_interpolation(input_size1, output_size1)
+
+class Classification_softmax(nn.Module):
+    def __init__(self, input_size, output_size):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, output_size),
+            nn.Softmax(dim=1)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+

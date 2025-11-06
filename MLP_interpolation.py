@@ -62,33 +62,6 @@ def train_model(model, data_loader, optimizer, device, wav, YY):
     # For regression, we return 0.0 for accuracy
     return avg_loss, 0.0
 
-
-# ---- 4. Evaluation function ----
-def evaluate_model(model, dataloader, device, criterion): 
-    model.eval()
-    total_loss = 0
-    total = 0 
-
-    with torch.no_grad():
-        for data in dataloader:
-            # FIX: Manually unpack X and y
-            X, y = data[0], data[1]
-
-            # FIX: Move to device AND cast to float32 (Float)
-            X = X.to(device).float()
-            y = y.to(device).float()
-            
-            outputs = model(X)
-            loss = criterion(outputs, y) 
-
-            total_loss += loss.item() * X.size(0)
-            total += X.size(0)
-
-    avg_loss = total_loss / total
-    # For regression, we return 0.0 for accuracy
-    return avg_loss, 0.0 
-
-
 # ---- 5. Main training environment ----
 
 def main():
@@ -117,7 +90,7 @@ def main():
 
 
     # Define loss and optimizer
-    optimizer = optim.Adam(model_interpolation.parameters(), lr=1e-3)
+    optimizer = optim.Adam(model_interpolation.parameters(), lr=1e-2)
     #criterion = nn.MSELoss()
     wav = torch.from_numpy(dgs.wav).to(device)
 

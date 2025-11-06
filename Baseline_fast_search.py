@@ -7,6 +7,8 @@ from sklearn.neighbors import KDTree
 import time
 import Dataset_generator_script as dgs
 from scipy.io import wavfile
+import Loss_functions as LF
+import torch.nn as nn
 
 # --- CONFIGURATION ---
 L = 3       # Loudspeaker (Sources)
@@ -90,134 +92,6 @@ IR_test = torch.tensor(IR_array[X_test_indices], dtype=torch.float32).to(device)
 print(f"Dictionary size (y_train): {y_train.shape}")
 print(f"Query size (y_test): {y_test.shape}")
 
-# ---- 3. Loss Functions (New Composite Metrics) ----
-
-def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, x_input: torch.Tensor) -> torch.Tensor:
-    """
-    Simulates the acoustic pressure at all mics by convolving RIRs and filters with the input signal.
-
-    Parameters:
-        rir: [n_mics, n_srcs, n_rir_samples]
-        filter_q: [n_srcs, filter_len]
-        x_input: [1, n_input_samples] (The source signal)
-    
-    Returns:
-        p: [n_mics, n_output_samples] (Acoustic pressure)
-    """
-    n_mics, n_srcs, n_rir_samples = rir.shape
-    filter_len = filter_q.shape[1]
-    n_input_samples = x_input.shape[-1]
-    # The total combined impulse response length (h_combined) is n_rir_samples + filter_len - 1
-    # The final pressure length (p) is h_combined_len + n_input_samples - 1
-    output_len = n_rir_samples + filter_len + n_input_samples - 2
-    
-    # Zero pad x_input for convolution
-    x_input_padded = F.pad(x_input, (0, output_len - n_input_samples), 'constant', 0)
-    p = torch.zeros((n_mics, output_len), device=rir.device)
-
-    for m in range(n_mics):
-        p_m = torch.zeros(output_len, device=rir.device)
-        for s in range(n_srcs):
-            # Combined filter impulse response: h_combined = RIR * filter_q (via standard convolution)
-            rir_m_s = rir[m, s, :].unsqueeze(0).unsqueeze(0) # [1, 1, n_rir_samples]
-            q_s = filter_q[s, :].unsqueeze(0).unsqueeze(0) # [1, 1, filter_len]
-            
-            # --- CRITICAL FIX: SWAP INPUT/KERNEL FOR CONV1D ---
-            # Since n_rir_samples (512) < filter_len (1024), we must swap them for F.conv1d.
-            # Convolution is commutative: rir * q = q * rir
-            h_combined = F.conv1d(q_s, rir_m_s, padding=0).squeeze()
-            
-            # Convolve h_combined with input signal x (x_input) using FFT
-            
-            # Pad h_combined to ensure final output length matches 'output_len'
-            h_combined_padded = F.pad(h_combined, (0, output_len - h_combined.shape[0]), 'constant', 0)
-            
-            n_fft = 2**int(np.ceil(np.log2(output_len)))
-            
-            H = torch.fft.rfft(h_combined_padded, n=n_fft)
-            X_fft = torch.fft.rfft(x_input_padded, n=n_fft).squeeze(0)
-            
-            P_fft = H * X_fft
-            p_m_s = torch.fft.irfft(P_fft, n=n_fft)[:output_len] # Back to time domain
-            
-            p_m += p_m_s
-        p[m, :] = p_m
-    
-    return p
-
-def Exhaustive_MSEP_with_input_single(test_filter_reshaped: torch.Tensor, candidate_filter_reshaped: torch.Tensor,
-                                  rir_test: torch.Tensor, rir_train: torch.Tensor, 
-                                  x_input: torch.Tensor, B_idx: list) -> torch.Tensor:
-    """
-    Compute MSPE (Mean Squared Pressure Error) only in the Bright Zone (B_idx)
-    between the desired pressure (from test filter/RIR) and the predicted pressure 
-    (from candidate filter/train RIR).
-    """
-    
-    # 1. Calculate Desired Pressure (Reference: Test Filter + Test RIR)
-    p_des_full = compute_pressure_with_input(rir_test, test_filter_reshaped, x_input) # [n_mics, n_samples]
-    p_des_B = p_des_full[B_idx] # [M_B, n_samples]
-
-    # 2. Calculate Predicted Pressure (Candidate: Candidate Filter + Train RIR)
-    p_pred_full = compute_pressure_with_input(rir_train, candidate_filter_reshaped, x_input) # [n_mics, n_samples]
-    p_pred_B = p_pred_full[B_idx] # [M_B, n_samples]
-
-    # 3. Compute MSE
-    msep_loss = torch.mean((p_pred_B - p_des_B) ** 2)
-    return msep_loss
-
-def Exhaustive_AC_with_input_single(candidate_filter_reshaped: torch.Tensor, rir_train: torch.Tensor, 
-                                  rir_test: torch.Tensor, test_filter_reshaped: torch.Tensor,
-                                  fcentres: torch.Tensor, x_input: torch.Tensor,
-                                  M_B: int, M_D: int) -> torch.Tensor:
-    """
-    Compute AC loss using the train RIR and the candidate filter,
-    comparing against the reference AC from the test RIR and test filter.
-    This is the L_2_loss_with_input logic from the 'new' script.
-    NOTE: This is a significantly simplified (and less robust) implementation
-    of the original AC loss, as full frequency band logic is complex. 
-    We calculate the overall broadband AC.
-    """
-    
-    # 1. Calculate Reference AC (AC_des) from Test setup (using the energy of the input-driven pressure)
-    p_des_full = compute_pressure_with_input(rir_test, test_filter_reshaped, x_input)
-    p_des_B = p_des_full[bright_zone_mics_index]
-    p_des_D = p_des_full[dark_zone_mics_index]
-    
-    # AC_des is generally calculated in terms of pressure magnitude difference or ratio (in linear scale)
-    E_des_B = torch.sum(p_des_B ** 2)
-    E_des_D = torch.sum(p_des_D ** 2)
-    AC_des = (M_D / M_B) * (E_des_B / E_des_D) if E_des_D.item() != 0 else torch.tensor(1e10)
-    
-    # 2. Calculate Simulated AC (AC_sim) from Candidate setup
-    p_pred_full = compute_pressure_with_input(rir_train, candidate_filter_reshaped, x_input)
-    # --- FIX: Extract Bright Zone pressure before calculation
-    p_pred_B = p_pred_full[bright_zone_mics_index] 
-    p_pred_D = p_pred_full[dark_zone_mics_index]
-
-    E_sim_B = torch.sum(p_pred_B ** 2)
-    E_sim_D = torch.sum(p_pred_D ** 2)
-    AC_sim = (M_D / M_B) * (E_sim_B / E_sim_D) if E_sim_D.item() != 0 else torch.tensor(1e10)
-    
-    # 3. Compute L_2 loss (error between desired and simulated AC)
-    # Error is the violation of the target AC (AC_des)
-    AC_loss = torch.max(torch.tensor(0.0, device=AC_sim.device), AC_des - AC_sim) ** 2
-    
-    return torch.sqrt(AC_loss)
-
-def Exhaustive_Cosine_similarity_single(test_filter_flat: torch.Tensor, candidate_filter_flat: torch.Tensor):
-    """Cosine distance between two flattened filters."""
-    y_test_norm = F.normalize(test_filter_flat, p=2, dim=1)
-    y_cand_norm = F.normalize(candidate_filter_flat, p=2, dim=1)
-    similarity = torch.mm(y_test_norm, y_cand_norm.T)
-    cosine_distance = 1 - similarity.squeeze()
-    return cosine_distance
-
-def MSE_distance_single(test_filter: torch.Tensor, candidate_filter: torch.Tensor):
-    """Calculates MSE between two flattened filters: [1, L*J] vs [1, L*J]"""
-    diff = test_filter - candidate_filter
-    mse = torch.mean(diff ** 2)
-    return mse
 
 # ---- 4. K-20 ANN Search and Refinement (MODIFIED) ----
 
@@ -226,6 +100,7 @@ def ANN_Search_and_Refine(
     fcentres: torch.Tensor, M_B: int, M_D: int, x_input: torch.Tensor, k_neighbors: int = 20
 ):
     N_test = len(test_filters)
+    L_1_loss = nn.MSELoss()
     
     # 1. Build the K-D Tree Index on the dictionary filters (y_train)
     dictionary_np = dictionary.cpu().numpy()
@@ -268,28 +143,26 @@ def ANN_Search_and_Refine(
             
             # 1. MSE Loss (Filter Coefficients)
             t_start = time.time() if i == 0 else 0
-            mse_loss = MSE_distance_single(test_filter_i_flat, candidate_filter_j_flat)
+            mse_loss = L_1_loss(test_filter_i_flat, candidate_filter_j_flat)
             if i == 0: mse_times.append(time.time() - t_start)
 
             # 2. Cosine Similarity Loss (Filter Coefficients)
             t_start = time.time() if i == 0 else 0
-            cosine_loss = Exhaustive_Cosine_similarity_single(test_filter_i_flat, candidate_filter_j_flat)
+            cosine_loss = LF.L_2_loss(test_filter_i_flat, candidate_filter_j_flat)
             if i == 0: cosine_times.append(time.time() - t_start)
             
             # 3. AC Loss (Acoustic Contrast - requires input and train/test RIR)
             t_start = time.time() if i == 0 else 0
-            ac_loss = Exhaustive_AC_with_input_single(
-                candidate_filter_j_reshaped, rir_train_j, rir_test_i, test_filter_i_reshaped,
-                fcentres, x_input, M_B, M_D
-            )
+            print(test_filter_i_flat.shape)
+            ac_loss = LF.L_3_loss(test_filter_i_flat, candidate_filter_j_flat, rir_test_i, rir_train_j, x_input, [12])
             if i == 0: ac_times.append(time.time() - t_start)
             
             # 4. MSEP Loss (Mean Squared Pressure Error - requires input and train/test RIR)
             t_start = time.time() if i == 0 else 0
-            msep_loss = Exhaustive_MSEP_with_input_single(
-                test_filter_i_reshaped, candidate_filter_j_reshaped,
-                rir_test_i, rir_train_j, x_input, bright_zone_mics_index
-            )
+            H = LF.compute_H_matrix(rir_train_j)
+            msep_loss = LF.L_4_loss(
+                test_filter_i_reshaped, rir_train_j,
+                x_input, H, [0,1,2,3,4,5,6,7,8,9,10,11], [12]) #L_4_loss(q_opt, rir, x_input, H, bright_indices, dark_indices)
             if i == 0: msep_times.append(time.time() - t_start)
             
             combined_loss = (lamda_mse * mse_loss) + (lambda_cosine * cosine_loss) + \
