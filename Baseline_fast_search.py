@@ -50,7 +50,7 @@ fs_wav, wav = wavfile.read(wav_path)
 if wav.ndim > 1:
     wav = np.mean(wav, axis=1)
 wav = wav[5*fs_wav : 7*fs_wav]
-wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
+wav = wav / np.max(np.abs(wav))
 x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
 x_input = x_input.to(device)
 
