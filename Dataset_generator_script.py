@@ -54,7 +54,7 @@ fs_wav, wav = wavfile.read(wav_path)
 
 N = 2000
 
-wav = wav[5*44100:5*44100+N]#7*44100]
+wav = wav[5*44100:7*44100]
 
 
 
