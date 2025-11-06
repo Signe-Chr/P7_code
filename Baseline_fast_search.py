@@ -53,8 +53,7 @@ wav = wav[5*fs_wav : 7*fs_wav]
 wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
 x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
 x_input = x_input.to(device)
-#x_input = torch.from_numpy(input_.astype(np.float32)).unsqueeze(0).to(device) # [1, n_input_samples]
-#print(f"Using dummy input signal of length {x_input.shape[1]}")
+
 
 
 # ---- 2. Train/Test Split and Scaling ----
