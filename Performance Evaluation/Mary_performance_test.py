@@ -15,84 +15,6 @@ from Dataset_generator_script import room_indices as ri
 from MLP_classification import SoftFilterNet
 
 
-def resample_to_16k_np(wav_path):
-    fs, audio = wavfile.read(wav_path)
-    # convert to float32 in [-1,1]
-    if audio.dtype != np.float32:
-        if audio.ndim > 1:
-            audio = np.mean(audio, axis=1)
-        audio = audio.astype(np.float32)
-        audio /= np.max(np.abs(audio))
-    if fs != 16000:
-        n_samples = int(len(audio) * 16000 / fs)
-        audio = resample(audio, n_samples)
-    return audio
-
-def load_data():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    data_dir = "Signes_data"
-    full_data = os.listdir(data_dir)
-    data_points = []
-    for data in full_data:
-        if int(data.split("_")[1]) in ri:
-            data_points.append(data)
-    data = CustomDataset(data_dir,data_points)
-    data_loader = DataLoader(data, batch_size=len(data), shuffle=True)
-    Q = [batch for batch in data_loader][0]
-    return Q, device
-
-def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
-    """
-    Simulates the acoustic pressure at all mics by convolving RIRs and filters with the input signal.
-
-    Parameters:
-        rir: [n_mics, n_srcs, n_rir_samples]
-        filter_q: [n_srcs, filter_len]
-        reference: [1, n_input_samples] (The source signal)
-    
-    Returns:
-        p: [n_mics, n_output_samples] (Acoustic pressure)
-    """
-    n_mics, n_srcs, n_rir_samples = rir.shape
-    filter_len = filter_q.shape[1]
-    n_input_samples = reference.shape[-1]
-    # The total combined impulse response length (h_combined) is n_rir_samples + filter_len - 1
-    # The final pressure length (p) is h_combined_len + n_input_samples - 1
-    output_len = n_input_samples    # We would like the output to match input as we are converting a sound signal
-    
-    # Zero pad reference for convolution
-    reference_padded = F.pad(reference, (0, output_len - n_input_samples), 'constant', 0)
-    p = torch.zeros((n_mics, output_len), device=rir.device)
-
-    for m in range(n_mics):
-        p_m = torch.zeros(output_len, device=rir.device)
-        for s in range(n_srcs):
-            # Combined filter impulse response: h_combined = RIR * filter_q (via standard convolution)
-            rir_m_s = rir[m, s, :].unsqueeze(0).unsqueeze(0) # [1, 1, n_rir_samples]
-            q_s = filter_q[s, :].unsqueeze(0).unsqueeze(0) # [1, 1, filter_len]
-            
-            # --- CRITICAL FIX: SWAP INPUT/KERNEL FOR CONV1D ---
-            # Since n_rir_samples (512) < filter_len (1024), we must swap them for F.conv1d.
-            # Convolution is commutative: rir * q = q * rir
-            h_combined = F.conv1d(q_s, rir_m_s, padding=0).squeeze()
-            
-            # Convolve h_combined with input signal x (reference) using FFT
-            
-            # Pad h_combined to ensure final output length matches 'output_len'
-            h_combined_padded = F.pad(h_combined, (0, output_len - h_combined.shape[0]), 'constant', 0)
-            
-            n_fft = 2**int(np.ceil(np.log2(output_len)))
-            
-            H = torch.fft.rfft(h_combined_padded, n=n_fft)
-            X_fft = torch.fft.rfft(reference_padded, n=n_fft).squeeze(0)
-            
-            P_fft = H * X_fft
-            p_m_s = torch.fft.irfft(P_fft, n=n_fft)[:output_len] # Back to time domain
-            
-            p_m += p_m_s
-        p[m, :] = p_m
-    
-    return p
 
 # -------------------------------------------------------------------------
 # 3. Performance Evaluation Functions
@@ -175,15 +97,16 @@ def compute_cosine_similarity(reference, measured):
     cosine_similarity = dot_product / (norm_orig * norm_meas)
     return cosine_similarity
 
-def acoustic_contrast(rir,filter, wav_input, bright_zone_mics_index,dark_zone_mics_index):
-    p_C=compute_pressure_with_input(rir, filter, wav_input)
-    p_B=p_C[bright_zone_mics_index]
-    p_D=p_C[dark_zone_mics_index]
-    e_B=torch.sum(p_B**2)
-    e_D=torch.sum(p_D**2)
-    M_B=len(bright_zone_mics_index)
-    M_D=len(dark_zone_mics_index)
-    AC=(M_D / M_B) * (e_B / e_D) if e_D.item() != 0 else torch.tensor(1e10)
+def acoustic_contrast(rir,filter, reference, bright_zone_mics_index,dark_zone_mics_index):
+    p = compute_pressure_unfiltered(rir, reference)
+    p_C = compute_pressure_filtered(filter, p)
+    p_B = p_C[bright_zone_mics_index]
+    p_D = p_C[dark_zone_mics_index]
+    e_B = torch.sum(p_B**2)
+    e_D = torch.sum(p_D**2)
+    M_B = len(bright_zone_mics_index)
+    M_D = len(dark_zone_mics_index)
+    AC = (M_D / M_B) * (e_B / e_D) if e_D.item() != 0 else torch.tensor(1e10)
     return AC
 
 def compute_STOI(reference,measured):
@@ -244,65 +167,12 @@ def load_data():
         if int(data.split("_")[1]) in ri:
             data_points.append(data)
     data = CustomDataset(data_dir,data_points)
-    data_loader = DataLoader(data, batch_size=len(data), shuffle=True)
+    data_loader = DataLoader(data, batch_size=5, shuffle=True) #Brug len(data) som batch size for at loade alt data på én gang
     Q = [batch for batch in data_loader][0]
     return Q, device
 
-def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
-    """
-    Simulates the acoustic pressure at all mics by convolving RIRs and filters with the input signal.
 
-    Parameters:
-        rir: [n_mics, n_srcs, n_rir_samples]
-        filter_q: [n_srcs, filter_len]
-        reference: [1, n_input_samples] (The source signal)
-    
-    Returns:
-        p: [n_mics, n_output_samples] (Acoustic pressure)
-    """
-    n_mics, n_srcs, n_rir_samples = rir.shape
-    filter_len = filter_q.shape[1]
-    n_input_samples = reference.shape[-1]
-    # The total combined impulse response length (h_combined) is n_rir_samples + filter_len - 1
-    # The final pressure length (p) is h_combined_len + n_input_samples - 1
-    output_len = n_rir_samples + filter_len + n_input_samples - 2
-    
-    # Zero pad reference for convolution
-    reference_padded = F.pad(reference, (0, output_len - n_input_samples), 'constant', 0)
-    p = torch.zeros((n_mics, output_len), device=rir.device)
-
-    for m in range(n_mics):
-        p_m = torch.zeros(output_len, device=rir.device)
-        for s in range(n_srcs):
-            # Combined filter impulse response: h_combined = RIR * filter_q (via standard convolution)
-            rir_m_s = rir[m, s, :].unsqueeze(0).unsqueeze(0) # [1, 1, n_rir_samples]
-            q_s = filter_q[s, :].unsqueeze(0).unsqueeze(0) # [1, 1, filter_len]
-            
-            # --- CRITICAL FIX: SWAP INPUT/KERNEL FOR CONV1D ---
-            # Since n_rir_samples (512) < filter_len (1024), we must swap them for F.conv1d.
-            # Convolution is commutative: rir * q = q * rir
-            h_combined = F.conv1d(q_s, rir_m_s, padding=0).squeeze()
-            
-            # Convolve h_combined with input signal x (reference) using FFT
-            
-            # Pad h_combined to ensure final output length matches 'output_len'
-            h_combined_padded = F.pad(h_combined, (0, output_len - h_combined.shape[0]), 'constant', 0)
-            
-            n_fft = 2**int(np.ceil(np.log2(output_len)))
-            
-            H = torch.fft.rfft(h_combined_padded, n=n_fft)
-            X_fft = torch.fft.rfft(reference_padded, n=n_fft).squeeze(0)
-            
-            P_fft = H * X_fft
-            p_m_s = torch.fft.irfft(P_fft, n=n_fft)[:output_len] # Back to time domain
-            
-            p_m += p_m_s
-        p[m, :] = p_m
-    
-    return p
-
-
-def compute_pressure_with_input2(rir: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
+def compute_pressure_unfiltered(rir: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
     """
     Simulates the acoustic pressure at all mics by convolving RIRs directly with the input signal.
 
@@ -344,7 +214,7 @@ def compute_pressure_with_input2(rir: torch.Tensor, reference: torch.Tensor) -> 
 
     return p
 
-def generate_measured_path(filters, unfiltered):
+def compute_pressure_filtered(filters, unfiltered):
     '''
     Convolves the received sound with the filters.
     '''
@@ -363,10 +233,10 @@ def generate_measured_path(filters, unfiltered):
     filtered /= np.max(np.abs(filtered))
     return filtered
 
-def performance_evaluation2(
+def performance_evaluation(
     test_features, filters, RIRs,
     reference, fs_wav,
-    bright_zone_mics_index, dark_zone_mics_index, save=False
+    bright_zone_mics_index, dark_zone_mics_index, unfiltered_pressure, save=False
 ):
     """
     Simulates pressure fields for all test samples, saves degraded audio
@@ -379,14 +249,12 @@ def performance_evaluation2(
     ref_path = os.path.join(save_dir, "reference.wav")
 
 
-    ref_np = reference.squeeze().cpu().numpy()
-    ref_np /= np.max(np.abs(ref_np))
-    ref_np = np.asarray(ref_np, dtype=np.float32).ravel()  # <-- gør 1D
+    #ref_np = reference.squeeze().cpu().numpy()
+    #ref_np /= np.max(np.abs(ref_np))
+    #ref_np = np.asarray(ref_np, dtype=np.float32).ravel()  # <-- gør 1D
     #reference = ref_np[:]
 
-    wavfile.write(ref_path, fs_wav, (ref_np * 32767).astype(np.int16))
-    
-    unfiltered = compute_pressure_with_input2(RIRs[0], reference).cpu().numpy()
+    #wavfile.write(ref_path, fs_wav, (ref_np * 32767).astype(np.int16))
 
     results = []
 
@@ -400,7 +268,7 @@ def performance_evaluation2(
         reference = reference.float().to(reference.device)
 
         # --- 1. Compute acoustic pressure ---
-        filtered = generate_measured_path(filter, unfiltered)
+        filtered = compute_pressure_filtered(filter, unfiltered_pressure[i])
         
         # --- 2. Extract bright & dark zone pressures ---
         p_bright = filtered[bright_zone_mics_index[i]]
@@ -437,11 +305,11 @@ def performance_evaluation2(
         stoi_b = compute_STOI(ref_path, bright_path)
         stoi_d = compute_STOI(ref_path, dark_path)
 
-        psnr_b = compute_psnr(ref_np, p_bright_np)
-        psnr_d = compute_psnr(ref_np, p_dark_np)
+        psnr_b = compute_psnr(ref_path, p_bright_np)
+        psnr_d = compute_psnr(ref_path, p_dark_np)
 
-        cc_b = compute_CC(ref_np, p_bright_np)
-        cc_d = compute_CC(ref_np, p_dark_np)
+        cc_b = compute_CC(ref_path, p_bright_np)
+        cc_d = compute_CC(ref_path, p_dark_np)
 
         ac = acoustic_contrast(rir, filter, reference, bright_zone_mics_index, dark_zone_mics_index)
 
@@ -467,14 +335,88 @@ def performance_evaluation2(
 
 
 
+def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test):
+    """
+    Computes AC, PESQ, nSDR, and STOI for the entire test set using selected filters.
+    
+    Parameters:
+        RIR_test: [n_samples, n_mics, n_srcs, n_rir_samples] torch.Tensor
+        selected_filters: [n_samples, n_srcs, filter_len] torch.Tensor
+        wav_input: [1, n_input_samples] torch.Tensor
+        bright_zone_mics_index_test: list of bright-zone mic indices
+        dark_zone_mics_index_test: list of dark-zone mic indices
+    
+    Returns:
+        Average, min, max of each metric for bright and dark zones
+    """
+    AC_list, pesq_B_list, pesq_D_list = [], [], []
+    NSDR_B_list, NSDR_D_list = [], []
+    STOI_B_list, STOI_D_list = [], []
+
+    for i in range(RIR_test.shape[0]):
+        print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
+        rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
+        n_srcs = 3
+        filter_len = 1024
+        filters_flat = selected_filters[i]  # [3072]
+        filters = filters_flat.reshape(n_srcs, filter_len)  # [3, 1024]
+
+
+        # Compute pressures with filters
+        p_C = compute_pressure_unfiltered(rirs, filters, wav_input)
+
+        # Compute metrics
+        AC_i = float(acoustic_contrast(p_C, bright_zone_mics_index_test, dark_zone_mics_index_test))
+        mean_pesq_B, mean_pesq_D = compute_pesq(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
+        mean_NSDR_B, mean_NSDR_D = compute_nSDR(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
+        mean_STOI_B, mean_STOI_D = compute_STOI(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
+
+        # Append results
+        AC_list.append(AC_i)
+        pesq_B_list.append(mean_pesq_B)
+        pesq_D_list.append(mean_pesq_D)
+        NSDR_B_list.append(mean_NSDR_B)
+        NSDR_D_list.append(mean_NSDR_D)
+        STOI_B_list.append(mean_STOI_B)
+        STOI_D_list.append(mean_STOI_D)
+
+    # Convert to numpy arrays
+    AC_list = np.array(AC_list)
+    pesq_B_list = np.array(pesq_B_list)
+    pesq_D_list = np.array(pesq_D_list)
+    NSDR_B_list = np.array(NSDR_B_list)
+    NSDR_D_list = np.array(NSDR_D_list)
+    STOI_B_list = np.array(STOI_B_list)
+    STOI_D_list = np.array(STOI_D_list)
+
+    # Compute statistics
+    results = {
+        "AC": (np.mean(AC_list), np.min(AC_list), np.max(AC_list)),
+        "PESQ_B": (np.mean(pesq_B_list), np.min(pesq_B_list), np.max(pesq_B_list)),
+        "PESQ_D": (np.mean(pesq_D_list), np.min(pesq_D_list), np.max(pesq_D_list)),
+        "NSDR_B": (np.mean(NSDR_B_list), np.min(NSDR_B_list), np.max(NSDR_B_list)),
+        "NSDR_D": (np.mean(NSDR_D_list), np.min(NSDR_D_list), np.max(NSDR_D_list)),
+        "STOI_B": (np.mean(STOI_B_list), np.min(STOI_B_list), np.max(STOI_B_list)),
+        "STOI_D": (np.mean(STOI_D_list), np.min(STOI_D_list), np.max(STOI_D_list))
+    }
+
+    # Optional: plot metrics
+    #plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDR_B_list, NSDR_D_list, STOI_B_list, STOI_D_list)
+
+    return results
+# Assuming `selected_filters_test` comes from your random selection
+
+
 
 
 #print(RIRs.shape)
 if __name__== "__main__":
-    X, filters, bright_zone_mics_index, dark_zone_mics_index, n_srcs, RIRs= load_data()[0]
+    X, filters, bright_zone_mics_index, dark_zone_mics_index, n_srcs, RIRs = load_data()[0]
     device = load_data()[1]
-    bright_zone_mics_index = np.array(bright_zone_mics_index).T
-    dark_zone_mics_index = np.array(dark_zone_mics_index).T
+    #bright_zone_mics_index = np.array(bright_zone_mics_index).T
+    #dark_zone_mics_index = np.array(dark_zone_mics_index).T
+
+    
 
     X_test=np.stack([X[0],X[1]],axis=0)
     n_srcs = n_srcs[0]
@@ -494,6 +436,8 @@ if __name__== "__main__":
     wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
     reference = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
     reference = reference.to(device)
+    unfiltered_pressure = compute_pressure_unfiltered(RIRs, reference).cpu().numpy()
+
     # reference tensor
     bright_tensor = bright_zone_mics_index[0]  # the only element in the list
     dark_tensor   = dark_zone_mics_index[0]
@@ -502,5 +446,14 @@ if __name__== "__main__":
     bright_zone_mics_index_test = [bright_zone_mics_index[0], bright_zone_mics_index[1]]
     dark_zone_mics_index_test   = [dark_zone_mics_index[0], dark_zone_mics_index[1]]
 
-    performance_evaluation2(X_test, filter_test, test_RIRs, reference, fs_wav, bright_zone_mics_index_test, dark_zone_mics_index_test)
+    performance_evaluation(X_test, filter_test, test_RIRs, reference, fs_wav, bright_zone_mics_index_test, dark_zone_mics_index_test, unfiltered_pressure)
+    #results = average_performance_metrics_with_filters(test_RIRs, filters, reference, bright_zone_mics_index_test, dark_zone_mics_index_test)
+
+    #print(f"AC (mean, min, max): {results['AC']}")
+    #print(f"PESQ Bright Zone (mean, min, max): {results['PESQ_B']}")
+    #print(f"PESQ Dark Zone (mean, min, max): {results['PESQ_D']}")
+    #print(f"NSDR Bright Zone (mean, min, max): {results['NSDR_B']}")
+    #print(f"NSDR Dark Zone (mean, min, max): {results['NSDR_D']}")
+    #print(f"STOI Bright Zone (mean, min, max): {results['STOI_B']}")
+    #print(f"STOI Dark Zone (mean, min, max): {results['STOI_D']}")
 
