@@ -182,7 +182,7 @@ def L_3_loss(test_filter_reshaped: torch.Tensor, candidate_filter_reshaped: torc
     msep_loss = torch.mean((p_pred_B - p_des_B) ** 2)
     return msep_loss
 
-def L_4_loss(q_opt, rir, x_input, H, bright_indices, dark_indices):
+def L_4_loss(q_true, q_pred, rir, x_input, H, bright_indices, dark_indices):
     M_B = len(bright_indices)
     M_D = len(dark_indices)
     fcentres = torch.tensor([1000, 2000])
@@ -192,8 +192,8 @@ def L_4_loss(q_opt, rir, x_input, H, bright_indices, dark_indices):
     for freq in fcentres:
         f_low = freq/fd
         f_high = freq*fd
-        g = torch.fft.fft(q_opt, axis = 0)
-        p_des_full = compute_pressure_with_input(rir, q_opt, x_input)
+        g = torch.fft.fft(q_pred, axis = 0)
+        p_des_full = compute_pressure_with_input(rir, q_true, x_input)
         p_des_B = p_des_full[bright_indices]
         p_des_D = p_des_full[dark_indices]
         
