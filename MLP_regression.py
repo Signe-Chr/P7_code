@@ -42,12 +42,11 @@ def train(data, wav, epochs, model, dev):
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data_dir = "VAST_filter_archive_730"
-    from Dataset_generator_script import room_indices as ri
     full_data = os.listdir(data_dir)
     train_points = []
     for data in full_data:
         i = int(data.split("_")[1])
-        if (i in ri) and (i not in ri[::4]):
+        if (i in dgs.ri) and (i not in dgs.ri[::4]):
             train_points.append(data)
     trainset = CustomDataset(data_dir, train_points)
     p_features = len(trainset[0][0])    # Load the first data point and then find the length of the X matrix
