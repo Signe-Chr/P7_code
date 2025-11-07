@@ -1,22 +1,19 @@
-import os,sys
+import os, sys
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 import torch
-import torch.nn.functional as F
+import torchaudio
 import numpy as np
+import torch.nn.functional as F
+from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
+from Dataset_generator_script import room_indices as ri
 from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
-from Dataset_generator_script import room_indices as ri
 from scipy.io import wavfile
 from pesq import pesq
-import torchaudio
-from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
-import Dataset_generator_script as dgs
 
 data_random_selection = torch.load("Saved Filters/random_selection_data.pt")
 selected_filters = data_random_selection['selected_filters']
-
-
 
 #---Load data and split into test and traning data---
 data_dir="Signes_data"
@@ -25,13 +22,12 @@ data_points = []
 train_points = []
 test_points = []
 for data in full_data:
+    data_points.append(data)
     i = int(data.split("_")[1])
-    if (i in ri) and (i not in ri[::4]):
+    if i not in ri[::4]:
         train_points.append(data)
-        data_points.append(data)
     else:
         test_points.append(data)
-        data_points.append(data)
         
 data_train=CustomDataset(data_dir,train_points)
 data_train_loader=DataLoader(data_train,batch_size=len(data_train), shuffle=True)
@@ -249,9 +245,9 @@ def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
     return mean_B,mean_D
 
 
-def total_loss(true_filter,predicted_filter,rir_test,wav_input,B_idx,D_idx):
+def total_loss(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_idx):
     mse_loss = MSE(predicted_filter, true_filter)
-    cosine_loss = Cosine_similarity(predicted_filter, true_filter)
+    cosine_loss = Cosine_similarity(predicted_filter.reshape(1, L*J), true_filter.reshape(1, L*J))
     msep_loss_B, _ = MSEP(predicted_filter, true_filter, rir_test, wav_input, B_idx, D_idx)
     MSPE_loss = msep_loss_B
     H, _ = compute_H_matrix(rir_test)
@@ -261,7 +257,7 @@ def total_loss(true_filter,predicted_filter,rir_test,wav_input,B_idx,D_idx):
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D,total_loss):
+def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D, total_loss):
     """
     Creates boxplots for AC, PESQ, nSDR, and STOI for bright and dark zones.
     
@@ -372,11 +368,11 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     }
 
     # Optional: plot metrics
-    plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDR_B_list, NSDR_D_list, STOI_B_list, STOI_D_list,tot_loss_list)
+    plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDR_B_list, NSDR_D_list, STOI_B_list, STOI_D_list, tot_loss_list)
 
     return results
 # Assuming `selected_filters_test` comes from your random selection
-results = average_performance_metrics_with_filters(RIRs_test, selected_filters, x_input, bright_zone_mics_index, dark_zone_mics_index,filters_test)
+results = average_performance_metrics_with_filters(RIRs_test, selected_filters, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
 print(f"AC (mean, min, max): {results['AC']}")
 print(f"PESQ Bright Zone (mean, min, max): {results['PESQ_B']}")
