@@ -100,10 +100,12 @@ def main():
         # We pass the criterion, as previously discussed
         train_loss, train_acc = train_model(model_interpolation, data_loader, optimizer, device, wav, YY) 
         # Only print loss since accuracy is not applicable for MSELoss
-        print(f"Epoch {epoch:02d}: Loss={train_loss:.4f}") 
+        print(f"Epoch {epoch:02d}: Loss={train_loss:.4f}")
+        torch.save(model_interpolation.state_dict(), "MLP_interpolation_checkpoint_model.pth")
+        
 
     print("\nTraining complete!")
-    torch.save(model_interpolation.state_dict(), filename="MLP_interpolation_model.pth")
+    torch.save(model_interpolation.state_dict(), "MLP_interpolation_model.pth")
 
 if __name__ == "__main__":
     main()
