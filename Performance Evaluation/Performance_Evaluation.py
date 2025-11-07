@@ -72,11 +72,10 @@ def compute_pressure_filtered(filters, unfiltered):
     filtered /= np.max(np.abs(filtered))
     return filtered
 
-def acoustic_contrast(rir, filt, reference, bright_idx, dark_idx):
-    p = compute_pressure_unfiltered(rir, reference)
-    p_C = compute_pressure_filtered(filt, p.numpy())
-    e_B = np.sum(p_C[bright_idx]**2)
-    e_D = np.sum(p_C[dark_idx]**2)
+
+def acoustic_contrast(filtered,  bright_idx, dark_idx):
+    e_B = np.sum(filtered[bright_idx]**2)
+    e_D = np.sum(filtered[dark_idx]**2)
     M_B = len(bright_idx)
     M_D = len(dark_idx)
     return (M_D / M_B) * (e_B / e_D) if e_D != 0 else 1e10
@@ -85,7 +84,7 @@ def acoustic_contrast(rir, filt, reference, bright_idx, dark_idx):
 # Performance evaluation
 # -------------------------
 
-def performance_evaluation_pt(pt_path, reference_wav_path, rir_tensor, bright_idx, dark_idx, save_path="average_performance.txt"):
+def performance_evaluation_pt(pt_path, reference_wav_path, rir_tensor, bright_idx, dark_idx, save_path="performance.txt"):
     # Load reference
     fs, wav = wavfile.read(reference_wav_path)
     if wav.ndim > 1:
@@ -93,9 +92,21 @@ def performance_evaluation_pt(pt_path, reference_wav_path, rir_tensor, bright_id
     reference = wav / np.max(np.abs(wav))
     reference_tensor = torch.from_numpy(reference.astype(np.float32)).unsqueeze(0)
 
-    # Load .pt data
+        # Load .pt data
     data = torch.load(pt_path)
-    filters_list = data['selected_filters']  # [n_trials, filter_len_total]
+
+    # Understøt både gamle og nye formater
+    if isinstance(data, dict) and 'selected_filters' in data:
+        filters_list = data['selected_filters']  # [n_trials, filter_len_total]
+        print(f"Indlæste {len(filters_list)} filtre fra gammel struktur ({pt_path})")
+    elif isinstance(data, dict):
+        # Ny struktur: dict med {filename: predicted_filter_tensor}
+        filters_list = list(data.values())
+        print(f"Indlæste {len(filters_list)} filtre fra regressionstruktur ({pt_path})")
+        first_key = list(data.keys())[0]
+        print(f"Eksempel: {first_key} -> shape {data[first_key].shape}")
+    else:
+        raise ValueError(f"Ukendt dataformat i {pt_path}")
     
     # Metrics
     PESQ_B_list, PESQ_D_list = [], []
@@ -110,8 +121,6 @@ def performance_evaluation_pt(pt_path, reference_wav_path, rir_tensor, bright_id
     for filt_flat in tqdm(filters_list, total=len(filters_list), desc="Evaluating"):
         # Reshape filter til [n_srcs=3, filter_len]
         filt_np = filt_flat.numpy().reshape(3, -1) if torch.is_tensor(filt_flat) else np.array(filt_flat).reshape(3, -1)
-
-        
 
         # Apply filters
         filtered = compute_pressure_filtered(filt_np, unfiltered)
@@ -135,7 +144,7 @@ def performance_evaluation_pt(pt_path, reference_wav_path, rir_tensor, bright_id
         PSNR_D_list.append(compute_PSNR(ref_np, dark_np))
         CC_B_list.append(compute_CC(ref_np, bright_np))
         CC_D_list.append(compute_CC(ref_np, dark_np))
-        AC_list.append(acoustic_contrast(rir_tensor, filt_np, reference_tensor, bright_idx, dark_idx))
+        AC_list.append(acoustic_contrast(filtered, bright_idx, dark_idx))
 
     # Gennemsnit
     avg_metrics = {
@@ -158,24 +167,23 @@ def performance_evaluation_pt(pt_path, reference_wav_path, rir_tensor, bright_id
     print(f"Gennemsnit gemt i '{save_path}'")
     return avg_metrics
 
+
 # -------------------------
 # Kør evaluering
 # -------------------------
 
 if __name__ == "__main__":
-    pt_file = "Saved Filters/random_selection_data.pt"
-    reference_wav = "Performance Evaluation/reference.wav"
     
-    # RIR skal være tensor med shape [n_mics, n_srcs, n_rir_samples]
-    # Fx load fra .npy fil: rir_tensor = torch.from_numpy(np.load("rir.npy")).float()
-    #rir_tensor = torch.load("Performance Evaluation/test_ir.pt",weights_only=False)  # erstat med din RIR
+    file_names = ("Saved Filters/regression_filters.pt", "Saved Filters/classification_filters.pt", "Saved Filters/random_selection_data.pt")
+    pt_file = file_names[0]  # vælg hvilken .pt fil der skal evalueres
+    reference_wav = "Performance Evaluation/reference.wav"
 
     n_mics = 13
     n_srcs = 3
     n_rir_samples = 1024  # fx
     rir_tensor = torch.randn(n_mics, n_srcs, n_rir_samples)
 
-    bright_idx = [0]               # 1 bright zone mikrofon
-    dark_idx = list(range(1, 13))  # 12 dark zone mikrofoner
+    bright_idx = [12]               # 1 bright zone mikrofon
+    dark_idx = list(range(12))  # 12 dark zone mikrofoner
 
     performance_evaluation_pt(pt_file, reference_wav, rir_tensor, bright_idx, dark_idx)
