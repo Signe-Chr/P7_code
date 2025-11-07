@@ -73,6 +73,22 @@ print(f"Dictionary size (y_train): {y_train.shape}")
 print(f"Query size (y_test): {y_test.shape}")
 
 # ---- 4. K-20 ANN Search and Refinement (MODIFIED) ----
+from Dataset_generator_script import room_indices as ri
+
+data_dir="Signes_data"
+full_data = os.listdir(data_dir)
+data_points = []
+train_points = []
+test_points = []
+for data in full_data:
+    data_points.append(data)
+    i = int(data.split("_")[1])
+    if (i not in ri[::4]):
+        train_points.append(data)
+    else:
+        test_points.append(data)
+        
+
 
 def ANN_Search_and_Refine(
     test_filters: torch.Tensor, dictionary: torch.Tensor, IR_train: torch.Tensor, IR_test: torch.Tensor, 
