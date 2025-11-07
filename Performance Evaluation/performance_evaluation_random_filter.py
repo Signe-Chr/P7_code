@@ -15,12 +15,11 @@ from pesq import pesq
 #Baseline filters
 #filters_baseline = torch.load("Saved Filters/baseline_filters.pt")
 #Random filter selection
-data_random_selection = torch.load("Saved Filters/random_selection_data.pt")
+data_random_selection = torch.load("Saved Filters/random_selection_filters.pt")
 random_filters = data_random_selection['selected_filters']
-Baseline_filters=torch.load("Saved Filters/baseline_filter_coeffs.pt")
+Baseline_filters=torch.load("Saved Filters/baseline_filters.pt")
 #Filters from classification MLP
 filters_classification=torch.load("Saved Filters/classification_filters.pt")
-
 #Filters from regression MLP
 filters_regression=torch.load("Saved Filters/regression_filters.pt")
 
