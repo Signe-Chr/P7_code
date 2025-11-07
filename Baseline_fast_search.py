@@ -207,7 +207,7 @@ if __name__ == "__main__":
     )
     #print(type(data[1]),type(chosen_indices[0]))
     filter_q = data_[1][chosen_indices]
-    torch.save(filter_q, "baseline_filter_coeffs.pt")
+    torch.save(filter_q, "Saved Filters/baseline_filters.pt")
 
     
     end_time = time.time()

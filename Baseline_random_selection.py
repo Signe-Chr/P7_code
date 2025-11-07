@@ -61,11 +61,11 @@ torch.save({
     'selected_filters': selected_filters,
     'random_indices': random_indices,
     'X_test': X_test
-}, "random_selection_data.pt")
+}, "Saved Filters/random_selection_filters.pt")
 
 """
 Load data with
-data = torch.load("random_selection_data.pt")
+data = torch.load("Saved Filters/random_selection_filters.pt")
 selected_filters = data['selected_filters']
 random_indices = data['random_indices']
 
