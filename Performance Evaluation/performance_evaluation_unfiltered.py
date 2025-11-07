@@ -165,45 +165,43 @@ import torch
 import numpy as np
 
 def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
-                             bright_zone_mics_index: list[int],
-                             dark_zone_mics_index: list[int]):
+                 bright_zone_mics_index: list[int],
+                 dark_zone_mics_index: list[int]):
     """
-    Computes normalized Signal-to-Distortion Ratio (nSDR) for bright and dark zones.
-
-    Parameters:
-        p_C: [n_mics, n_samples] tensor of simulated pressures
-        wav_input: [1, n_samples] reference signal (torch tensor)
-        bright_zone_mics_index: list of bright-zone mic indices
-        dark_zone_mics_index: list of dark-zone mic indices
-
-    Returns:
-        Dictionary with mean, min, max nSDR for bright and dark zones
+    Computes normalized Signal Distortion Power (NSDP) for bright and dark zones.
+    Bright zone compares against target signal.
+    Dark zone compares against zero (silence target).
     """
     ref = wav_input.squeeze().detach().cpu().numpy().astype(np.float32)
     
-    def compute_zone_nSDP(mic_indices):
-        nSDR_list = []
+    def compute_zone_nSDP(mic_indices, target_type="bright"):
+        NSDP_list = []
         for m in mic_indices:
             deg = p_C[m, :].detach().cpu().numpy().astype(np.float32)
-            # Truncate/pad to match reference length
             min_len = min(len(ref), len(deg))
-            s_target = ref[:min_len]
             s_est = deg[:min_len]
-
-            denominator = np.sum(s_target**2)
+            
+            if target_type == "bright":
+                s_target = ref[:min_len]
+            else:  # dark zone -> silence target
+                s_target = np.zeros_like(s_est)
+            
             numerator = np.sum((s_target - s_est)**2)
+            denominator = np.sum(s_target**2) if target_type == "bright" else np.sum(s_est**2)
+            
+            # For dark zone, compare distortion power to its own signal power
             if denominator == 0:
-                nSDR_val = 1e10
+                NSDP_val = 1e10
             else:
-                nSDR_val = 10 * np.log10(numerator / denominator)
-            nSDR_list.append(nSDR_val)
-        nSDR_list = np.array(nSDR_list)
-        return np.mean(nSDR_list)
+                NSDP_val = 10 * np.log10(numerator / denominator)
+            NSDP_list.append(NSDP_val)
+        return np.mean(NSDP_list)
     
-    mean_B = compute_zone_nSDP(bright_zone_mics_index)
-    mean_D = compute_zone_nSDP(dark_zone_mics_index)
+    mean_B = compute_zone_nSDP(bright_zone_mics_index, "bright")
+    mean_D = compute_zone_nSDP(dark_zone_mics_index, "dark")
     
-    return mean_B,mean_D
+    return mean_B, mean_D
+
 
 #---Compute STOI---
 

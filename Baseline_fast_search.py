@@ -57,20 +57,17 @@ x_input = x_input.to(device)
 
 # ---- 2. Train/Test Split and Scaling ----
 
-scaler_X = StandardScaler()
-X_train_indices, X_test_indices, _, _ = train_test_split(
-    np.arange(X.shape[0]), np.arange(X.shape[0]), test_size=0.2, random_state=42
-)
+#scaler_X = StandardScaler()
+#X_train_indices, X_test_indices, _, _ = train_test_split(
+#    np.arange(X.shape[0]), np.arange(X.shape[0]), test_size=0.2, random_state=42
+#)
 
-scaler_X.fit(X[X_train_indices]) 
+#scaler_X.fit(X[X_train_indices]) 
 
-y_train = y[X_train_indices].to(device)
-y_test = y[X_test_indices].to(device)
-IR_train = IR_array[X_train_indices].to(device)
-IR_test = IR_array[X_test_indices].to(device)
 
-print(f"Dictionary size (y_train): {y_train.shape}")
-print(f"Query size (y_test): {y_test.shape}")
+
+#print(f"Dictionary size (y_train): {y_train.shape}")
+#print(f"Query size (y_test): {y_test.shape}")
 
 # ---- 4. K-20 ANN Search and Refinement (MODIFIED) ----
 from Dataset_generator_script import room_indices as ri
@@ -78,15 +75,20 @@ from Dataset_generator_script import room_indices as ri
 data_dir="Signes_data"
 full_data = os.listdir(data_dir)
 data_points = []
-train_points = []
-test_points = []
-for data in full_data:
+train_index = []
+test_index = []
+for i, data in enumerate(full_data):
     data_points.append(data)
-    i = int(data.split("_")[1])
-    if (i not in ri[::4]):
-        train_points.append(data)
+    r = int(data.split("_")[1])
+    if (r not in ri[::4]):
+        train_index.append(i)
     else:
-        test_points.append(data)
+        test_index.append(i)
+
+y_train = y[train_index].to(device)
+y_test = y[test_index].to(device)
+IR_train = IR_array[train_index].to(device)
+IR_test = IR_array[test_index].to(device)
         
 
 
