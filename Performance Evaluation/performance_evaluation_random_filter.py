@@ -11,13 +11,18 @@ from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
 from scipy.io import wavfile
 from pesq import pesq
+from pystoi import stoi
+import torch
+import numpy as np
+
+
+#Random filter selection
+data_random_selection = torch.load("Saved Filters/random_selection_filters.pt")
+random_filters = data_random_selection['selected_filters']
 
 #Baseline filters
-#filters_baseline = torch.load("Saved Filters/baseline_filters.pt")
-#Random filter selection
-data_random_selection = torch.load("Saved Filters/random_selection_data.pt")
-random_filters = data_random_selection['selected_filters']
-Baseline_filters=torch.load("baseline_filter_coeffs.pt")
+filters_baseline = torch.load("Saved Filters/baseline_filters.pt")
+
 #Filters from classification MLP
 filters_classification=torch.load("Saved Filters/classification_filters.pt")
 
@@ -25,7 +30,7 @@ filters_classification=torch.load("Saved Filters/classification_filters.pt")
 filters_regression=torch.load("Saved Filters/regression_filters.pt")
 
 #Filters from interpolation MLP
-#filters_interpolation=torch.load("Saved Filters/interpolation_filters.pt")
+filters_interpolation=torch.load("Saved Filters/interpolation_filters.pt")
 
 #---Load data and split into test and traning data---
 data_dir="Signes_data"
@@ -185,9 +190,6 @@ def compute_pesq_unfiltered(
 
 
 #---Compute NSDP---
-import torch
-import numpy as np
-
 def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
                  bright_zone_mics_index: list[int],
                  dark_zone_mics_index: list[int]):
@@ -228,9 +230,6 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
 
 
 #---Compute STOI---
-
-from pystoi import stoi
-
 def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
                              bright_zone_mics_index: list[int],
                              dark_zone_mics_index: list[int],
@@ -253,7 +252,6 @@ def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
     mean_D = compute_zone_stoi(dark_zone_mics_index)
 
     return mean_B,mean_D
-
 
 def total_loss(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_idx):
     mse_loss = MSE(predicted_filter, true_filter)
@@ -382,7 +380,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
 
     return results
 # Assuming `selected_filters_test` comes from your random selection
-results = average_performance_metrics_with_filters(RIRs_test, Baseline_filters, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+results = average_performance_metrics_with_filters(RIRs_test, filters_interpolation, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
 print(f"AC (mean, min, max): {results['AC']}")
 print(f"PESQ Bright Zone (mean, min, max): {results['PESQ_B']}")
