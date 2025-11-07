@@ -25,7 +25,7 @@ def load_model(a):
         model.load_state_dict(torch.load("MLP_regression.pth", map_location=device))
     elif model_name == "classification":
         input_size = 9      # antal features
-        output_size = 2160  # antal klasser
+        output_size = 2160-540  # antal klasser
         model = cvm.Classification_softmax(input_size, output_size).to(device)
         model.load_state_dict(torch.load("softmax_classifier.pth", map_location=device))
     elif model_name == "interpolation":
