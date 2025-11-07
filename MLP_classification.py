@@ -43,10 +43,21 @@ def main():
     # Device setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Dataset and DataLoader
-    data = "Signes_data"
-    a = os.listdir(data)
-    dataset = dc.CustomDataset(data, a) 
+    from Dataset_generator_script import room_indices as ri
+    # Data loading and setup
+    data_dir = "Signes_data"
+    a = os.listdir(data_dir)
+
+
+    train_set = []
+    for data in a:
+        r = int(data.split("_")[1])
+        if (r not in ri[::4]):
+            train_set.append(data)
+
+
+    dataset = dc.CustomDataset(data_dir, train_set)
+    
 
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
 
@@ -64,7 +75,7 @@ def main():
         print(f"Epoch {epoch:02d} | Loss: {train_loss:.4f} | Acc: {train_acc:.2f}%")
 
     print("\n Training complete!")
-    torch.save(model.state_dict(), "softmax_classifier.pth")
+    torch.save(model.state_dict(), "MLP_classification.pth")
 
 
 if __name__ == "__main__":

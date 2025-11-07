@@ -22,7 +22,7 @@ def train_model(model, data_loader, optimizer, device, wav, YY):
     total = 0
 
     # FIX 1: Change to unpack a single item, then manually index X and y
-    loop = tqdm(data_loader, disable=not sys.stdout.isatty())
+    loop = tqdm(data_loader)#, disable=not sys.stdout.isatty())
     for data in loop:
         
         # We assume the single item 'data' is a list or tuple where the 
@@ -37,25 +37,28 @@ def train_model(model, data_loader, optimizer, device, wav, YY):
         D_idx = torch.tensor(data[3]).to(device)
         #print(B_idx, D_idx)
 
-        
-
         optimizer.zero_grad()
         
         coefficients = model(X)
 
-        coefficients = torch.softmax(coefficients, 1)
-
+        #print(coefficients)
+        #coefficients = torch.softmax(coefficients, 1)
+        print(coefficients)
         outputs = torch.matmul(YY.T.float() , coefficients.T.float()).T
 
         H = LF.compute_H_matrix(rir, fs=16000, n_fft=None)[0].to(device)
 
         #print(H.shape)
-        loss = LF.MSE(outputs, y) + LF.Cosine_similarity(outputs, y) + LF.MSEP(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, wav, B_idx, D_idx)[0] + LF.AC_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), H, B_idx, D_idx)
+        loss = 0.000001*(LF.MSE(outputs, y) + LF.Cosine_similarity(outputs, y) + LF.MSEP(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, wav, B_idx, D_idx)[0] + LF.AC_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), H, B_idx, D_idx))
+        #print(YY, coefficients)
+        #print(LF.MSE(outputs, y), LF.Cosine_similarity(outputs, y), LF.MSEP(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, wav, B_idx, D_idx)[0], LF.AC_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), H, B_idx, D_idx))
         loss.backward()
         optimizer.step()
+        
 
         total_loss += loss.item() * X.size(0) 
-        total += X.size(0) 
+        total += X.size(0)
+        loop.set_postfix(loss=f"{total_loss/(loop.n+1):.4f}")
 
     avg_loss = total_loss / total
     # For regression, we return 0.0 for accuracy
@@ -65,12 +68,25 @@ def train_model(model, data_loader, optimizer, device, wav, YY):
 
 def main():
 
+    from Dataset_generator_script import room_indices as ri
     # Data loading and setup
-    data = "Signes_data"
-    a = os.listdir(data)
-    dataset = dc.CustomDataset(data, a) 
+    data_dir = "Signes_data"
+    a = os.listdir(data_dir)
+
+
+    train_set = []
+    for data in a:
+        r = int(data.split("_")[1])
+        if (r not in ri[::4]):
+            train_set.append(data)
+
+
+    dataset = dc.CustomDataset(data_dir, train_set)
+    
 
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+    
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -101,11 +117,11 @@ def main():
         train_loss, train_acc = train_model(model_interpolation, data_loader, optimizer, device, wav, YY) 
         # Only print loss since accuracy is not applicable for MSELoss
         print(f"Epoch {epoch:02d}: Loss={train_loss:.4f}")
-        torch.save(model_interpolation.state_dict(), "MLP_interpolation_checkpoint_model.pth")
+        torch.save(model_interpolation.state_dict(), "MLP_interpolation_checkpoint.pth")
         
 
     print("\nTraining complete!")
-    torch.save(model_interpolation.state_dict(), "MLP_interpolation_model.pth")
+    torch.save(model_interpolation.state_dict(), "MLP_interpolation.pth")
 
 if __name__ == "__main__":
     main()
