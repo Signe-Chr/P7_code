@@ -26,7 +26,6 @@ filters_baseline = torch.load("Saved Filters/baseline_filters.pt")
 
 #Filters from classification MLP
 filters_classification=torch.load("Saved Filters/classification_filters.pt")
-
 #Filters from regression MLP
 filters_regression=torch.load("Saved Filters/regression_filters.pt")
 

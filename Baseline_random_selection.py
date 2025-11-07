@@ -20,9 +20,9 @@ for data in full_data:
         data_points.append(data)
         
 data_train=CustomDataset(data_dir,train_points)
-data_train_loader=DataLoader(data_train,batch_size=len(data_train), shuffle=True)
+data_train_loader=DataLoader(data_train,batch_size=len(data_train), shuffle=False)
 data_test=CustomDataset(data_dir,test_points)
-data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=True)
+data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=False)
 
 temp_var_train=[batch for batch in data_train_loader][0]
 temp_var_test=[batch for batch in data_test_loader][0]

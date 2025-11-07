@@ -69,7 +69,7 @@ def generate_filters(a, X_test=X_test, YY=YY):
         # Forward pass
         with torch.no_grad():
             output = model(configuration.unsqueeze(0).float())
-            if a == 2:
+            if a in [1, 2]:
                 output = torch.matmul(YY.T.float(), output.T.float()).T
 
         # Gem output i dict
