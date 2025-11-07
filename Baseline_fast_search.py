@@ -27,7 +27,7 @@ a = os.listdir(data_dir)
 dataset = dc.CustomDataset(data_dir, a) 
 
 data_loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
-data = [batch for batch in data_loader][0]
+data_ = [batch for batch in data_loader][0]
 
 bright_zone_mics_index = dataset[0][2]
 dark_zone_mics_index = dataset[0][3]
@@ -39,9 +39,9 @@ M_D = len(dark_zone_mics_index)
 n_srcs = dataset[0][4]
 
 
-X = data[0].float() #np.stack(X_list).astype(np.float32)
-y = data[1].float()
-IR_array = data[5].float() # [N_total, n_mics, n_srcs, n_samples]
+X = data_[0].float() #np.stack(X_list).astype(np.float32)
+y = data_[1].float()
+IR_array = data_[5].float() # [N_total, n_mics, n_srcs, n_samples]
 
 
 wav_path = "relaxing-guitar-loop-v5-245859.wav"
@@ -183,6 +183,8 @@ def ANN_Search_and_Refine(
     baseline_loss = total_combined_loss / (i + 1)
     return baseline_loss, best_indices
 
+
+
 # ---- 5. Execution ----
 
 if __name__ == "__main__":
@@ -203,6 +205,10 @@ if __name__ == "__main__":
         x_input=x_input, # Pass the input signal
         k_neighbors=20
     )
+    #print(type(data[1]),type(chosen_indices[0]))
+    filter_q = data_[1][chosen_indices]
+    torch.save(filter_q, "baseline_filter_coeffs.pt")
+
     
     end_time = time.time()
     

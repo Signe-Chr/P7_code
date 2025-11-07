@@ -43,7 +43,6 @@ def train_model(model, data_loader, optimizer, device, wav, YY):
 
         #print(coefficients)
         #coefficients = torch.softmax(coefficients, 1)
-        print(coefficients)
         outputs = torch.matmul(YY.T.float() , coefficients.T.float()).T
 
         H = LF.compute_H_matrix(rir, fs=16000, n_fft=None)[0].to(device)
