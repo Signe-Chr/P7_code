@@ -44,9 +44,14 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Dataset and DataLoader
-    data = "Signes_data"
-    a = os.listdir(data)
-    dataset = dc.CustomDataset(data, a) 
+    data_dir="Signes_data"
+    full_data = os.listdir(data_dir)
+    train_points = []
+    for data in full_data:
+        i = int(data.split("_")[1])
+        if i not in dgs.room_indices[::4]:
+            train_points.append(data)
+    dataset = dc.CustomDataset(data_dir, train_points) 
 
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
 
