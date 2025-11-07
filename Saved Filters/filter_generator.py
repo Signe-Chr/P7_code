@@ -27,7 +27,7 @@ def load_model(a):
         input_size = 9      # antal features
         output_size = 2160-540  # antal klasser
         model = cvm.Classification_softmax(input_size, output_size).to(device)
-        model.load_state_dict(torch.load("softmax_classifier.pth", map_location=device))
+        model.load_state_dict(torch.load("MLP_classification.pth", map_location=device))
     elif model_name == "interpolation":
         input_size = 9
         output_size = 3072
@@ -73,4 +73,4 @@ def generate_filters(a):
     torch.save(all_outputs, output_file)
     print(f"All outputs saved in '{output_file}'")
 
-generate_filters(1)  # vælg model her (0-4)
+generate_filters(0)  # vælg model her (0-4)
