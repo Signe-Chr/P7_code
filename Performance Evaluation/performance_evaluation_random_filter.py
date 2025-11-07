@@ -376,7 +376,6 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     #plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDP_B_list, NSDP_D_list, STOI_B_list, STOI_D_list, tot_loss_list)
 
     return results
-# Assuming `selected_filters_test` comes from your random selection
 
 
 results = average_performance_metrics_with_filters(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
