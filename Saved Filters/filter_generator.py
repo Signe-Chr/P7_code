@@ -4,6 +4,9 @@ sys.path.append(parent_dir)
 import torch
 import numpy as np
 import Cross_validation_models as cvm
+from Dataset_class import CustomDataset
+from torch.utils.data import DataLoader
+from Dataset_generator_script import room_indices as ri
 model_ = cvm.model_
 
 
@@ -30,47 +33,46 @@ def load_model(a):
         model.load_state_dict(torch.load("MLP_classification.pth", map_location=device))
     elif model_name == "interpolation":
         input_size = 9
-        output_size = 3072
-        model = cvm.FilterNet_(input_size, output_size).to(device)
-        model.load_state_dict(torch.load("MLP_interpolation_model.pth", map_location=device))
+        output_size = 1024
+        model = cvm.FilterNet_interpolation(input_size, output_size).to(device)
+        model.load_state_dict(torch.load("MLP_interpolation.pth", map_location=device))
     model.eval()
     return model, output_file
 
-def generate_filters(a):
+#---Load data and split into test and traning data---
+full_data = os.listdir(data_dir)
+data_points = []
+train_points = []
+test_points = []
+for data in full_data:
+    data_points.append(data)
+    i = int(data.split("_")[1])
+    if i not in ri[::4]:
+        train_points.append(data)
+    else:
+        test_points.append(data)
+    
+data_test=CustomDataset(data_dir,test_points)
+data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=True)
+temp_var_test=[batch for batch in data_test_loader][0]
+X_test=temp_var_test[0]
+
+def generate_filters(a, X_test=X_test):
     model, output_file = load_model(a) # Choose model here (0-2)
     all_outputs = {}
 
-    # Hent alle filer og sorter for deterministisk rækkefølge
-    npy_files = sorted([f for f in os.listdir(data_dir) if f.endswith(".npy")])
+    for configuration in X_test:
+        # Forward pass
+        with torch.no_grad():
+            output = model(configuration)
 
-    # Tag kun hver fjerde fil
-    selected_files = npy_files[::4]
-
-    for filename in selected_files:
-        if filename.endswith(".npy"):
-            file_path = os.path.join(data_dir, filename)
-            data_dict = np.load(file_path, allow_pickle=True).item()
-
-            # Byg input X
-            X_new = np.concatenate([
-                [data_dict.get('RT60', 0)],
-                [data_dict.get('Phone_tilt', 0)],
-                [data_dict.get('User_orientation', 0)],
-                np.array(data_dict.get('Spatial_position', [0,0,0])).ravel(),
-                np.array(data_dict.get('room_dim', [0,0,0]))
-            ])
-
-            X_tensor = torch.tensor(X_new, dtype=torch.float32).unsqueeze(0).to(device)  # batch=1
-
-            # Forward pass
-            with torch.no_grad():
-                output = model(X_tensor)
-
-            # Gem output i dict
-            all_outputs[filename] = output.cpu()
+        # Gem output i dict
+        all_outputs[configuration] = output.cpu()
 
     # Gem alle output i én .pt fil
     torch.save(all_outputs, output_file)
     print(f"All outputs saved in '{output_file}'")
 
-generate_filters(0)  # vælg model her (0-4)
+generate_filters(0)  # vælg model her (0-2)
+generate_filters(1)
+generate_filters(2)
