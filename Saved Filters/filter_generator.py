@@ -63,17 +63,17 @@ YY = temp_var_train[1]
 
 def generate_filters(a, X_test=X_test, YY=YY):
     model, output_file = load_model(a) # Choose model here (0-2)
-    all_outputs = {}
+    all_outputs = []
 
     for configuration in X_test:
         # Forward pass
         with torch.no_grad():
             output = model(configuration.unsqueeze(0).float())
             if a in [1, 2]:
-                output = torch.matmul(YY.T.float() , output.T.float()).T
+                output = torch.matmul(YY.T.float(), output.T.float()).T
 
         # Gem output i dict
-        all_outputs[configuration] = output.cpu()
+        all_outputs.append(output.cpu())
 
     # Gem alle output i én .pt fil
     torch.save(all_outputs, output_file)
