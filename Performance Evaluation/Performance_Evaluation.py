@@ -72,7 +72,6 @@ def compute_pressure_filtered(filters, unfiltered):
     filtered /= np.max(np.abs(filtered))
     return filtered
 
-
 def acoustic_contrast(filtered,  bright_idx, dark_idx):
     e_B = np.sum(filtered[bright_idx]**2)
     e_D = np.sum(filtered[dark_idx]**2)
