@@ -17,7 +17,7 @@ from pesq import pesq
 #Random filter selection
 data_random_selection = torch.load("Saved Filters/random_selection_data.pt")
 random_filters = data_random_selection['selected_filters']
-
+Baseline_filters=torch.load("baseline_filter_coeffs.pt")
 #Filters from classification MLP
 filters_classification=torch.load("Saved Filters/classification_filters.pt")
 
@@ -42,9 +42,9 @@ for data in full_data:
         test_points.append(data)
         
 data_train=CustomDataset(data_dir,train_points)
-data_train_loader=DataLoader(data_train,batch_size=len(data_train), shuffle=True)
+data_train_loader=DataLoader(data_train,batch_size=len(data_train), shuffle=False)
 data_test=CustomDataset(data_dir,test_points)
-data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=True)
+data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=False)
 
 temp_var_train=[batch for batch in data_train_loader][0]
 temp_var_test=[batch for batch in data_test_loader][0]
@@ -382,7 +382,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
 
     return results
 # Assuming `selected_filters_test` comes from your random selection
-results = average_performance_metrics_with_filters(RIRs_test, filters_test, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+results = average_performance_metrics_with_filters(RIRs_test, Baseline_filters, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
 print(f"AC (mean, min, max): {results['AC']}")
 print(f"PESQ Bright Zone (mean, min, max): {results['PESQ_B']}")
