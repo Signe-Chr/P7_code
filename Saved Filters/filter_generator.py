@@ -33,7 +33,7 @@ def load_model(a):
         model.load_state_dict(torch.load("MLP_classification.pth", map_location=device))
     elif model_name == "interpolation":
         input_size = 9
-        output_size = 1024
+        output_size = 2160-540
         model = cvm.FilterNet_interpolation(input_size, output_size).to(device)
         model.load_state_dict(torch.load("MLP_interpolation.pth", map_location=device))
     model.eval()
@@ -56,15 +56,21 @@ data_test=CustomDataset(data_dir,test_points)
 data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=True)
 temp_var_test=[batch for batch in data_test_loader][0]
 X_test=temp_var_test[0]
+data_train = CustomDataset(data_dir, train_points)
+data_train_loader = DataLoader(data_train, batch_size = len(data_train), shuffle=True)
+temp_var_train = [batch for batch in data_train_loader][0]
+YY = temp_var_train[1]
 
-def generate_filters(a, X_test=X_test):
+def generate_filters(a, X_test=X_test, YY=YY):
     model, output_file = load_model(a) # Choose model here (0-2)
     all_outputs = {}
 
     for configuration in X_test:
         # Forward pass
         with torch.no_grad():
-            output = model(configuration)
+            output = model(configuration.unsqueeze(0).float())
+            if a == 2:
+                output = torch.matmul(YY.T.float() , output.T.float()).T
 
         # Gem output i dict
         all_outputs[configuration] = output.cpu()
