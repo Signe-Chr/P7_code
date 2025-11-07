@@ -68,7 +68,8 @@ def main():
     model = cvm.Classification_softmax(input_size, output_size).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr = 1e-3)
-
+    if os.path.exists("MLP_classification.pth"):
+        model.load_state_dict(torch.load("MLP_classification.pth"))
     # Training loop
     for epoch in range(1, 41):
         train_loss, train_acc = train_epoch(model, data_loader, criterion, optimizer, device)
