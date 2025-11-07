@@ -379,7 +379,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
 
     return results
 # Assuming `selected_filters_test` comes from your random selection
-results = average_performance_metrics_with_filters(RIRs_test, filters_interpolation, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+results = average_performance_metrics_with_filters(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
 print(f"AC (mean, min, max): {results['AC']}")
 print(f"PESQ Bright Zone (mean, min, max): {results['PESQ_B']}")
