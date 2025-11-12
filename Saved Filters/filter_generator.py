@@ -8,6 +8,9 @@ from Dataset_class import CustomDataset
 from torch.utils.data import DataLoader
 from Dataset_generator_script import room_indices as ri
 model_ = cvm.model_
+import time
+from tqdm import tqdm
+
 
 
 
@@ -79,17 +82,6 @@ def generate_filters(a, X_test=X_test, YY=YY):
     torch.save(all_outputs, output_file)
     print(f"All outputs saved in '{output_file}'")
 
-import torch
-import time
-import os
-from tqdm import tqdm
-
-import torch
-import time
-import os
-import numpy as np
-from tqdm import tqdm
-
 def test_model_efficiency(model_loader, X_tests, YY=None, device='cpu'):
     """
     Evaluates computational efficiency of a model on:
@@ -150,7 +142,9 @@ def test_model_efficiency(model_loader, X_tests, YY=None, device='cpu'):
         "scaling_data": times
     }
 
-test_model_efficiency(lambda: load_model(0), [X_test[:size] for size in [10, 50, 100, 200]], device=device)
+for a in range(3):
+    print(f"\n=== Evaluating Model {a} ({model_names[a]}) ===")
+    test_model_efficiency(lambda: load_model(a), [X_test[:size] for size in [10, 50, 100, 200]], device=device)
 
 #generate_filters(0)  # vælg model her (0-2)
 #generate_filters(1)
