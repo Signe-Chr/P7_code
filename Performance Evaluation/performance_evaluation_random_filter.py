@@ -258,9 +258,14 @@ def total_loss(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_idx)
     MSPE_loss = msep_loss_B
     H, _ = compute_H_matrix(rir_test)
     AC_los = AC_loss(predicted_filter, true_filter, H, B_idx, D_idx)
-    return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_los)
+    return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_los), [mse_loss, cosine_loss, MSPE_loss, AC_los]
 
-
+from performance_evaluation_unfiltered import compute_pressure_with_input as cpwi
+def attenuation(rir, raw_wav, filtered):
+    raw_signal = cpwi(rir, raw_wav)
+    e_raw = torch.sum(raw_signal**2)
+    e_filt = torch.sum(filtered**2)
+    return 10 * np.log10(e_raw/e_filt)
 
 def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDP_B, NSDP_D, STOI_B, STOI_D, total_loss):
     """
@@ -318,9 +323,11 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     NSDP_B_list, NSDP_D_list = [], []
     STOI_B_list, STOI_D_list = [], []
     tot_loss_list = []
+    attenuation_list = []
+    individual_losses = []
 
-    for i in tqdm(range(RIR_test.shape[0])):
-        print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
+    for i in tqdm(range(RIR_test.shape[0]), disable=not sys.stdout.isatty()):
+        #print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
         rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
         n_srcs = 3
         filter_len = 1024
@@ -338,7 +345,8 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         mean_pesq_B, mean_pesq_D = compute_pesq_unfiltered(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
         mean_NSDP_B, mean_NSDP_D = compute_nSDP(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
         mean_STOI_B, mean_STOI_D = compute_STOI(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
-        total_loss_i = total_loss(true_filters, filters, rirs, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
+        total_loss_i, indiv_losses = total_loss(true_filters, filters, rirs, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
+        atten = attenuation(rirs, wav_input, p_C[dark_zone_mics_index_test])
 
         # Append results
         AC_list.append(AC_i)
@@ -349,6 +357,8 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         STOI_B_list.append(mean_STOI_B)
         STOI_D_list.append(mean_STOI_D)
         tot_loss_list.append(total_loss_i)
+        individual_losses.append(indiv_losses)
+        attenuation_list.append(atten)
 
     # Convert to numpy arrays
     AC_list = np.array(AC_list)
@@ -359,6 +369,8 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     STOI_B_list = np.array(STOI_B_list)
     STOI_D_list = np.array(STOI_D_list)
     tot_loss_list = np.array(tot_loss_list)
+    individual_losses_arr = np.array(individual_losses)
+    attenuation_arr = np.array(attenuation_list)
 
     # Compute statistics
     results = {
@@ -369,14 +381,15 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         "NSDP_D": (np.mean(NSDP_D_list), np.min(NSDP_D_list), np.max(NSDP_D_list)),
         "STOI_B": (np.mean(STOI_B_list), np.min(STOI_B_list), np.max(STOI_B_list)),
         "STOI_D": (np.mean(STOI_D_list), np.min(STOI_D_list), np.max(STOI_D_list)),
-        "Total Loss":(np.mean(tot_loss_list), np.min(tot_loss_list),   np.max(tot_loss_list))
+        "Total Loss":(np.mean(tot_loss_list), np.min(tot_loss_list),   np.max(tot_loss_list)),
+        "Individual Losses" : (individual_losses_arr.mean(axis=0), individual_losses_arr.min(axis=0), individual_losses_arr.max(axis=0)),
+        "Attenuation": (np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr))
     }
 
     # Optional: plot metrics
     #plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDP_B_list, NSDP_D_list, STOI_B_list, STOI_D_list, tot_loss_list)
 
     return results
-# Assuming `selected_filters_test` comes from your random selection
 
 
 results = average_performance_metrics_with_filters(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
@@ -389,3 +402,5 @@ print(f"NSDP Dark Zone (mean, min, max): {results['NSDP_D']}")
 print(f"STOI Bright Zone (mean, min, max): {results['STOI_B']}")
 print(f"STOI Dark Zone (mean, min, max): {results['STOI_D']}")
 print(f"Total loss Bright Zone (mean, min, max):{results['Total Loss']}")
+print(f"Attenuation Dark Zone (mean, min, max):{results['Attenuation']}")
+print(f"Individual Losses (MSE, Cosine, MSEP, AC) (mean, min, max):{results['Individual Losses']}")

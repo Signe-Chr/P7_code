@@ -8,6 +8,9 @@ from Dataset_class import CustomDataset
 from torch.utils.data import DataLoader
 from Dataset_generator_script import room_indices as ri
 model_ = cvm.model_
+import time
+from tqdm import tqdm
+
 
 
 
@@ -80,6 +83,70 @@ def generate_filters(a, X_test=X_test, YY=YY):
     torch.save(all_outputs, output_file)
     print(f"All outputs saved in '{output_file}'")
 
-generate_filters(0)  # vælg model her (0-2)
-generate_filters(1)
-generate_filters(2)
+def test_model_efficiency(model_loader, X_tests, YY=None, device='cpu'):
+    """
+    Evaluates computational efficiency of a model on:
+    - Inference time (avg per sample)
+    - Model size (parameters + file size)
+    - Algorithmic order (time scaling with input size)
+    """
+    # --- Load model ---
+    model, output_file = model_loader()
+    model.to(device)
+    model.eval()
+
+    # --- Model size (parameters + file size) ---
+    n_params = sum(p.numel() for p in model.parameters())
+    torch.save(model.state_dict(), "tmp_model.pt")
+    file_size_mb = os.path.getsize("tmp_model.pt") / (1024**2)
+    os.remove("tmp_model.pt")
+
+    # --- Runtime and scaling test ---
+    times = []
+    print(f"\nTesting computational efficiency for {len(X_tests)} input sizes...\n")
+
+    for X_test in X_tests:
+        start = time.perf_counter()
+        with torch.no_grad():
+            for x in tqdm(X_test, desc=f"Size {tuple(X_test.shape)}"):
+                x = x.to(device).unsqueeze(0).float()
+                output = model(x)
+                if YY is not None:
+                    output = torch.matmul(YY.T.float().to(device), output.T.float()).T
+        if device == 'cuda':
+            torch.cuda.synchronize()  # ensure GPU timing is accurate
+        end = time.perf_counter()
+
+        elapsed = end - start
+        avg_time = elapsed / len(X_test)
+        times.append((len(X_test), avg_time))
+
+    # --- Estimate algorithmic order (log-log fit) ---
+    n_vals = np.array([n for n, _ in times], dtype=float)
+    t_vals = np.array([t for _, t in times], dtype=float)
+    coeffs = np.polyfit(np.log(n_vals), np.log(t_vals), deg=1)
+    k = coeffs[0]  # slope corresponds to order
+
+    # --- Print summary ---
+    print("\n--- Model Efficiency Summary ---")
+    print(f"Total parameters: {n_params:,}")
+    print(f"Model size: {file_size_mb:.3f} MB")
+    print(f"Estimated algorithmic order: O(n^{k:.2f})")
+
+    for n, t in times:
+        print(f"Input size {n:>5}:  avg inference time = {t*1000:.3f} ms/sample")
+
+    return {
+        "n_params": n_params,
+        "model_size_MB": file_size_mb,
+        "algorithmic_order": k,
+        "scaling_data": times
+    }
+
+for a in range(3):
+    print(f"\n=== Evaluating Model {a} ({model_names[a]}) ===")
+    test_model_efficiency(lambda: load_model(a), [X_test[:size] for size in [10, 50, 100, 200]], device=device)
+
+#generate_filters(0)  # vælg model her (0-2)
+#generate_filters(1)
+#generate_filters(2)
