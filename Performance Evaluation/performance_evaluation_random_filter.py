@@ -1,24 +1,25 @@
 import os, sys
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
-import torch
-import torchaudio
 import numpy as np
-import torch.nn.functional as F
-from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
-from Dataset_generator_script import room_indices as ri
-from Dataset_class import CustomDataset, L, J
+import torch, torchaudio
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from scipy.io import wavfile
 from pesq import pesq
 from pystoi import stoi
-import torch
-import numpy as np
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
+from Dataset_generator_script import room_indices as ri
+from Dataset_class import CustomDataset, L, J
+
+
 
 
 #Random filter selection
 data_random_selection = torch.load("Saved Filters/random_selection_filters.pt")
-random_filters = data_random_selection['selected_filters']
+filters_random = data_random_selection['selected_filters']
 
 #Baseline filters
 filters_baseline = torch.load("Saved Filters/baseline_filters.pt")
@@ -139,7 +140,6 @@ def acoustic_contrast(p_C,bright_zone_mics_index,dark_zone_mics_index):
     AC=(M_D / M_B) * (e_B / e_D) if e_D.item() != 0 else torch.tensor(1e10)
     return 10*torch.log10(AC)
 
-
 #---Compute PESQ---
 def compute_pesq_unfiltered(
     p_C,
@@ -187,7 +187,6 @@ def compute_pesq_unfiltered(
 
     return mean_pesq_B,mean_pesq_D
 
-
 #---Compute NSDP---
 def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
                  bright_zone_mics_index: list[int],
@@ -227,7 +226,6 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
     
     return mean_B, mean_D
 
-
 #---Compute STOI---
 def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
                              bright_zone_mics_index: list[int],
@@ -252,6 +250,7 @@ def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
 
     return mean_B,mean_D
 
+#---Compute total loss---
 def total_loss(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_idx):
     mse_loss = MSE(predicted_filter, true_filter)
     cosine_loss = Cosine_similarity(predicted_filter.reshape(1, L*J), true_filter.reshape(1, L*J))
@@ -261,8 +260,7 @@ def total_loss(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_idx)
     AC_los = AC_loss(predicted_filter, true_filter, H, B_idx, D_idx)
     return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_los)
 
-import matplotlib.pyplot as plt
-import numpy as np
+
 
 def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDP_B, NSDP_D, STOI_B, STOI_D, total_loss):
     """
@@ -321,7 +319,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     STOI_B_list, STOI_D_list = [], []
     tot_loss_list = []
 
-    for i in range(RIR_test.shape[0]):
+    for i in tqdm(range(RIR_test.shape[0])):
         print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
         rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
         n_srcs = 3
