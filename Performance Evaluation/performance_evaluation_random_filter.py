@@ -385,22 +385,120 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         "Individual Losses" : (individual_losses_arr.mean(axis=0), individual_losses_arr.min(axis=0), individual_losses_arr.max(axis=0)),
         "Attenuation": (np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr))
     }
+    print(f"AC (mean, min, max): {results['AC']}")
+    print(f"PESQ Bright Zone (mean, min, max): {results['PESQ_B']}")
+    print(f"PESQ Dark Zone (mean, min, max): {results['PESQ_D']}")
+    print(f"NSDP Bright Zone (mean, min, max): {results['NSDP_B']}")
+    print(f"NSDP Dark Zone (mean, min, max): {results['NSDP_D']}")
+    print(f"STOI Bright Zone (mean, min, max): {results['STOI_B']}")
+    print(f"STOI Dark Zone (mean, min, max): {results['STOI_D']}")
+    print(f"Total loss Bright Zone (mean, min, max):{results['Total Loss']}")
+    print(f"Attenuation Dark Zone (mean, min, max):{results['Attenuation']}")
+    print(f"Individual Losses (MSE, Cosine, MSEP, AC) (mean, min, max):{results['Individual Losses']}")
+    # Optional: plot metrics
+    #plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDP_B_list, NSDP_D_list, STOI_B_list, STOI_D_list, tot_loss_list)
 
+    return results
+
+def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDP_B, NSDP_D, STOI_B, STOI_D, total_loss):
+    """
+    Creates boxplots for AC, PESQ, NSDP, and STOI for bright and dark zones.
+    
+    Parameters:
+        AC: np.array of acoustic contrast values
+        PESQ_B, PESQ_D: np.array of PESQ scores
+        NSDP_B, NSDP_D: np.array of NSDP scores
+        STOI_B, STOI_D: np.array of STOI scores
+    """
+
+    metrics = {
+        "AC (dB)": [AC],
+        "PESQ": [PESQ_B, PESQ_D],
+        "nSDP (dB)": [NSDP_B, NSDP_D],
+        "STOI": [STOI_B, STOI_D],
+        "Total Loss": [total_loss]
+    }
+    
+    zone_labels = {
+        "AC (dB)": ["All zones"],
+        "PESQ": ["Bright", "Dark"],
+        "nSDP (dB)": ["Bright", "Dark"],
+        "STOI": ["Bright", "Dark"],
+        "Total Loss": ["All zones"]
+    }
+    
+    plt.figure(figsize=(12, 10))
+    
+    for i, (metric_name, data) in enumerate(metrics.items(), 1):
+        plt.subplot(3, 2, i)
+        plt.boxplot(data, labels=zone_labels[metric_name],whis=[0,100])
+        plt.title(metric_name)
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    plt.tight_layout()
+    plt.show()
+
+def loss_functions(RIR_test, selected_filters, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test,true_filter):
+    """
+    Computes AC, PESQ, NSDP, and STOI for the entire test set using selected filters.
+    
+    Parameters:
+        RIR_test: [n_samples, n_mics, n_srcs, n_rir_samples] torch.Tensor
+        selected_filters: [n_samples, n_srcs, filter_len] torch.Tensor
+        wav_input: [1, n_input_samples] torch.Tensor
+        bright_zone_mics_index_test: list of bright-zone mic indices
+        dark_zone_mics_index_test: list of dark-zone mic indices
+    
+    Returns:
+        Average, min, max of each metric for bright and dark zones
+    """
+    tot_loss_list = []
+    attenuation_list = []
+    individual_losses = []
+
+    for i in tqdm(range(RIR_test.shape[0]), disable=not sys.stdout.isatty()):
+        #print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
+        rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
+        n_srcs = 3
+        filter_len = 1024
+        filters_flat = selected_filters[i].float()  # [3072]
+        filters = filters_flat.reshape(n_srcs, filter_len)  # [3, 1024]
+        true_filters_flat=true_filter[i].float()
+        true_filters=true_filters_flat.reshape(n_srcs,filter_len)
+
+
+        # Compute pressures with filters
+        p_C = compute_pressure_with_input(rirs, filters, wav_input)
+
+        # Compute metrics    
+        total_loss_i, indiv_losses = total_loss(true_filters, filters, rirs, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
+        atten = attenuation(rirs, wav_input, p_C[dark_zone_mics_index_test])
+
+        # Append results
+        tot_loss_list.append(total_loss_i)
+        individual_losses.append(indiv_losses)
+        attenuation_list.append(atten)
+
+    # Convert to numpy arrays
+    tot_loss_list = np.array(tot_loss_list)
+    individual_losses_arr = np.array(individual_losses)
+    attenuation_arr = np.array(attenuation_list)
+
+    # Compute statistics
+    results = {
+        "Total Loss":(np.mean(tot_loss_list), np.min(tot_loss_list),   np.max(tot_loss_list)),
+        "Individual Losses" : (individual_losses_arr.mean(axis=0), individual_losses_arr.min(axis=0), individual_losses_arr.max(axis=0)),
+        "Attenuation": (np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr))
+    }
+
+    print(f"Total loss Bright Zone (mean, min, max):{results['Total Loss']}")
+    print(f"Attenuation Dark Zone (mean, min, max):{results['Attenuation']}")
+    print(f"Individual Losses (MSE, Cosine, MSEP, AC) (mean, min, max):{results['Individual Losses']}")
     # Optional: plot metrics
     #plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDP_B_list, NSDP_D_list, STOI_B_list, STOI_D_list, tot_loss_list)
 
     return results
 
 
-results = average_performance_metrics_with_filters(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
-
-print(f"AC (mean, min, max): {results['AC']}")
-print(f"PESQ Bright Zone (mean, min, max): {results['PESQ_B']}")
-print(f"PESQ Dark Zone (mean, min, max): {results['PESQ_D']}")
-print(f"NSDP Bright Zone (mean, min, max): {results['NSDP_B']}")
-print(f"NSDP Dark Zone (mean, min, max): {results['NSDP_D']}")
-print(f"STOI Bright Zone (mean, min, max): {results['STOI_B']}")
-print(f"STOI Dark Zone (mean, min, max): {results['STOI_D']}")
-print(f"Total loss Bright Zone (mean, min, max):{results['Total Loss']}")
-print(f"Attenuation Dark Zone (mean, min, max):{results['Attenuation']}")
-print(f"Individual Losses (MSE, Cosine, MSEP, AC) (mean, min, max):{results['Individual Losses']}")
+#results = average_performance_metrics_with_filters(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+loss_functions(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
