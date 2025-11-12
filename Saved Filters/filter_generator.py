@@ -51,6 +51,7 @@ for data in full_data:
         train_points.append(data)
     else:
         test_points.append(data)
+
     
 data_test=CustomDataset(data_dir,test_points)
 data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=True)
