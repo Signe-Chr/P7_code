@@ -209,10 +209,10 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
                 s_target = ref[:min_len]
             else:  # dark zone -> silence target
                 s_target = np.zeros_like(s_est)
-            
+
             numerator = np.sum((s_target - s_est)**2)
             denominator = np.sum(s_target**2) if target_type == "bright" else np.sum(s_est**2)
-            
+
             # For dark zone, compare distortion power to its own signal power
             if denominator == 0:
                 NSDP_val = 1e10
@@ -224,7 +224,7 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
     mean_B = compute_zone_nSDP(bright_zone_mics_index, "bright")
     mean_D = compute_zone_nSDP(dark_zone_mics_index, "dark")
     
-    return mean_B, mean_D
+    return mean_B,mean_D
 
 #---Compute STOI---
 def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
