@@ -501,4 +501,5 @@ def loss_functions(RIR_test, selected_filters, wav_input, bright_zone_mics_index
 
 
 #results = average_performance_metrics_with_filters(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
-loss_functions(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+loss_functions(RIRs_test, filters_regression, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+
