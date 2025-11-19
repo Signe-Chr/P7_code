@@ -9,6 +9,8 @@ from sklearn.neighbors import KDTree
 from scipy.io import wavfile
 from torch.utils.data import DataLoader
 
+from tqdm import tqdm
+
 
 # --- CONFIGURATION ---
 L = 3       # Loudspeaker (Sources)
@@ -244,7 +246,7 @@ if __name__ == "__main__":
     # Dummy check for fcentres
     fcentres = torch.tensor([1000, 2000], device=device) # Example
     bright_zone_mics_index, dark_zone_mics_index, x_input, y_train, y_test, IR_train, IR_test, data_ = load_data()
-    max_filters = 10  
+    max_filters = 540
     
     
     Extensive_search(
