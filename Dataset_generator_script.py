@@ -108,28 +108,28 @@ def main(orientation_source_final, mic_positions_list, bright_zone_mics_index, d
     )
     pass
 
+J = 1024
+V = int(J*3/2)
+mu = 1
+reg_eps=1*10**(-6)
+fs_target=16000
+absorption=0.2
+max_order=10
+reg_eps=1e-6
+target_amplitude = 0.080792
+dark_mic_radius = 0.5
+widths = range(2, 11)
+depths = range(2, 11)
+heights = range(4, 13)
+rooms = [[width, depth, height/2] for width in widths for depth in depths for height in heights]+[[100, 100, 100]]  # if width<=depth (This code snippet can be added in the list loop if rooms like 2x10xz and 10x2xz are deemed equal)
+target_rooms = [
+    [2, 2, 2], [2, 4, 3], [ 2, 6, 4], [ 2,  8, 3], [ 2, 10, 3],
+    [4, 2, 3], [4, 4, 2], [ 4, 8, 4], [ 4, 10, 4], [ 6,  2, 2],
+    [6, 4, 3], [6, 6, 3], [ 6, 8, 4], [ 6, 10, 4], [ 8,  2, 3],
+    [8, 6, 3], [8, 8, 4], [10, 2, 3], [10,  6, 5], [10, 10, 4]
+]
+room_indices = [i for i in range(len(rooms)) if rooms[i] in target_rooms]
 if __name__ == "__main__":
-    J = 1024
-    V = int(J*3/2)
-    mu = 1
-    reg_eps=1*10**(-6)
-    fs_target=16000
-    absorption=0.2
-    max_order=10
-    reg_eps=1e-6
-    target_amplitude = 0.080792
-    dark_mic_radius = 0.5
-    widths = range(2, 11)
-    depths = range(2, 11)
-    heights = range(4, 13)
-    rooms = [[width, depth, height/2] for width in widths for depth in depths for height in heights]+[[100, 100, 100]]  # if width<=depth (This code snippet can be added in the list loop if rooms like 2x10xz and 10x2xz are deemed equal)
-    target_rooms = [
-        [2, 2, 2], [2, 4, 3], [ 2, 6, 4], [ 2,  8, 3], [ 2, 10, 3],
-        [4, 2, 3], [4, 4, 2], [ 4, 8, 4], [ 4, 10, 4], [ 6,  2, 2],
-        [6, 4, 3], [6, 6, 3], [ 6, 8, 4], [ 6, 10, 4], [ 8,  2, 3],
-        [8, 6, 3], [8, 8, 4], [10, 2, 3], [10,  6, 5], [10, 10, 4]
-    ]
-    room_indices = [i for i in range(len(rooms)) if rooms[i] in target_rooms]
     z_height=1.7
     #RT60s = [0.5*i for i in range(5, 10)]
     RT60s = np.linspace(0.6, 0.8, 3)
