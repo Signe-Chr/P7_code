@@ -1,17 +1,16 @@
-import torch
+import torch, time, os
 import torch.nn.functional as F
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import KDTree 
-import time
-import Dataset_generator_script as dgs
-from scipy.io import wavfile
 import Loss_functions as LF
-import torch.nn as nn
+#import torch.nn as nn
 import Dataset_class as dc
-import os
+#import Dataset_generator_script as dgs
+from sklearn.model_selection import train_test_split
+#from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KDTree 
+from scipy.io import wavfile
 from torch.utils.data import DataLoader
+from Dataset_generator_script import room_indices as ri
 
 # --- CONFIGURATION ---
 L = 3       # Loudspeaker (Sources)
@@ -19,83 +18,136 @@ J = 1024    # Filter order
 # fs_target (used in loss functions) is assumed to be available in dgs
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
+data_dir = "Signes_data"
 
 # ---- 1. Load and Prepare Data ----
+def load_data(data_dir=data_dir):
+    full_data = os.listdir(data_dir)
+    dataset = dc.CustomDataset(data_dir, full_data) 
+    data_loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
+    data_full = next(iter(data_loader))
 
-data_dir = "Signes_data"
-a = os.listdir(data_dir)
-dataset = dc.CustomDataset(data_dir, a) 
+    bright_zone_mics_index = dataset[0][2]
+    dark_zone_mics_index = dataset[0][3]
 
-data_loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
-data_ = [batch for batch in data_loader][0]
+    y = data_full[1].float()
+    IR_array = data_full[5].float() # [N_total, n_mics, n_srcs, n_samples]
 
-bright_zone_mics_index = dataset[0][2]
-dark_zone_mics_index = dataset[0][3]
+    wav_path = "relaxing-guitar-loop-v5-245859.wav"
+    fs_wav, wav = wavfile.read(wav_path)
+    if wav.ndim > 1:
+        wav = np.mean(wav, axis=1)
+    wav = wav[5*fs_wav : 7*fs_wav]
+    wav = wav / np.max(np.abs(wav))
+    x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0).to(device)
 
-
-
-M_B = len(bright_zone_mics_index)
-M_D = len(dark_zone_mics_index)
-n_srcs = dataset[0][4]
-
-
-X = data_[0].float() #np.stack(X_list).astype(np.float32)
-y = data_[1].float()
-IR_array = data_[5].float() # [N_total, n_mics, n_srcs, n_samples]
-
-
-wav_path = "relaxing-guitar-loop-v5-245859.wav"
-fs_wav, wav = wavfile.read(wav_path)
-if wav.ndim > 1:
-    wav = np.mean(wav, axis=1)
-wav = wav[5*fs_wav : 7*fs_wav]
-wav = wav / np.max(np.abs(wav))
-x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
-x_input = x_input.to(device)
+    train_index = []
+    test_index = []
+    for i, fname in enumerate(full_data):
+        r = int(fname.split("_")[1])
+        if r not in ri[::4]:
+            train_index.append(i)
+        else:
+            test_index.append(i)
 
 
+    y_train = y[train_index].to(device)
+    y_test = y[test_index].to(device)
+    IR_train = IR_array[train_index].to(device)
+    IR_test = IR_array[test_index].to(device)
+    return bright_zone_mics_index, dark_zone_mics_index, x_input, y_train, y_test, IR_train, IR_test, data_full
 
-# ---- 2. Train/Test Split and Scaling ----
+# ---- 2. Baseline: Extensive Brute-Force Search ----
+def Extensive_search(
+    test_filters: torch.Tensor,
+    dictionary: torch.Tensor,
+    IR_train: torch.Tensor,
+    x_input: torch.Tensor,
+    bright_zone_mics_index,
+    dark_zone_mics_index,
+    max_filters: int = None
+):
+    """
+    Brute-force search over dictionary filters.
+    - max_filters: hvor mange dictionary-filtre der skal testes mod (fra starten)
+    """
+    N_test = len(test_filters)
+    chosen_indices = []
+    times_per_test = []
+    per_filter_times = []
 
-#scaler_X = StandardScaler()
-#X_train_indices, X_test_indices, _, _ = train_test_split(
-#    np.arange(X.shape[0]), np.arange(X.shape[0]), test_size=0.2, random_state=42
-#)
+    # Loss weights
+    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 0.25, 0.25, 0.25, 0.25
 
-#scaler_X.fit(X[X_train_indices]) 
+    # Reducer dictionary hvis max_filters er angivet
+    if max_filters is not None:
+        dictionary = dictionary[:max_filters]
+        IR_train = IR_train[:max_filters]
 
+    for i in range(N_test):
 
+        start_test = time.time()
 
-#print(f"Dictionary size (y_train): {y_train.shape}")
-#print(f"Query size (y_test): {y_test.shape}")
+        tf = test_filters[i].reshape(1, -1)
+        tf2D = tf.reshape(L, J)
 
-# ---- 4. K-20 ANN Search and Refinement (MODIFIED) ----
-from Dataset_generator_script import room_indices as ri
+        min_loss = float("inf")
+        best_idx = -1
 
-data_dir="Signes_data"
-full_data = os.listdir(data_dir)
-data_points = []
-train_index = []
-test_index = []
-for i, data in enumerate(full_data):
-    data_points.append(data)
-    r = int(data.split("_")[1])
-    if (r not in ri[::4]):
-        train_index.append(i)
-    else:
-        test_index.append(i)
+        filter_times = []
 
-y_train = y[train_index].to(device)
-y_test = y[test_index].to(device)
-IR_train = IR_array[train_index].to(device)
-IR_test = IR_array[test_index].to(device)
-        
+        # --- Loop over dictionary filters ---
+        for j in range(len(dictionary)):
+            start_filter = time.time()
 
+            df = dictionary[j].reshape(1, -1)
+            df2D = df.reshape(L, J)
+            rir_j = IR_train[j]
 
+            # Compute losses
+            mse_loss = LF.MSE(tf, df)
+            cosine_loss = LF.Cosine_similarity(tf, df)
+            H = LF.compute_H_matrix(rir_j)[0].to(device)
+            ac_loss = LF.AC_loss(tf2D, df2D, H, bright_zone_mics_index, dark_zone_mics_index)
+            msep_loss = LF.MSEP(tf2D, df2D, rir_j, x_input, bright_zone_mics_index, dark_zone_mics_index)[0]
+
+            combined = (
+                lamda_mse * mse_loss
+                + lambda_cosine * cosine_loss
+                + lambda_ac * ac_loss
+                + lambda_msep * msep_loss
+            )
+
+            filter_times.append(time.time() - start_filter)
+
+            if combined.item() < min_loss:
+                min_loss = combined.item()
+                best_idx = j
+
+        # Statistikker
+        chosen_indices.append(best_idx)
+        times_per_test.append(time.time() - start_test)
+        per_filter_times.append(np.mean(filter_times))
+
+        print(
+            f"Test {i+1}/{N_test}: "
+            f"best filter = {best_idx}, "
+            f"loss = {min_loss:.6f}, "
+            f"time per filter = {per_filter_times[-1]:.6f}s"
+        )
+
+    avg_time_per_filter = np.mean(per_filter_times)
+    avg_time_per_test = np.mean(times_per_test)
+
+    return chosen_indices, avg_time_per_filter, avg_time_per_test
+
+# ---- 3. K-20 ANN Search and Refinement (MODIFIED) ---
 def ANN_Search_and_Refine(
     test_filters: torch.Tensor, dictionary: torch.Tensor, IR_train: torch.Tensor, IR_test: torch.Tensor, 
-    fcentres: torch.Tensor, M_B: int, M_D: int, x_input: torch.Tensor, k_neighbors: int = 20
-):
+    x_input: torch.Tensor, k_neighbors: int = 20
+):  
+    print("\nStarting K-20 ANN Search and Refinement with FULL COMPOSITE LOSS...")
+    start_time = time.time()
     N_test = len(test_filters)
     
     # 1. Build the K-D Tree Index on the dictionary filters (y_train)
@@ -136,7 +188,6 @@ def ANN_Search_and_Refine(
             rir_train_j = k_IR_train[j] # [n_mics, L, n_samples]
             
             # --- 4-COMPONENT COMPOSITE LOSS CALCULATION ---
-            
             # 1. MSE Loss (Filter Coefficients)
             t_start = time.time() if i == 0 else 0
             mse_loss = LF.MSE(test_filter_i_flat, candidate_filter_j_flat)
@@ -181,40 +232,30 @@ def ANN_Search_and_Refine(
             
     # Since we break after the first iteration, N_test is effectively 1 for the results below.
     baseline_loss = total_combined_loss / (i + 1)
+    filter_q = data_[1][chosen_indices]
+    end_time = time.time()
+    torch.save(filter_q, "Saved Filters/baseline_filters.pt")
+    print(f"\n--- ANN Baseline Results (K=20, Composite Loss) ---")
+    print(f"Total Test Samples Processed: {len(chosen_indices)}")
+    print(f"Average Combined Loss (across all samples): {avg_baseline_loss:.6f}")
+    print(f"Total Search Time: {end_time - start_time:.4f} seconds")
+    print(f"\nIndices of All Chosen Filters (from y_train):")
+    print(chosen_indices)
     return baseline_loss, best_indices
 
-
-
-# ---- 5. Execution ----
-
+# ---- 4. Execution ----
 if __name__ == "__main__":
     # Dummy check for fcentres
     fcentres = torch.tensor([1000, 2000], device=device) # Example
+    bright_zone_mics_index, dark_zone_mics_index, x_input, full_data, y_train, y_test, IR_train, IR_test, data_points, data_ = load_data()
 
-    print("\nStarting K-20 ANN Search and Refinement with FULL COMPOSITE LOSS...")
-    start_time = time.time()
-    
     avg_baseline_loss, chosen_indices = ANN_Search_and_Refine(
         test_filters=y_test, 
         dictionary=y_train, 
         IR_train=IR_train, 
         IR_test=IR_test, 
-        fcentres=fcentres, 
-        M_B=M_B, 
-        M_D=M_D,
-        x_input=x_input, # Pass the input signal
+        x_input=x_input,
         k_neighbors=20
     )
-    #print(type(data[1]),type(chosen_indices[0]))
-    filter_q = data_[1][chosen_indices]
-    torch.save(filter_q, "Saved Filters/baseline_filters.pt")
 
-    
-    end_time = time.time()
-    
-print(f"\n--- ANN Baseline Results (K=20, Composite Loss) ---")
-print(f"Total Test Samples Processed: {len(chosen_indices)}")
-print(f"Average Combined Loss (across all samples): {avg_baseline_loss:.6f}")
-print(f"Total Search Time: {end_time - start_time:.4f} seconds")
-print(f"\nIndices of All Chosen Filters (from y_train):")
-print(chosen_indices)
+
