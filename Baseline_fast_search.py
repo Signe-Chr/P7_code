@@ -86,8 +86,7 @@ def Extensive_search(
 
         min_loss = float("inf")
         best_idx = -1
-
-        filter_times = []
+        
         # --- Loop over dictionary filters ---
         for j in range(len(dictionary)):
             print(f"Test {i+1}/{N_test}, Dictionary Filter {j+1}/{len(dictionary)}", end="\r")
@@ -130,7 +129,8 @@ def Extensive_search(
 
     avg_time_per_test = np.mean(times_per_test)
     print(f"Average time per test sample: {avg_time_per_test:.6f}s")
-
+    filter_q = data_[1][chosen_indices].to(device)
+    torch.save(filter_q, "Saved Filters/baseline_filters.pt")
     return chosen_indices, avg_time_per_test
 
 # ---- 3. K-20 ANN Search and Refinement (MODIFIED) ---
