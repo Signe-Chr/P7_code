@@ -203,7 +203,7 @@ if __name__ == "__main__":
         M_B=M_B, 
         M_D=M_D,
         x_input=x_input, # Pass the input signal
-        k_neighbors=20
+        k_neighbors=1620
     )
     #print(type(data[1]),type(chosen_indices[0]))
     filter_q = data_[1][chosen_indices]

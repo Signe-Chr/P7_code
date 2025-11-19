@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from Dataset_generator_script import room_indices as ri
 import torch
 import os
-
+import time
 #---Load data and split into test and traning data---
 data_dir="Signes_data"
 full_data = os.listdir(data_dir)
@@ -54,9 +54,10 @@ def random_selection(X_test, dictionary, seed_value):
     random_indices=torch.randint(low=0,high=N_dic,size=(N_test,))
     selected_filters=dictionary[random_indices]
     return X_test, selected_filters, random_indices
-
+t0=time.time()
 X_test, selected_filters, random_indices = random_selection(X_test, filters_train, 42)
-
+t1=time.time()
+print(f'Average time per test sample:{(t1-t0)/len(X_test)}')
 torch.save({
     'selected_filters': selected_filters,
     'random_indices': random_indices,
