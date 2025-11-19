@@ -268,7 +268,13 @@ def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D)
     
     plt.tight_layout()
     plt.show()
-
+    
+from performance_evaluation_unfiltered import compute_pressure_with_input as cpwi
+def attenuation(rir, raw_wav, filtered):
+    raw_signal = cpwi(rir, raw_wav)
+    e_raw = torch.sum(raw_signal**2)
+    e_filt = torch.sum(filtered**2)
+    return 10 * np.log10(e_raw/e_filt)
 
 #---Compute average performance metrics across testset---
 def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test):
@@ -279,6 +285,7 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test
     NSDR_D = []
     STOI_B = []
     STOI_D = []
+    attenuation_list = []
     for i in range(RIR_test.shape[0]):
         print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
         rirs = RIR_test[i]
@@ -299,6 +306,10 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test
         
         #Compute STOI
         mean_STOI_B,mean_STOI_D=compute_STOI(p_C, wav_input, BZ_idx, DZ_idx)
+        
+        #Compute attentuation in dark zone
+        atten = attenuation(rirs, wav_input, p_C[dark_zone_mics_index_test])
+        
 
         pesq_B.append(mean_pesq_B)
         pesq_D.append(mean_pesq_D)
@@ -307,6 +318,7 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test
         NSDR_D.append(mean_NSDR_D)
         STOI_B.append(mean_STOI_B)
         STOI_D.append(mean_STOI_D)
+        attenuation_list.append(atten)
 
     AC = np.array(AC)
     pesq_B = np.array(pesq_B)
@@ -315,6 +327,7 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test
     NSDR_D = np.array(NSDR_D)
     STOI_B = np.array(STOI_B)
     STOI_D = np.array(STOI_D)
+    attenuation_arr = np.array(attenuation_list)
 
     avg_ac = np.mean(AC)
     min_ac = np.min(AC)
@@ -344,12 +357,14 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test
     min_STOI_D = np.min(STOI_D)
     max_STOI_D = np.max(STOI_D)
     
-    plot_performance_metrics(AC, pesq_B, pesq_D, NSDR_B, NSDR_D, STOI_B, STOI_D)
+    avg_atten=np.mean(attenuation_arr)
+    
+    #plot_performance_metrics(AC, pesq_B, pesq_D, NSDR_B, NSDR_D, STOI_B, STOI_D)
 
-    return avg_ac, min_ac, max_ac, avg_pesq_B, min_pesq_B, max_pesq_B, avg_pesq_D, min_pesq_D, max_pesq_D, avg_NSDR_B, min_NSDR_B, max_NSDR_B, avg_NSDR_D, min_NSDR_D, max_NSDR_D, avg_STOI_B, min_STOI_B, max_STOI_B, avg_STOI_D, min_STOI_D, max_STOI_D
+    return avg_ac, min_ac, max_ac, avg_pesq_B, min_pesq_B, max_pesq_B, avg_pesq_D, min_pesq_D, max_pesq_D, avg_NSDR_B, min_NSDR_B, max_NSDR_B, avg_NSDR_D, min_NSDR_D, max_NSDR_D, avg_STOI_B, min_STOI_B, max_STOI_B, avg_STOI_D, min_STOI_D, max_STOI_D,avg_atten
 
 if __name__=='__main__':
-    avg_ac, min_ac, max_ac, avg_pesq_B, min_pesq_B, max_pesq_B, avg_pesq_D, min_pesq_D, max_pesq_D, avg_NSDR_B, min_NSDR_B, max_NSDR_B, avg_NSDR_D, min_NSDR_D, max_NSDR_D, avg_STOI_B, min_STOI_B, max_STOI_B, avg_STOI_D, min_STOI_D, max_STOI_D=average_performance_metrics(RIRs_test,x_input,bright_zone_mics_index,dark_zone_mics_index)
+    avg_ac, min_ac, max_ac, avg_pesq_B, min_pesq_B, max_pesq_B, avg_pesq_D, min_pesq_D, max_pesq_D, avg_NSDR_B, min_NSDR_B, max_NSDR_B, avg_NSDR_D, min_NSDR_D, max_NSDR_D, avg_STOI_B, min_STOI_B, max_STOI_B, avg_STOI_D, min_STOI_D, max_STOI_D,avg_atten=average_performance_metrics(RIRs_test,x_input,bright_zone_mics_index,dark_zone_mics_index)
     print(f'Average AC over {RIRs_test.shape[0]} data points:{avg_ac}, minimum AC: {min_ac}, maximum AC: {max_ac}')
     print('Bright Zone:')
     print(f'Average PESQ over {RIRs_test.shape[0]} data points: {avg_pesq_B}, minimum PESQ:{min_pesq_B}, maximum pesq:{max_pesq_B}')
@@ -359,3 +374,4 @@ if __name__=='__main__':
     print(f'Average PESQ over {RIRs_test.shape[0]} data points: {avg_pesq_D}, minimum PESQ:{min_pesq_D}, maximum pesq:{max_pesq_D}')
     print(f'Average NSDR over {RIRs_test.shape[0]} data points: {avg_NSDR_D}, minimum NSDR:{min_NSDR_D}, maximum NSDR:{max_NSDR_D}')
     print(f'Average STOI over {RIRs_test.shape[0]} data points: {avg_STOI_D}, minimum STOI:{min_STOI_D}, maximum STOI:{max_STOI_D}')
+    print(f'Average attenuation over {RIRs_test.shape[0]} data points: {avg_atten}')
