@@ -128,7 +128,9 @@ def Extensive_search(
         )
 
     avg_time_per_test = np.mean(times_per_test)
-    print(f"Average time per test sample: {avg_time_per_test:.6f}s")
+    with open("Saved Filters/baseline_filters_time.txt", "a") as f:
+        f.write(f"Chosen indices: {chosen_indices}\n")
+        f.write(f"Average time per test sample: {avg_time_per_test:.6f}s\n")
     filter_q = data_[1][chosen_indices].to(device)
     torch.save(filter_q, "Saved Filters/baseline_filters.pt")
     return chosen_indices, avg_time_per_test
