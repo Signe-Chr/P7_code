@@ -261,10 +261,10 @@ def total_loss(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_idx)
     return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_los), [mse_loss, cosine_loss, MSPE_loss, AC_los]
 
 from performance_evaluation_unfiltered import compute_pressure_with_input as cpwi
-def attenuation(rir, raw_wav, filtered):
-    raw_signal = cpwi(rir, raw_wav)
+def attenuation(rir, raw_wav, filtered, zone):
+    raw_signal = cpwi(rir, raw_wav)[zone]
     e_raw = torch.sum(raw_signal**2)
-    e_filt = torch.sum(filtered**2)
+    e_filt = torch.sum(filtered[zone]**2)
     return 10 * np.log10(e_raw/e_filt)
 
 def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDP_B, NSDP_D, STOI_B, STOI_D, total_loss):
@@ -346,7 +346,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         mean_NSDP_B, mean_NSDP_D = compute_nSDP(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
         mean_STOI_B, mean_STOI_D = compute_STOI(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
         total_loss_i, indiv_losses = total_loss(true_filters, filters, rirs, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
-        atten = attenuation(rirs, wav_input, p_C[dark_zone_mics_index_test])
+        atten = attenuation(rirs, wav_input, p_C, dark_zone_mics_index_test)
 
         # Append results
         AC_list.append(AC_i)
@@ -501,4 +501,5 @@ def loss_functions(RIR_test, selected_filters, wav_input, bright_zone_mics_index
 
 
 #results = average_performance_metrics_with_filters(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
-loss_functions(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+loss_functions(RIRs_test, filters_regression, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+
