@@ -76,7 +76,7 @@ def Extensive_search(
 
     # Loss weights
     lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 0.25, 0.25, 0.25, 0.25
-
+    print("\nStarting Extensive Brute-Force Search with FULL COMPOSITE LOSS...")
     for i in range(N_test):
 
         start_test = time.time()
@@ -91,6 +91,7 @@ def Extensive_search(
 
         # --- Loop over dictionary filters ---
         for j in range(len(dictionary)):
+            print(f"Test {i+1}/{N_test}, Dictionary Filter {j+1}/{len(dictionary)}", end="\r")
             start_filter = time.time()
 
             df = dictionary[j].reshape(1, -1)
