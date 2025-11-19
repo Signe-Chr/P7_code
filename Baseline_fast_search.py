@@ -88,11 +88,10 @@ def Extensive_search(
         best_idx = -1
 
         filter_times = []
-
         # --- Loop over dictionary filters ---
         for j in range(len(dictionary)):
             print(f"Test {i+1}/{N_test}, Dictionary Filter {j+1}/{len(dictionary)}", end="\r")
-            start_filter = time.time()
+            
 
             df = dictionary[j].reshape(1, -1)
             df2D = df.reshape(L, J)
@@ -112,30 +111,27 @@ def Extensive_search(
                 + lambda_msep * msep_loss
             )
 
-            filter_times.append(time.time() - start_filter)
+            
 
             if combined.item() < min_loss:
                 min_loss = combined.item()
                 best_idx = j
-
         # Statistikker
         chosen_indices.append(best_idx)
         times_per_test.append(time.time() - start_test)
-        per_filter_times.append(np.mean(filter_times))
+
 
         print(
             f"Test {i+1}/{N_test}: "
             f"best filter = {best_idx}, "
             f"loss = {min_loss:.6f}, "
-            f"time per filter = {per_filter_times[-1]:.6f}s"
+            f"time per test sample = {times_per_test[-1]:.6f}s"
         )
 
-    avg_time_per_filter = np.mean(per_filter_times)
     avg_time_per_test = np.mean(times_per_test)
-    print(f"\nAverage time per filter: {avg_time_per_filter:.6f}s")
     print(f"Average time per test sample: {avg_time_per_test:.6f}s")
 
-    return chosen_indices, avg_time_per_filter, avg_time_per_test
+    return chosen_indices, avg_time_per_test
 
 # ---- 3. K-20 ANN Search and Refinement (MODIFIED) ---
 def ANN_Search_and_Refine(
