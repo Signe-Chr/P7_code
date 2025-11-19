@@ -2,15 +2,13 @@ import torch, time, os
 import torch.nn.functional as F
 import numpy as np
 import Loss_functions as LF
-#import torch.nn as nn
 import Dataset_class as dc
-#import Dataset_generator_script as dgs
+from Dataset_generator_script import room_indices as ri
 from sklearn.model_selection import train_test_split
-#from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KDTree 
 from scipy.io import wavfile
 from torch.utils.data import DataLoader
-from Dataset_generator_script import room_indices as ri
+
 
 # --- CONFIGURATION ---
 L = 3       # Loudspeaker (Sources)
@@ -71,7 +69,7 @@ def Extensive_search(
     Brute-force search over dictionary filters.
     - max_filters: hvor mange dictionary-filtre der skal testes mod (fra starten)
     """
-    N_test = len(test_filters)
+    N_test = len(test_filters) if max_filters is None else max_filters
     chosen_indices = []
     times_per_test = []
     per_filter_times = []
@@ -80,9 +78,8 @@ def Extensive_search(
     lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 0.25, 0.25, 0.25, 0.25
 
     # Reducer dictionary hvis max_filters er angivet
-    if max_filters is not None:
-        dictionary = dictionary[:max_filters]
-        IR_train = IR_train[:max_filters]
+    #dictionary = dictionary[:max_filters]
+    #IR_train = IR_train[:max_filters]
 
     for i in range(N_test):
 
@@ -138,17 +135,19 @@ def Extensive_search(
 
     avg_time_per_filter = np.mean(per_filter_times)
     avg_time_per_test = np.mean(times_per_test)
+    print(f"\nAverage time per filter: {avg_time_per_filter:.6f}s")
+    print(f"Average time per test sample: {avg_time_per_test:.6f}s")
 
     return chosen_indices, avg_time_per_filter, avg_time_per_test
 
 # ---- 3. K-20 ANN Search and Refinement (MODIFIED) ---
 def ANN_Search_and_Refine(
     test_filters: torch.Tensor, dictionary: torch.Tensor, IR_train: torch.Tensor, IR_test: torch.Tensor, 
-    x_input: torch.Tensor, k_neighbors: int = 20
+    x_input: torch.Tensor, k_neighbors: int = 20, max_filters: int = None
 ):  
     print("\nStarting K-20 ANN Search and Refinement with FULL COMPOSITE LOSS...")
-    start_time = time.time()
-    N_test = len(test_filters)
+    
+    N_test = max_filters if max_filters is not None else len(test_filters)
     
     # 1. Build the K-D Tree Index on the dictionary filters (y_train)
     dictionary_np = dictionary.cpu().numpy()
@@ -168,6 +167,7 @@ def ANN_Search_and_Refine(
     # Timers for the first iteration (i=0)
     mse_times, cosine_times, ac_times, msep_times = [], [], [], []
 
+    start_time = time.time()
     # 3. Refinement Loop: Calculate complex 4-component loss only on k_neighbors
     for i in range(N_test):
         test_filter_i_flat = test_filters[i].unsqueeze(0) # [1, L*J]
@@ -232,30 +232,44 @@ def ANN_Search_and_Refine(
             
     # Since we break after the first iteration, N_test is effectively 1 for the results below.
     baseline_loss = total_combined_loss / (i + 1)
-    filter_q = data_[1][chosen_indices]
+    filter_q = data_[1][best_indices].to(device)
     end_time = time.time()
-    torch.save(filter_q, "Saved Filters/baseline_filters.pt")
+    #avg_baseline_loss = baseline_loss.item()
+    #torch.save(filter_q, "Saved Filters/baseline_filters.pt")
     print(f"\n--- ANN Baseline Results (K=20, Composite Loss) ---")
-    print(f"Total Test Samples Processed: {len(chosen_indices)}")
-    print(f"Average Combined Loss (across all samples): {avg_baseline_loss:.6f}")
-    print(f"Total Search Time: {end_time - start_time:.4f} seconds")
+    print(f"Total Test Samples Processed: {len(best_indices)}")
+    #print(f"Average Combined Loss (across all samples): {avg_baseline_loss:.6f}")
+    print(f"Average Search Time: {(end_time - start_time)/max_filters:.4f} seconds")
     print(f"\nIndices of All Chosen Filters (from y_train):")
-    print(chosen_indices)
+    print(best_indices)
     return baseline_loss, best_indices
 
 # ---- 4. Execution ----
 if __name__ == "__main__":
     # Dummy check for fcentres
     fcentres = torch.tensor([1000, 2000], device=device) # Example
-    bright_zone_mics_index, dark_zone_mics_index, x_input, full_data, y_train, y_test, IR_train, IR_test, data_points, data_ = load_data()
-
-    avg_baseline_loss, chosen_indices = ANN_Search_and_Refine(
+    bright_zone_mics_index, dark_zone_mics_index, x_input, y_train, y_test, IR_train, IR_test, data_ = load_data()
+    max_filters = 10  
+    
+    
+    Extensive_search(
+        test_filters=y_test, 
+        dictionary=y_train, 
+        IR_train=IR_train, 
+        x_input=x_input,
+        bright_zone_mics_index=bright_zone_mics_index,
+        dark_zone_mics_index=dark_zone_mics_index,
+        max_filters=max_filters 
+    )
+    """
+    ANN_Search_and_Refine(
         test_filters=y_test, 
         dictionary=y_train, 
         IR_train=IR_train, 
         IR_test=IR_test, 
         x_input=x_input,
-        k_neighbors=20
+        k_neighbors=20,
+        max_filters=max_filters
     )
-
+    """
 
