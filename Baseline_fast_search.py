@@ -63,23 +63,19 @@ def Extensive_search(
     x_input: torch.Tensor,
     bright_zone_mics_index,
     dark_zone_mics_index,
-    max_filters: int = None
+    max_filters
 ):
     """
     Brute-force search over dictionary filters.
     - max_filters: hvor mange dictionary-filtre der skal testes mod (fra starten)
     """
-    N_test = len(test_filters) if max_filters is None else max_filters
+    N_test = max_filters
     chosen_indices = []
     times_per_test = []
     per_filter_times = []
 
     # Loss weights
     lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 0.25, 0.25, 0.25, 0.25
-
-    # Reducer dictionary hvis max_filters er angivet
-    #dictionary = dictionary[:max_filters]
-    #IR_train = IR_train[:max_filters]
 
     for i in range(N_test):
 
