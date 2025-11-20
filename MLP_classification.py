@@ -1,15 +1,13 @@
-import torch
+import torch, sys, os
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-import numpy as np
 import Loss_functions as LF
 import Cross_validation_models as cvm
 import Dataset_class as dc
-import os
 import Dataset_generator_script as dgs
 from tqdm import tqdm
-import sys
+from torch.utils.data import Dataset, DataLoader
+
 
 def train_epoch(model, dataloader, criterion, optimizer, device):
     model.train()
@@ -65,7 +63,7 @@ def main():
     output_size = len(dataset)
 
     # Model, loss, optimizer
-    model = cvm.Classification_softmax(input_size, output_size).to(device)
+    model = cvm.FilterNet_classification(input_size, output_size).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr = 1e-3)
     if os.path.exists("MLP_classification.pth"):
