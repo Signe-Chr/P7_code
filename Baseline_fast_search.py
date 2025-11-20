@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KDTree 
 from scipy.io import wavfile
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 
 # --- CONFIGURATION ---
@@ -76,7 +77,7 @@ def Extensive_search(
 
     # Loss weights
     lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 0.25, 0.25, 0.25, 0.25
-
+    print("\nStarting Extensive Brute-Force Search with FULL COMPOSITE LOSS...")
     for i in range(N_test):
 
         start_test = time.time()
@@ -86,12 +87,11 @@ def Extensive_search(
 
         min_loss = float("inf")
         best_idx = -1
-
-        filter_times = []
-
+        
         # --- Loop over dictionary filters ---
         for j in range(len(dictionary)):
-            start_filter = time.time()
+            print(f"Test {i+1}/{N_test}, Dictionary Filter {j+1}/{len(dictionary)}", end="\r")
+            
 
             df = dictionary[j].reshape(1, -1)
             df2D = df.reshape(L, J)
@@ -111,30 +111,30 @@ def Extensive_search(
                 + lambda_msep * msep_loss
             )
 
-            filter_times.append(time.time() - start_filter)
+            
 
             if combined.item() < min_loss:
                 min_loss = combined.item()
                 best_idx = j
-
         # Statistikker
         chosen_indices.append(best_idx)
         times_per_test.append(time.time() - start_test)
-        per_filter_times.append(np.mean(filter_times))
+
 
         print(
             f"Test {i+1}/{N_test}: "
             f"best filter = {best_idx}, "
             f"loss = {min_loss:.6f}, "
-            f"time per filter = {per_filter_times[-1]:.6f}s"
+            f"time per test sample = {times_per_test[-1]:.6f}s"
         )
 
-    avg_time_per_filter = np.mean(per_filter_times)
     avg_time_per_test = np.mean(times_per_test)
-    print(f"\nAverage time per filter: {avg_time_per_filter:.6f}s")
-    print(f"Average time per test sample: {avg_time_per_test:.6f}s")
-
-    return chosen_indices, avg_time_per_filter, avg_time_per_test
+    with open("Saved Filters/baseline_filters_time.txt", "a") as f:
+        f.write(f"Chosen indices: {chosen_indices}\n")
+        f.write(f"Average time per test sample: {avg_time_per_test:.6f}s\n")
+    filter_q = data_[1][chosen_indices].to(device)
+    torch.save(filter_q, "Saved Filters/baseline_filters.pt")
+    return chosen_indices, avg_time_per_test
 
 # ---- 3. K-20 ANN Search and Refinement (MODIFIED) ---
 def ANN_Search_and_Refine(
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     # Dummy check for fcentres
     fcentres = torch.tensor([1000, 2000], device=device) # Example
     bright_zone_mics_index, dark_zone_mics_index, x_input, y_train, y_test, IR_train, IR_test, data_ = load_data()
-    max_filters = 10  
+    max_filters = 540
     
     
     Extensive_search(

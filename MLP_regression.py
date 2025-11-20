@@ -1,6 +1,4 @@
-import os
-import sys
-import torch
+import os, sys, torch
 import numpy as np
 import Cross_validation_models as cvm
 import Dataset_generator_script as dgs
@@ -55,7 +53,7 @@ if __name__ == "__main__":
     torch.set_num_threads(compute_cpus)
     train_loader = DataLoader(trainset, batch_size=1, shuffle=True, num_workers=1)
     wav = dgs.wav / np.max(np.abs(dgs.wav))
-    model = cvm.model_.to(device)
+    model = cvm.FilterNet_regression(p_features, out_features).to(device)
     if os.path.exists("MLP_regression_checkpoint.pth"):
         model.load_state_dict(torch.load("MLP_regression_checkpoint.pth"))
         print("Succesfully loaded the latest checkpoint of the model")
