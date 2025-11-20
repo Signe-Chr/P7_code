@@ -69,6 +69,7 @@ filter_sets = {
 
 #wav = wav/max(abs(wav))
 # === Compute and plot for each filter set ===
+font = 10
 
 bright_signal = resulting_amp_bright(q_filters)[:88200]
 bright_original_signal = resulting_amp_original_bright(wav)[:88200]
@@ -95,11 +96,14 @@ plt.rcParams.update({"font.size": 17})
 # ------------------------
 ax1.plot(t, bright_original_signal, label='Unfiltered',
          color='limegreen', alpha=0.25, linewidth=1.2)
-ax1.plot(t, bright_signal, label='Vast',
+ax1.plot(t, bright_signal, label='VAST',
          color='orange', alpha=0.55, linewidth=1.2)
 
-ax1.set_ylabel("Normalised Amplitude")
-ax1.set_title("Bright Zone Signals")
+ax1.set_ylabel("Normalised Amplitude", fontsize=20)
+ax1.set_title("Bright Zone Signals", fontsize=25)
+ax1.tick_params(axis='x', labelsize=20)
+ax1.tick_params(axis='y', labelsize=20)
+
 ax1.grid(True, alpha=0.3)
 ax1.legend(loc="upper right")
 
@@ -108,12 +112,16 @@ ax1.legend(loc="upper right")
 # ------------------------
 ax2.plot(t, dark_original_signal, label='Unfiltered',
          color='limegreen', alpha=0.25, linewidth=1.2)
-ax2.plot(t, dark_signal, label='Vast',
+ax2.plot(t, dark_signal, label='VAST',
          color='blue', alpha=0.55, linewidth=1.2)
 
-ax2.set_xlabel("Time [s]")
-ax2.set_ylabel("Normalised Amplitude")
-ax2.set_title("Dark Zone Signals")
+ax2.set_xlabel("Time [s]", fontsize=20)
+ax2.set_ylabel("Normalised Amplitude", fontsize=20)
+ax2.set_title("Dark Zone Signals", fontsize=25)
+
+ax2.tick_params(axis='x', labelsize=20)
+ax2.tick_params(axis='y', labelsize=20)
+
 ax2.grid(True, alpha=0.3)
 ax2.legend(loc="upper right")
 
