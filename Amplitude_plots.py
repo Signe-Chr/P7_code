@@ -8,13 +8,15 @@ wav_path = "relaxing-guitar-loop-v5-245859.wav"
 fs_wav, wav = wavfile.read(wav_path)
 wav = wav[5*44100:7*44100]
 
+
 dict_ = np.load(
     r"C:\Users\marst\OneDrive\Skrivebord\UNI\S. 7\PROJEKT\P7\Signes_data\VAST_0_0_0_0_0.npy",
     allow_pickle=True
 ).item()
 
-bright_zone_IR = dict_['IR'][12]
-dark_zone_IR = dict_['IR'][11]
+bright_zone_IR = np.array(dict_['IR'][12])
+
+dark_zone_IR = np.array(dict_['IR'][4])
 q_filters = dict_['q_matrix']
 
 
@@ -28,15 +30,29 @@ filters_interpolation = torch.load("Saved Filters/interpolation_filters.pt")[0].
 # === Helper functions ===
 def resulting_amp_bright(q):
     y_tot = 0
-    for i in range(len(q)):
+    for i in range(3):
         y_temp = np.convolve(q[i], bright_zone_IR[i])
         y = np.convolve(y_temp, wav)
         y_tot += y
     return y_tot
 
+def resulting_amp_original_bright(x):
+    y = 0
+    for i in range(3):
+        y_temp = np.convolve(x, bright_zone_IR[i])
+        y += y_temp
+    return y
+
+def resulting_amp_original_dark(x):
+    y = 0
+    for i in range(3):
+        y_temp = np.convolve(x, dark_zone_IR[i])
+        y += y_temp
+    return y
+
 def resulting_amp_dark(q):
     y_tot = 0
-    for i in range(len(q)):
+    for i in range(3):
         y_temp = np.convolve(q[i], dark_zone_IR[i])
         y = np.convolve(y_temp, wav)
         y_tot += y
@@ -51,31 +67,62 @@ filter_sets = {
     "Interpolation": filters_interpolation,
 }
 
-wav = wav/max(abs(wav))
+#wav = wav/max(abs(wav))
 # === Compute and plot for each filter set ===
-for name, filt in filter_sets.items():
-    bright_signal = resulting_amp_bright(q_filters)[:88200]
-    dark_signal = resulting_amp_dark(q_filters)[:88200]
-    
-    # normalize for fair comparison (optional)
-    bright_signal = bright_signal / max(abs(wav))
-    dark_signal = dark_signal / max(abs(wav))
-    
-    # make time vector (samples to seconds)
-    t = np.arange(len(bright_signal)) / fs_wav
-    
-    plt.figure(figsize=(10,6))
-    plt.rcParams.update({"font.size": 17})
-    plt.plot(t, wav, label='Original Signal', color='limegreen', alpha=0.2, linewidth=1.2)
-    plt.plot(t, bright_signal, label='BZ Signal', color='orange', alpha=0.35,  linewidth=1.2)
-    plt.plot(t, dark_signal, label='DZ Signal', color='blue', alpha=0.5, linewidth=1.2)
 
-    plt.xlabel("Time [s]")
-    plt.ylabel("Normalized Amplitude")
-    #plt.title(f"Bright vs Dark Zone Signal — {name} Filters")
-    #plt.legend(loc = "upper left")
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(f"Vast_fig.pdf", dpi = 500)
-    print(f"figure vast saved")
-    plt.show()
+bright_signal = resulting_amp_bright(q_filters)[:88200]
+bright_original_signal = resulting_amp_original_bright(wav)[:88200]
+
+norm = max(abs(bright_original_signal))
+
+dark_original_signal = resulting_amp_original_dark(wav)[:88200]
+dark_signal = resulting_amp_dark(q_filters)[:88200]
+
+# normalize for fair comparison (optional)
+bright_signal = bright_signal / norm
+bright_original_signal = bright_original_signal / norm
+dark_original_signal = dark_original_signal / norm
+dark_signal = dark_signal / norm
+
+# make time vector (samples to seconds)
+t = np.arange(len(bright_signal)) / fs_wav
+
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True, sharey=True)
+plt.rcParams.update({"font.size": 17})
+
+# ------------------------
+# Subplot 1: Bright Zone
+# ------------------------
+ax1.plot(t, bright_original_signal, label='Unfiltered',
+         color='limegreen', alpha=0.25, linewidth=1.2)
+ax1.plot(t, bright_signal, label='Vast',
+         color='orange', alpha=0.55, linewidth=1.2)
+
+ax1.set_ylabel("Normalised Amplitude")
+ax1.set_title("Bright Zone Signals")
+ax1.grid(True, alpha=0.3)
+ax1.legend(loc="upper right")
+
+# ------------------------
+# Subplot 2: Dark Zone
+# ------------------------
+ax2.plot(t, dark_original_signal, label='Unfiltered',
+         color='limegreen', alpha=0.25, linewidth=1.2)
+ax2.plot(t, dark_signal, label='Vast',
+         color='blue', alpha=0.55, linewidth=1.2)
+
+ax2.set_xlabel("Time [s]")
+ax2.set_ylabel("Normalised Amplitude")
+ax2.set_title("Dark Zone Signals")
+ax2.grid(True, alpha=0.3)
+ax2.legend(loc="upper right")
+
+# Optional: force identical limits (if you want)
+# ax1.set_xlim(t.min(), t.max())
+# ax1.set_ylim(-1.1, 1.1)
+
+plt.tight_layout()
+plt.savefig("Vast_fig_brightdark_subplots.pdf", dpi=500)
+plt.show()
+
+print("Subplot figure saved.")
