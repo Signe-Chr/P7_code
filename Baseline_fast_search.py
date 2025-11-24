@@ -125,10 +125,11 @@ def Extensive_search(
             f"Test {i+1}/{N_test}: "
             f"best filter = {best_idx}, "
             f"loss = {min_loss:.6f}, "
-            f"time per test sample = {times_per_test[-1]:.6f}s"
+            f"time per test sample = {np.mean(times_per_test):.6f}s"
         )
 
     avg_time_per_test = np.mean(times_per_test)
+    os.makedirs("Saved Filters", exist_ok=True)
     with open("Saved Filters/baseline_filters_time.txt", "a") as f:
         f.write(f"Chosen indices: {chosen_indices}\n")
         f.write(f"Average time per test sample: {avg_time_per_test:.6f}s\n")
