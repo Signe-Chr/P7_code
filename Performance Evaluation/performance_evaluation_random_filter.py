@@ -336,21 +336,21 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
 
     # Compute statistics
     results = {
-        "AC": (np.mean(AC_list), np.min(AC_list), np.max(AC_list)),
-        "PESQ_B": (np.mean(pesq_B_list), np.min(pesq_B_list), np.max(pesq_B_list)),
-        "PESQ_D": (np.mean(pesq_D_list), np.min(pesq_D_list), np.max(pesq_D_list)),
-        "NSDP_B": (np.mean(NSDP_B_list), np.min(NSDP_B_list), np.max(NSDP_B_list)),
-        "NSDP_D": (np.mean(NSDP_D_list), np.min(NSDP_D_list), np.max(NSDP_D_list)),
-        "STOI_B": (np.mean(STOI_B_list), np.min(STOI_B_list), np.max(STOI_B_list)),
-        "STOI_D": (np.mean(STOI_D_list), np.min(STOI_D_list), np.max(STOI_D_list)),
+        "AC": (np.sqrt(np.var(AC_list)) ,np.mean(AC_list) ,np.min(AC_list), np.max(AC_list)),
+        "PESQ_B": (np.sqrt(np.var(pesq_B_list)) ,np.mean(pesq_B_list), np.min(pesq_B_list), np.max(pesq_B_list)),
+        "PESQ_D": (np.sqrt(np.var(pesq_D_list)) ,np.mean(pesq_D_list), np.min(pesq_D_list), np.max(pesq_D_list)),
+        "NSDP_B": (np.sqrt(np.var(NSDP_B_list)) ,np.mean(NSDP_B_list), np.min(NSDP_B_list), np.max(NSDP_B_list)),
+        "NSDP_D": (np.sqrt(np.var(NSDP_D_list)) ,np.mean(NSDP_D_list), np.min(NSDP_D_list), np.max(NSDP_D_list)),
+        "STOI_B": (np.sqrt(np.var(STOI_B_list)) ,np.mean(STOI_B_list), np.min(STOI_B_list), np.max(STOI_B_list)),
+        "STOI_D": (np.sqrt(np.var(STOI_D_list)) ,np.mean(STOI_D_list), np.min(STOI_D_list), np.max(STOI_D_list)),
     }
-    print(f"AC (mean, min, max): {results['AC']}")
-    print(f"PESQ Bright Zone (mean, min, max): {results['PESQ_B']}")
-    print(f"PESQ Dark Zone (mean, min, max): {results['PESQ_D']}")
-    print(f"NSDP Bright Zone (mean, min, max): {results['NSDP_B']}")
-    print(f"NSDP Dark Zone (mean, min, max): {results['NSDP_D']}")
-    print(f"STOI Bright Zone (mean, min, max): {results['STOI_B']}")
-    print(f"STOI Dark Zone (mean, min, max): {results['STOI_D']}")
+    print(f"AC (std, mean, min, max): {results['AC']}")
+    print(f"PESQ Bright Zone (std, mean, min, max): {results['PESQ_B']}")
+    print(f"PESQ Dark Zone (std, mean, min, max): {results['PESQ_D']}")
+    print(f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}")
+    print(f"NSDP Dark Zone (std, mean, min, max): {results['NSDP_D']}")
+    print(f"STOI Bright Zone (std, mean, min, max): {results['STOI_B']}")
+    print(f"STOI Dark Zone (std, mean, min, max): {results['STOI_D']}")
     # Optional: plot metrics
     #plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDP_B_list, NSDP_D_list, STOI_B_list, STOI_D_list, tot_loss_list)
 
@@ -444,11 +444,11 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
     results = {
         "Total Loss":(np.mean(tot_loss_list), np.min(tot_loss_list),   np.max(tot_loss_list)),
         "Individual Losses" : (individual_losses_arr.mean(axis=0), individual_losses_arr.min(axis=0), individual_losses_arr.max(axis=0)),
-        "Attenuation": (np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr))
+        "Attenuation": (np.sqrt(np.var(attenuation_arr)),np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr))
     }
 
     print(f"Total loss Bright Zone (mean, min, max):{results['Total Loss']}")
-    print(f"Attenuation Dark Zone (mean, min, max):{results['Attenuation']}")
+    print(f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation']}")
     print(f"Individual Losses (MSE, Cosine, MSEP, AC) (mean, min, max):{results['Individual Losses']}")
 
     return results
