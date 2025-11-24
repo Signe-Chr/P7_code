@@ -31,10 +31,10 @@ class FilterNet_classification(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(input_size, 512),
             nn.ReLU(),
-            nn.Linear(512, output_size),
-            nn.Softmax(dim=1)
+            nn.Linear(512, output_size)  # logits
         )
 
     def forward(self, x):
-        return self.net(x)
+        return self.net(x)  # raw logits
+
 

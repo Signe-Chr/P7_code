@@ -157,10 +157,6 @@ def compute_pesq_unfiltered(
 
     mean_pesq_D = float(np.nanmean(pesq_D_scores))
 
-    print(f"pesq std (bz) {np.sqrt(np.var(pesq_B_scores))}" )
-
-    print(f"pesq std (dz) {np.sqrt(np.var(pesq_D_scores))}" )
-
     return mean_pesq_B,mean_pesq_D
 
 
@@ -232,10 +228,6 @@ def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
 
     b = compute_zone_stoi(bright_zone_mics_index)
     d = compute_zone_stoi(dark_zone_mics_index)
-
-    print(f"std stoi (bz) {np.sqrt(np.var(b))}")
-    print(f"std stoi (dz) {np.sqrt(np.var(d))}")
-
 
     mean_B = np.mean(b)
     mean_D = np.mean(d)
@@ -322,6 +314,9 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test
         STOI_B.append(mean_STOI_B)
         STOI_D.append(mean_STOI_D)
 
+
+    
+
     AC = np.array(AC)
     pesq_B = np.array(pesq_B)
     pesq_D = np.array(pesq_D)
@@ -329,6 +324,12 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test
     NSDR_D = np.array(NSDR_D)
     STOI_B = np.array(STOI_B)
     STOI_D = np.array(STOI_D)
+
+    print(f"std stoi (bz) {np.sqrt(np.var(STOI_B))}")
+    print(f"std stoi (dz) {np.sqrt(np.var(STOI_D))}")
+
+    print(f"pesq std (bz) {np.sqrt(np.var(pesq_B))}" )
+    print(f"pesq std (dz) {np.sqrt(np.var(pesq_D))}" )
 
     avg_ac = np.mean(AC)
     print(f"std ac {np.sqrt(np.var(AC))}")
