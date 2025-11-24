@@ -157,6 +157,10 @@ def compute_pesq_unfiltered(
 
     mean_pesq_D = float(np.nanmean(pesq_D_scores))
 
+    print(f"pesq std (bz) {np.sqrt(np.var(pesq_B_scores))}" )
+
+    print(f"pesq std (dz) {np.sqrt(np.var(pesq_D_scores))}" )
+
     return mean_pesq_B,mean_pesq_D
 
 
@@ -223,10 +227,20 @@ def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
             score = stoi(s_target, s_est, fs, extended=False)
             stoi_list.append(score)
         stoi_list = np.array(stoi_list)
-        return np.mean(stoi_list)
 
-    mean_B = compute_zone_stoi(bright_zone_mics_index)
-    mean_D = compute_zone_stoi(dark_zone_mics_index)
+        return stoi_list
+
+    b = compute_zone_stoi(bright_zone_mics_index)
+    d = compute_zone_stoi(dark_zone_mics_index)
+
+    print(f"std stoi (bz) {np.sqrt(np.var(b))}")
+    print(f"std stoi (dz) {np.sqrt(np.var(d))}")
+
+
+    mean_B = np.mean(b)
+    mean_D = np.mean(d)
+
+
 
     return mean_B,mean_D
 
@@ -317,6 +331,7 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test
     STOI_D = np.array(STOI_D)
 
     avg_ac = np.mean(AC)
+    print(f"std ac {np.sqrt(np.var(AC))}")
     min_ac = np.min(AC)
     max_ac = np.max(AC)
 
