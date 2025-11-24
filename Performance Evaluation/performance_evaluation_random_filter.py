@@ -443,12 +443,12 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
 
     # Compute statistics
     results = {
-        "Total Loss":(np.mean(tot_loss_list), np.min(tot_loss_list),   np.max(tot_loss_list)),
+        "Total Loss":(np.sqrt(np.var(tot_loss_list)),np.mean(tot_loss_list), np.min(tot_loss_list),   np.max(tot_loss_list)),
         "Individual Losses" : (individual_losses_arr.mean(axis=0), individual_losses_arr.min(axis=0), individual_losses_arr.max(axis=0)),
         "Attenuation": (np.sqrt(np.var(attenuation_arr)),np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr))
     }
 
-    print(f"Total loss Bright Zone (mean, min, max):{results['Total Loss']}")
+    print(f"Total loss Bright Zone (std, mean, min, max):{results['Total Loss']}")
     print(f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation']}")
     print(f"Individual Losses (MSE, Cosine, MSEP, AC) (mean, min, max):{results['Individual Losses']}")
 
@@ -456,6 +456,8 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
 
 #filters_random, filters_baseline, filters_classification, filters_regression, filters_interpolation, filters_test
 
-average_performance_metrics_with_filters(RIRs_test, filters_baseline, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+#average_performance_metrics_with_filters(RIRs_test, filters_baseline, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+loss_function_evaluation(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+
 #loss_functions(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
