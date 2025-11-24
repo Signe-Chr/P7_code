@@ -85,8 +85,8 @@ def load_data(data_dir):
     wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
     x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
     x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
-    return (X_train, X_test, filters_train, filters_test, bright_zone_mics_index_train,
-            bright_zone_mics_index_test, dark_zone_mics_index_train, dark_zone_mics_index_test, n_srcs_train, n_srcs_test,
+    return (X_train, X_test, filters_train, filters_test, bright_zone_mics_index,
+            bright_zone_mics_index, dark_zone_mics_index, dark_zone_mics_index, n_srcs_train, n_srcs_test,
             RIRs_train, RIRs_test, x_input)
 
 (X_train, X_test, filters_train, filters_test, bright_zone_mics_index, bright_zone_mics_index_test,
@@ -454,8 +454,8 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
 
     return results
 
-#filters_random, filters_baseline, filters_classification, filters_regression, filters_interpolation
+#filters_random, filters_baseline, filters_classification, filters_regression, filters_interpolation, filters_test
 
-average_performance_metrics_with_filters(RIRs_test, filters_regression, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+average_performance_metrics_with_filters(RIRs_test, filters_baseline, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 #loss_functions(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
