@@ -9,8 +9,6 @@ import multiprocessing as mp
 from VAST_filter_coefficients import design_vast_filter
 from tqdm import tqdm
 
-
-
 def sources_mics(R, Center, N_mics):
     mic_positions_list = []
     direction_list = []
@@ -109,61 +107,36 @@ def main(orientation_source_final, mic_positions_list, bright_zone_mics_index, d
     return
 
 J = 1024
-V = int(J*3/2)
+V = 1
+N = 2000
 mu = 1
-reg_eps=1*10**(-6)
 fs_target=16000
-absorption=0.2
-max_order=10
 reg_eps=1e-6
 target_amplitude = 0.080792
 dark_mic_radius = 0.5
-widths = range(2, 11)
-depths = range(2, 11)
-heights = range(4, 13)
-rooms = [[width, depth, height/2] for width in widths for depth in depths for height in heights]+[[100, 100, 100]]  # if width<=depth (This code snippet can be added in the list loop if rooms like 2x10xz and 10x2xz are deemed equal)
-target_rooms = [
-    [2, 2, 2], [2, 4, 3], [ 2, 6, 4], [ 2,  8, 3], [ 2, 10, 3],
-    [4, 2, 3], [4, 4, 2], [ 4, 8, 4], [ 4, 10, 4], [ 6,  2, 2],
-    [6, 4, 3], [6, 6, 3], [ 6, 8, 4], [ 6, 10, 4], [ 8,  2, 3],
-    [8, 6, 3], [8, 8, 4], [10, 2, 3], [10,  6, 5], [10, 10, 4]
-]
-room_indices = [i for i in range(len(rooms)) if rooms[i] in target_rooms]
+rooms = [[1.8, 2, 2.3], [4.9, 5.7, 2.5], [8.8, 7, 3]]
+z_height = 1.7
+RT60s = np.linspace(0.1, 0.9, 5)
+user_rotations = [np.pi/2, np.pi, np.pi*3/2, 2*np.pi]
+tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
+N_mics=12
 if __name__ == "__main__":
-    z_height = 1.7
-    #RT60s = [0.5*i for i in range(5, 10)]
-    RT60s = np.linspace(0.6, 0.8, 3)
-
-    user_rotations = [np.pi/2, np.pi, np.pi*3/2, 2*np.pi]
-    tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
-
-    np.concatenate([[0.5], [np.deg2rad(15)], [np.pi/2], [1,1,1]])
-
-    N_mics=12
-
     wav_path = "relaxing-guitar-loop-v5-245859.wav"
-
-    out_q_path = "VAST_filter_archive_730"
-
     fs_wav, wav = wavfile.read(wav_path)
-
-    N = 2000
-
     wav = wav[5*44100:7*44100]
 
+    out_q_path = "ACC_filter_archive"
+
     iteration_count=0
-    total_iterations = len(RT60s) * (len(target_rooms[::4])) * len(user_rotations) * len(tilt_rotations) * 3# + len(RT60s) * len(user_rotations) * len(tilt_rotations)
+    total_iterations = len(RT60s) * len(rooms) * len(user_rotations) * len(tilt_rotations) * 3
     loop = tqdm(total=total_iterations)
-    pool = mp.Pool(processes=1)
-    for r, room_dim in enumerate(target_rooms[::4]):
-        if r == len(rooms)-1:
-            spatial_positions = [[50, 50, z_height]]
-        else:
-            spatial_positions = [
-                    [room_dim[0]/2              , room_dim[1]/2              , z_height],   # 0 — Center
-                    [room_dim[0]/2              , room_dim[1]-dark_mic_radius, z_height],   # 1 — Up against one wall
-                    [room_dim[0]-dark_mic_radius, room_dim[1]-dark_mic_radius, z_height],   # 2 — Corner
-                ]
+    pool = mp.Pool(processes=mp.cpu_count()-1)
+    for r, room_dim in enumerate(rooms):
+        spatial_positions = [
+                [room_dim[0]/2              , room_dim[1]/2              , z_height],   # 0 — Center
+                [room_dim[0]/2              , room_dim[1]-dark_mic_radius, z_height],   # 1 — Up against one wall
+                [room_dim[0]-dark_mic_radius, room_dim[1]-dark_mic_radius, z_height],   # 2 — Corner
+            ]
         for i, RT60 in enumerate(RT60s):
             for ii, spatial_position in enumerate(spatial_positions):
                 sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(
