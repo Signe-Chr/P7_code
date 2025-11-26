@@ -98,28 +98,27 @@ def main(orientation_source_final, mic_positions_list, bright_zone_mics_index, d
     m = f"VAST_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
     #print(m, datetime.datetime.now())
     
-    """archive_q_matrix(
+    archive_q_matrix(
         q, out_q_path, m, orientation_source_final,
         RT60, IR, mic_positions_list, room_dim,
         spatial_position, dark_mic_radius, user_rotation, tilt_rotation,
         bright_zone_mics_index, dark_zone_mics_index
-    )"""
+    )
     return
 
 J = 1024
 V = 1
-N = 2000
 mu = 1
-fs_target=16000
-reg_eps=1e-6
-target_amplitude = 0.080792
+fs_target = 16000
+reg_term = 1e-6
+target_amplitude = 0.080792 # WTF IS THISSSSS?????
 dark_mic_radius = 0.5
 rooms = [[1.8, 2, 2.3], [4.9, 5.7, 2.5], [8.8, 7, 3]]
 z_height = 1.7
 RT60s = np.linspace(0.1, 0.9, 5)
 user_rotations = [np.pi/2, np.pi, np.pi*3/2, 2*np.pi]
 tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
-N_mics=12
+N_mics = 12
 if __name__ == "__main__":
     wav_path = "relaxing-guitar-loop-v5-245859.wav"
     fs_wav, wav = wavfile.read(wav_path)
@@ -161,7 +160,7 @@ if __name__ == "__main__":
                         orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
                         orientation_source_final += center_sources.T
                         args = (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                            wav, RT60, mic_directions, user_rotation, fs_target, J, N, V, mu, room_dim, reg_eps, target_amplitude,
+                            wav, RT60, mic_directions, user_rotation, fs_target, J, N, V, mu, room_dim, reg_term, target_amplitude,
                             i, ii, iii, iv, r, out_q_path, spatial_position, dark_mic_radius, tilt_rotation)
                         pool.apply_async(main, args=args, callback=lambda _:loop.update(1))
     pool.close()
