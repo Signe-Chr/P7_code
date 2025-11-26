@@ -67,7 +67,7 @@ def main(orientation_source_final, mic_positions_list, bright_zone_mics_index, d
     q, IR = design_vast_filter(
         orientation_source_final, mic_positions_list,
         bright_zone_mics_index, dark_zone_mics_index,
-        wav, RT60, mic_directions, user_rotation,
+        wav, RT60, mic_directions, user_rotation, tilt_rotation,
         fs_target, J, N, V, mu, room_dim, reg_eps, target_amplitude
     )
 
