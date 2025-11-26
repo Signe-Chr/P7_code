@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import Dataset_generator_script as dgs
+import numpy
 
 def compute_H_matrix(rir_array, fs=16000, n_fft=None):
     """
@@ -212,3 +213,85 @@ def AC_loss(q_pred, q_true, H, bright_indices, dark_indices):
         del AC_loss_temp
     return AC_loss_total
 
+
+import numpy as np
+def L_1_reg(q_pred, q_true, H, bright_indices):
+    g = torch.fft.fft(q_pred, axis = 0)
+    g_true = torch.fft.fft(q_true, axis = 0)
+    loss = 0
+    N = len(g_true)
+    for n in range(N):
+        p_true_abs = torch.abs(torch.matmul(H[bright_indices][:,:,n].to(torch.complex128), g_true[:,n].to(torch.complex128)))
+        p_abs = torch.abs(torch.matmul(H[bright_indices][:,:,n].to(torch.complex128), g[:,n].to(torch.complex128)))
+        loss = loss + torch.abs((p_true_abs - p_abs).pow(2))
+    return 1/(N*len(bright_indices)) * loss
+        
+def L_2_reg(q_pred, H, dark_indices):
+    M_D = len(dark_indices)
+    g = torch.fft.fft(q_pred, axis = 0)
+    N = len(g)
+    total_loss=0
+    for n in range(N):
+        total_loss+torch.abs(torch.matmul(H[dark_indices][:,:,n].to(torch.complex128), g[:,n].to(torch.complex128))).pow(2)
+    return(1/(N*M_D)*total_loss)
+
+def L_3_reg(q_pred, freqs, L,g_max=1):
+    N = len(freqs)
+
+    # FFT along the filter length
+    g = torch.fft.fft(q_pred, dim=1)   # q_pred is already (3,1024)
+
+    # magnitude spectrum
+    mag = torch.abs(g)                 # shape (3,N)
+
+    # maximum allowed magnitude per loudspeaker (vector of 3 identical values)
+    bound = g_max * torch.ones(3, device=q_pred.device)
+
+    total_loss = 0.0
+
+    for freq in range(N):
+        # max(0, |g| - bound)
+        excess = torch.relu(mag[:, freq] - bound)
+
+        # squared norm
+        total_loss += torch.sum(excess**2)
+
+    return total_loss / (N * L)
+
+
+from scipy.signal import butter, filtfilt
+
+def butter_bandpass(lowcut, highcut, fs, order=4, N=8192):
+    nyquist = 0.5 * fs
+    low = lowcut / nyquist
+    high = highcut / nyquist
+
+    # Filter coefficients
+    b, a = butter(order, [low, high], btype='band')
+
+    # Create unit impulse
+    impulse = np.zeros(N)
+    impulse[0] = 1.0
+
+    # Filter the impulse to obtain impulse response
+    h = filtfilt(b, a, impulse)
+    return h
+
+import torch.nn.functional as F
+def L_4_reg(q_pred, dev):
+    L = np.shape(q_pred)[0]
+    N_hat = len(q_pred)
+    f = torch.from_numpy(butter_bandpass(100, 1500, fs=8192).copy())
+    q_temp = q_pred[0]
+    N = np.shape(q_temp)[0] + np.shape(f)[0] - 1
+    w = torch.from_numpy(1.0 - np.hamming(N)).to(dev)
+    total_loss = 0.0
+    for l in range(L):
+        #conv_out = F.conv1d(input = q_pred[l].view(1, 1, -1).to(torch.float).to(dev), weight=f.view(1, 1, -1).to(torch.float).to(dev), padding='same').to(dev)
+        padding = q_pred[l].shape[-1] - 1
+        conv_out = F.conv1d(input = f.view(1, 1, -1).to(torch.float).to(dev), weight=q_pred[l].view(1, 1, -1).to(torch.float).to(dev), padding = padding).to(dev)
+        weighted = w * conv_out
+        total_loss += torch.sum(weighted**2)
+    return (1/(N_hat * L)) * total_loss
+
+        

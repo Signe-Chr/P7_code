@@ -6,8 +6,10 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from scipy.io import wavfile
-from pesq import pesq
-from pystoi import stoi
+#from pesq import pesq
+#from pystoi import stoi
+import numpy as pesq
+import numpy as stoi
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
 from Dataset_generator_script import room_indices as ri
@@ -457,7 +459,7 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
 #filters_random, filters_baseline, filters_classification, filters_regression, filters_interpolation, filters_test
 
 #average_performance_metrics_with_filters(RIRs_test, filters_baseline, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
-loss_function_evaluation(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+loss_function_evaluation(RIRs_test, filters_regression, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
 #loss_functions(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 

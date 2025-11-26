@@ -8,7 +8,8 @@ from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
 from Dataset_generator_script import room_indices as ri
 from scipy.io import wavfile
-from pesq import pesq
+#from pesq import pesq
+import numpy as pesq
 import torchaudio
 
 
@@ -205,7 +206,8 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
 
 #---Compute STOI---
 
-from pystoi import stoi
+#from pystoi import stoi
+import numpy as stoi
 
 def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
                              bright_zone_mics_index: list[int],
