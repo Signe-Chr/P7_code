@@ -6,8 +6,10 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from scipy.io import wavfile
-from pesq import pesq
-from pystoi import stoi
+#from pesq import pesq
+#from pystoi import stoi
+import numpy as pesq
+import numpy as stoi
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
 from Dataset_class import CustomDataset, L, J
