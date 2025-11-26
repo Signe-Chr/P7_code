@@ -243,22 +243,20 @@ def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
                              fs: int = 16000):
     ref = wav_input.squeeze().detach().cpu().numpy().astype(np.float32)
 
-    def compute_zone_stoi(mic_indices):
-        stoi_list = []
-        for m in mic_indices:
-            deg = p_C[m, :].detach().cpu().numpy().astype(np.float32)
-            min_len = min(len(ref), len(deg))
-            s_target = ref[:min_len]
-            s_est = deg[:min_len]
-            score = stoi(s_target, s_est, fs, extended=False)
-            stoi_list.append(score)
-        stoi_list = np.array(stoi_list)
-        return np.mean(stoi_list)
+    stoi_list = []
+    for m in range(12):
+        deg = p_C[m, :].detach().cpu().numpy().astype(np.float32)
+        min_len = min(len(ref), len(deg))
+        s_target = ref[:min_len]
+        s_est = deg[:min_len]
+        score = stoi(s_target, s_est, fs, extended=False)
+        stoi_list.append(score)
+    stoi_list = np.array(stoi_list)
 
-    mean_B = compute_zone_stoi(bright_zone_mics_index)
-    mean_D = compute_zone_stoi(dark_zone_mics_index)
+    mean_B = np.mean(stoi_list[bright_zone_mics_index])
+    mean_D = np.mean(stoi_list[dark_zone_mics_index])
 
-    return mean_B,mean_D
+    return mean_B, mean_D
 
 def loss_functions(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_idx):
     mse_loss = MSE(predicted_filter, true_filter)
