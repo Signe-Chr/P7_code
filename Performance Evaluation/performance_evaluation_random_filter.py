@@ -10,7 +10,6 @@ from pesq import pesq
 from pystoi import stoi
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
-from Dataset_generator_script import room_indices as ri
 from Dataset_class import CustomDataset, L, J
 from performance_evaluation_unfiltered import compute_pressure_with_input as cpwi
 
@@ -32,7 +31,18 @@ filters_regression=torch.load("Saved Filters/regression_filters.pt")
 filters_interpolation=torch.load("Saved Filters/interpolation_filters.pt")
 
 
-#---Load data and split into test and traning data---
+#---Load data and split into test and training data---
+widths = range(2, 11)
+depths = range(2, 11)
+heights = range(4, 13)
+rooms = [[width, depth, height/2] for width in widths for depth in depths for height in heights]+[[100, 100, 100]]  # if width<=depth (This code snippet can be added in the list loop if rooms like 2x10xz and 10x2xz are deemed equal)
+target_rooms = [
+    [2, 2, 2], [2, 4, 3], [ 2, 6, 4], [ 2,  8, 3], [ 2, 10, 3],
+    [4, 2, 3], [4, 4, 2], [ 4, 8, 4], [ 4, 10, 4], [ 6,  2, 2],
+    [6, 4, 3], [6, 6, 3], [ 6, 8, 4], [ 6, 10, 4], [ 8,  2, 3],
+    [8, 6, 3], [8, 8, 4], [10, 2, 3], [10,  6, 5], [10, 10, 4]
+]
+ri = [i for i in range(len(rooms)) if rooms[i] in target_rooms]
 
 def load_data(data_dir):
     data_dir="Signes_data"
@@ -105,7 +115,7 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, refer
     # Zero pad reference for convolution
     reference_padded = F.pad(reference, (0, output_len - n_input_samples), 'constant', 0)
     p = torch.zeros((n_mics, output_len), device=rir.device)
-
+    
     for m in range(n_mics):
         p_m = torch.zeros(output_len, device=rir.device)
         for s in range(n_srcs):
@@ -198,43 +208,32 @@ def compute_pesq_unfiltered(
 
     return mean_pesq_B,mean_pesq_D
 
-def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
-                 bright_zone_mics_index: list[int],
-                 dark_zone_mics_index: list[int]):
+def compute_nSDP_old(p_C: torch.Tensor, wav_input: torch.Tensor,
+                 bright_zone_mics_index: list[int]):
     """
-    Computes normalized Signal Distortion Power (NSDP) for bright and dark zones.
+    Computes normalized Signal Distortion Power (NSDP) for bright.
     Bright zone compares against target signal.
-    Dark zone compares against zero (silence target).
     """
     ref = wav_input.squeeze().detach().cpu().numpy().astype(np.float32)
     
-    def compute_zone_nSDP(mic_indices, target_type="bright"):
+    def compute_zone_nSDP(mic_indices):
         NSDP_list = []
         for m in mic_indices:
             deg = p_C[m, :].detach().cpu().numpy().astype(np.float32)
             min_len = min(len(ref), len(deg))
             s_est = deg[:min_len]
-            
-            if target_type == "bright":
-                s_target = ref[:min_len]
-            else:  # dark zone -> silence target
-                s_target = np.zeros_like(s_est)
+            s_target = ref[:min_len]
             
             numerator = np.sum((s_target - s_est)**2)
-            denominator = np.sum(s_target**2) if target_type == "bright" else np.sum(s_est**2)
+            denominator = np.sum(s_target**2)
             
-            # For dark zone, compare distortion power to its own signal power
-            if denominator == 0:
-                NSDP_val = 1e10
-            else:
-                NSDP_val = 10 * np.log10(numerator / denominator)
+            NSDP_val = 10 * np.log10(numerator / denominator)
             NSDP_list.append(NSDP_val)
         return np.mean(NSDP_list)
     
-    mean_B = compute_zone_nSDP(bright_zone_mics_index, "bright")
-    mean_D = compute_zone_nSDP(dark_zone_mics_index, "dark")
+    mean_B = compute_zone_nSDP(bright_zone_mics_index)
     
-    return mean_B, mean_D
+    return mean_B
 
 def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
                              bright_zone_mics_index: list[int],
@@ -274,6 +273,48 @@ def attenuation(rir, raw_wav, filtered, zone):
     e_filt = torch.sum(filtered[zone]**2)
     return 10 * np.log10(e_raw/e_filt)
 
+def nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, bright_zone_mics_index, rir: torch.Tensor):
+    """
+    Computes normalized Signal Distortion Power (nSDP) for bright zone microphones.
+    Reference signal is convolved with bright-zone RIRs.
+    
+    Parameters:
+        p_C: [n_mics, n_samples] torch.Tensor (filtered pressures)
+        wav_input: [1, n_input_samples] torch.Tensor (original input signal)
+        bright_zone_mics_index: list of bright-zone mic indices
+        rir: [n_mics, n_srcs, n_rir_samples] torch.Tensor (RIRs for each mic)
+    
+    Returns:
+        mean nSDP value across bright zone mics
+    """
+    p_B = p_C[bright_zone_mics_index]
+    ref = wav_input.float()
+
+    d_B_list = []
+    for m in bright_zone_mics_index:
+        rir_m = rir[m] 
+        max_len = ref.shape[-1] + rir_m.shape[-1] - 1
+        mic_pressure = torch.zeros(max_len, device=rir.device)
+
+        for s in range(rir_m.shape[0]):
+            conv_result = F.conv1d(ref.unsqueeze(0), rir_m[s].unsqueeze(0).unsqueeze(0))
+            conv_result = conv_result.squeeze()  
+            conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[0]))
+            mic_pressure += conv_result
+
+        d_B_list.append(mic_pressure) 
+
+    d_B_tensor = torch.stack(d_B_list) 
+    min_len = min(d_B_tensor.shape[1], p_B.shape[1])
+    d_B_tensor = d_B_tensor[:, :min_len]
+    p_B = p_B[:, :min_len]
+
+    numerator = torch.sum((d_B_tensor - p_B) ** 2, dim=1)
+    denominator = torch.sum(d_B_tensor ** 2, dim=1)
+    nSDP_val = 10 * torch.log10(numerator / denominator)
+
+    return torch.mean(nSDP_val)
+
 
 #--------------------------------------------------------------
 # Main evaluation functions
@@ -293,7 +334,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         Average, min, max of each metric for bright and dark zones
     """
     AC_list, pesq_B_list, pesq_D_list = [], [], []
-    NSDP_B_list, NSDP_D_list = [], []
+    NSDP_B_list = []
     STOI_B_list, STOI_D_list = [], []
     tot_loss_list = []
 
@@ -314,7 +355,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         # Compute metrics
         AC_i = float(acoustic_contrast(p_C, bright_zone_mics_index_test, dark_zone_mics_index_test))
         mean_pesq_B, mean_pesq_D = compute_pesq_unfiltered(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
-        mean_NSDP_B, mean_NSDP_D = compute_nSDP(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
+        mean_NSDP_B = compute_nSDP(p_C, wav_input, bright_zone_mics_index_test)
         mean_STOI_B, mean_STOI_D = compute_STOI(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
     
         # Append results
@@ -322,7 +363,6 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         pesq_B_list.append(mean_pesq_B)
         pesq_D_list.append(mean_pesq_D)
         NSDP_B_list.append(mean_NSDP_B)
-        NSDP_D_list.append(mean_NSDP_D)
         STOI_B_list.append(mean_STOI_B)
         STOI_D_list.append(mean_STOI_D)
 
@@ -331,7 +371,6 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     pesq_B_list = np.array(pesq_B_list)
     pesq_D_list = np.array(pesq_D_list)
     NSDP_B_list = np.array(NSDP_B_list)
-    NSDP_D_list = np.array(NSDP_D_list)
     STOI_B_list = np.array(STOI_B_list)
     STOI_D_list = np.array(STOI_D_list)
 
@@ -341,7 +380,6 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         "PESQ_B": (np.sqrt(np.var(pesq_B_list)) ,np.mean(pesq_B_list), np.min(pesq_B_list), np.max(pesq_B_list)),
         "PESQ_D": (np.sqrt(np.var(pesq_D_list)) ,np.mean(pesq_D_list), np.min(pesq_D_list), np.max(pesq_D_list)),
         "NSDP_B": (np.sqrt(np.var(NSDP_B_list)) ,np.mean(NSDP_B_list), np.min(NSDP_B_list), np.max(NSDP_B_list)),
-        "NSDP_D": (np.sqrt(np.var(NSDP_D_list)) ,np.mean(NSDP_D_list), np.min(NSDP_D_list), np.max(NSDP_D_list)),
         "STOI_B": (np.sqrt(np.var(STOI_B_list)) ,np.mean(STOI_B_list), np.min(STOI_B_list), np.max(STOI_B_list)),
         "STOI_D": (np.sqrt(np.var(STOI_D_list)) ,np.mean(STOI_D_list), np.min(STOI_D_list), np.max(STOI_D_list)),
     }
@@ -349,7 +387,6 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     print(f"PESQ Bright Zone (std, mean, min, max): {results['PESQ_B']}")
     print(f"PESQ Dark Zone (std, mean, min, max): {results['PESQ_D']}")
     print(f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}")
-    print(f"NSDP Dark Zone (std, mean, min, max): {results['NSDP_D']}")
     print(f"STOI Bright Zone (std, mean, min, max): {results['STOI_B']}")
     print(f"STOI Dark Zone (std, mean, min, max): {results['STOI_D']}")
     # Optional: plot metrics
@@ -364,14 +401,14 @@ def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDP_B, NSDP_D, STOI_B, STOI_D,
     Parameters:
         AC: np.array of acoustic contrast values
         PESQ_B, PESQ_D: np.array of PESQ scores
-        NSDP_B, NSDP_D: np.array of NSDP scores
+        NSDP_B : np.array of NSDP scores
         STOI_B, STOI_D: np.array of STOI scores
     """
 
     metrics = {
         "AC (dB)": [AC],
         "PESQ": [PESQ_B, PESQ_D],
-        "nSDP (dB)": [NSDP_B, NSDP_D],
+        "nSDP (dB)": [NSDP_B],
         "STOI": [STOI_B, STOI_D],
         "Total Loss": [total_loss]
     }
@@ -379,7 +416,7 @@ def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDP_B, NSDP_D, STOI_B, STOI_D,
     zone_labels = {
         "AC (dB)": ["All zones"],
         "PESQ": ["Bright", "Dark"],
-        "nSDP (dB)": ["Bright", "Dark"],
+        "nSDP (dB)": ["Bright"],
         "STOI": ["Bright", "Dark"],
         "Total Loss": ["All zones"]
     }
@@ -454,10 +491,61 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
 
     return results
 
+def average_nSDP(RIR_test, selected_filters, wav_input,
+                 bright_zone_mics_index_test, true_filter):
+    """
+    Computes nSDP for the entire test set using selected filters.
+    Uses corrected nSDP function with RMS normalization and reference convolution.
+    
+    Parameters:
+        RIR_test: [n_samples, n_mics, n_srcs, n_rir_samples] torch.Tensor
+        selected_filters: [n_samples, n_srcs*filter_len] or [n_samples, n_srcs, filter_len] torch.Tensor
+        wav_input: [1, n_input_samples] torch.Tensor
+        bright_zone_mics_index_test: list of bright-zone mic indices
+        true_filter: [n_samples, n_srcs*filter_len] or [n_samples, n_srcs, filter_len] torch.Tensor
+    
+    Returns:
+        Dictionary with std, mean, min, max of nSDP for bright zone
+    """
+    nSDP_B_list = []
+
+    for i in tqdm(range(RIR_test.shape[0]), disable=not sys.stdout.isatty()):
+        rirs = RIR_test[i]
+        n_srcs = 3 
+        filter_len = selected_filters.shape[-1] // n_srcs
+
+        filters = selected_filters[i].float().reshape(n_srcs, filter_len)
+        true_filters = true_filter[i].float().reshape(n_srcs, filter_len)
+
+        # Compute pressure with filters
+        p_C = compute_pressure_with_input(rirs, filters, wav_input)
+
+        # Compute nSDP using corrected version
+        mean_nSDP_B = nSDP(p_C, wav_input, bright_zone_mics_index_test, rirs)
+        nSDP_B_list.append(float(mean_nSDP_B))
+
+    # Convert to numpy array
+    nSDP_B_list = np.array(nSDP_B_list)
+
+    # Compute statistics
+    results = {
+        "nSDP_B": (
+            np.sqrt(np.var(nSDP_B_list)),  # std
+            np.mean(nSDP_B_list),          # mean
+            np.min(nSDP_B_list),           # min
+            np.max(nSDP_B_list)            # max
+        )
+    }
+
+    print(f"nSDP Bright Zone (std, mean, min, max): {results['nSDP_B']}")
+    return results
+
+average_nSDP(RIRs_test, filters_random, x_input, bright_zone_mics_index, true_filter=filters_test)
+
 #filters_random, filters_baseline, filters_classification, filters_regression, filters_interpolation, filters_test
 
 #average_performance_metrics_with_filters(RIRs_test, filters_baseline, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
-loss_function_evaluation(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+#loss_function_evaluation(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
 #loss_functions(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
