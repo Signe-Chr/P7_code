@@ -1,33 +1,29 @@
-import numpy as np, matplotlib.pyplot as plt
-from Dataset_generator_script import RT60s, dark_mic_radius, M_D, sources_mics, tilt_rotations, user_rotations
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
-spatial_positions = [
-        [  5,   5, 1.5],   # 0 — Center
-        [  5, 9.5, 1.5],   # 1 — Up against one wall
-        [9.5, 9.5, 1.5],   # 2 — Corner
-    ]
-for i, RT60 in enumerate(RT60s):
-    for ii, spatial_position in enumerate(spatial_positions):
-        sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(
-            dark_mic_radius, spatial_position, M_D
-        )
-        center_sources = np.mean(sources_position_list, axis=0)
-        for iii, tilt_rotation in enumerate(tilt_rotations):
-            rotation_x = np.array([
-                    [np.cos(tilt_rotation), 0, -np.sin(tilt_rotation)],
-                    [                    0, 1,                      0],
-                    [np.sin(tilt_rotation), 0,  np.cos(tilt_rotation)]
-                ])
+phone_tilt = np.pi/4
+user_rotation = np.pi
 
-            orientation_source_temp = np.matmul(rotation_x, (np.array(sources_position_list)-center_sources).T).T
-            orientation_source_temp += center_sources
-            for iv, user_rotation in enumerate(user_rotations):
-                user_orientation = np.array([
-                    [np.cos(user_rotation), -np.sin(user_rotation), 0],
-                    [np.sin(user_rotation),  np.cos(user_rotation), 0],
-                    [                    0,                      0, 1]
-                ])  # rotation around z-axis for bright zone ear mic
-                
-                orientation_source_final = np.matmul(user_orientation, (orientation_source_temp-np.array(spatial_position)).T).T
-                orientation_source_final += np.array(spatial_position)
+vectors = [
+    np.array([np.sin(phone_tilt)*np.cos(user_rotation), np.sin(phone_tilt)*np.sin(user_rotation), -np.cos(phone_tilt)]),
+    np.array([np.sin(phone_tilt)*np.cos(user_rotation), np.sin(phone_tilt)*np.sin(user_rotation), -np.cos(phone_tilt)]),
+    np.array([-np.sin(user_rotation), np.cos(user_rotation), 0])
+]
 
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+
+origin = np.array([0, 0, 0])
+colors = ['r', 'g', 'b']
+
+for vec, color in zip(vectors, colors):
+    ax.quiver(*origin, *vec, color=color, length=1.0, normalize=True)
+
+ax.set_xlim([-1, 1])
+ax.set_ylim([-1, 1])
+ax.set_zlim([-1, 1])
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+plt.show()
