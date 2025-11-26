@@ -92,7 +92,7 @@ dark_mic_radius = 0.5
 rooms = [[1.8, 2, 2.3], [4.9, 5.7, 2.5], [8.8, 7, 3]]
 z_height = 1.7
 RT60s = np.linspace(0.1, 0.9, 5)
-user_rotations = [np.pi/2, np.pi, np.pi*3/2, 2*np.pi]
+user_rotations = [0, np.pi/2, np.pi, np.pi*3/2]
 tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
 M_D = 12
 '''wav_path = "relaxing-guitar-loop-v5-245859.wav"
@@ -118,24 +118,25 @@ if __name__ == "__main__":
                 sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = sources_mics(
                     dark_mic_radius, spatial_position, M_D
                 )
-                for iii, user_rotation in enumerate(user_rotations):
-                    user_orientation = np.array([
-                        [np.cos(user_rotation), -np.sin(user_rotation), 0],
-                        [np.sin(user_rotation),  np.cos(user_rotation), 0],
-                        [                    0,                      0, 1]
-                    ])  # rotation around z-axis for bright zone ear mic
-
-                    center_sources = np.mean(sources_position_list, axis=0)
-                    orientation_source_temp = np.matmul(user_orientation, np.array(sources_position_list) - center_sources.T)
-                    for iv, tilt_rotation in enumerate(tilt_rotations):
-                        rotation_x = np.array([
-                            [1,                     0,                      0],
-                            [0, np.cos(tilt_rotation), -np.sin(tilt_rotation)],
-                            [0, np.sin(tilt_rotation),  np.cos(tilt_rotation)]
+                center_sources = np.mean(sources_position_list, axis=0)
+                for iii, tilt_rotation in enumerate(tilt_rotations):
+                    rotation_x = np.array([
+                            [np.cos(tilt_rotation), 0, -np.sin(tilt_rotation)],
+                            [                    0, 1,                      0],
+                            [np.sin(tilt_rotation), 0,  np.cos(tilt_rotation)]
                         ])
+
+                    orientation_source_temp = np.matmul(rotation_x, (np.array(sources_position_list)-center_sources).T).T
+                    orientation_source_temp += center_sources
+                    for iv, user_rotation in enumerate(user_rotations):
+                        user_orientation = np.array([
+                            [np.cos(user_rotation), -np.sin(user_rotation), 0],
+                            [np.sin(user_rotation),  np.cos(user_rotation), 0],
+                            [                    0,                      0, 1]
+                        ])  # rotation around z-axis for bright zone ear mic
                         
-                        orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
-                        orientation_source_final += center_sources.T
+                        orientation_source_final = np.matmul(user_orientation, (orientation_source_temp-np.array(spatial_position)).T).T
+                        orientation_source_final += np.array(spatial_position)
                         args = (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
                             x_input, RT60, mic_directions, user_rotation, fs_target, J, N, V, mu, room_dim, reg_term, target_amplitude,
                             i, ii, iii, iv, r, out_q_path+raw_out, spatial_position, dark_mic_radius, tilt_rotation)
