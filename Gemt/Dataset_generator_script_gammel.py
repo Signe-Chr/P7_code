@@ -23,22 +23,22 @@ def sources_mics(R, Center, N_mics):
         ))
         dark_zone_mics_index.append(i)
     
-    mic_positions_list.append([Center[0], Center[1]-0.02, Center[2]])
+    mic_positions_list.append([Center[0], Center[1]-0.1, Center[2]])
     direction_list.append(pra.directivities.HyperCardioid(
          pra.directivities.DirectionVector(-90)
     ))
-
     bright_zone_mics_index = [N_mics]
-    sources_positions_list = [[Center[0]-0.04, Center[1]-0.15, Center[2]-0.16],
+
+    sources_position_list = [[Center[0]-0.04, Center[1]-0.15, Center[2]-0.16],
                              [Center[0]+0.04, Center[1]-0.15, Center[2]-0.16],
                              [Center[0]     , Center[1]-0.15, Center[2]]]
-    return sources_positions_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, direction_list
+    return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, direction_list
 
 def archive_q_matrix(q_matrix, archive_path, key_name, sources_position, rt60, IR, mic_positions, room_dim, spatial_position, R, user_orientation, phone_tilt, bright_zone_mics_index, dark_zone_mics_index):
             dict_update = {
                 'q_matrix': q_matrix, 
                 'J': J, #Order of filter
-                #'N': N, #Samples in wav file
+                'N': N, #Samples in wav file
                 'V': V,
                 'mu': mu,
                 'room_dim': room_dim,
@@ -86,13 +86,13 @@ def compute_center(points):
     return center
 
 def main(orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-         wav, RT60, mic_directions, user_rotation, fs_target, J, V, mu, room_dim, reg_eps, target_amplitude,
+         wav, RT60, mic_directions, user_rotation, fs_target, J, N, V, mu, room_dim, reg_eps, target_amplitude,
          i, ii, iii, iv, r, out_q_path, spatial_position, dark_mic_radius, tilt_rotation):
     q, IR = design_vast_filter(
         orientation_source_final, mic_positions_list,
         bright_zone_mics_index, dark_zone_mics_index,
         wav, RT60, mic_directions, user_rotation,
-        fs_target, J, V, mu, room_dim, reg_eps, target_amplitude
+        fs_target, J, N, V, mu, room_dim, reg_eps, target_amplitude
     )
 
     m = f"VAST_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
@@ -160,7 +160,7 @@ if __name__ == "__main__":
                         orientation_source_final = np.matmul(rotation_x, orientation_source_temp)
                         orientation_source_final += center_sources.T
                         args = (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                            wav, RT60, mic_directions, user_rotation, fs_target, J, V, mu, room_dim, reg_term, target_amplitude,
+                            wav, RT60, mic_directions, user_rotation, fs_target, J, N, V, mu, room_dim, reg_term, target_amplitude,
                             i, ii, iii, iv, r, out_q_path, spatial_position, dark_mic_radius, tilt_rotation)
                         pool.apply_async(main, args=args, callback=lambda _:loop.update(1))
     pool.close()
