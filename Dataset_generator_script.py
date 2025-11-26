@@ -18,15 +18,15 @@ def sources_mics(R, Center, M_D):
         mic_positions_list.append([R * np.cos(angle) + Center[0],
                                    R * np.sin(angle) + Center[1],
                                    Center[2]])
+        dir_vec = np.array([-np.cos(angle), -np.sin(angle), 0])
         direction_list.append(pra.directivities.HyperCardioid(
-             pra.directivities.DirectionVector(np.pi-angle, degrees=False)
+            dir_vec / np.linalg.norm(dir_vec)
         ))
         dark_zone_mics_index.append(i)
     
     mic_positions_list.append([Center[0], Center[1]-0.1, Center[2]])
-    direction_list.append(pra.directivities.HyperCardioid(
-         pra.directivities.DirectionVector(-90)
-    ))
+    dir_vec = np.array([0, -1, 0])
+    direction_list.append(pra.directivities.HyperCardioid(dir_vec))
     bright_zone_mics_index = [M_D]
 
     sources_position_list = [[Center[0]-0.04, Center[1]-0.12, Center[2]-0.16],
@@ -90,8 +90,8 @@ reg_term = 1e-6
 target_amplitude = 0.080792 # WTF IS THISSSSS?????
 dark_mic_radius = 0.5
 rooms = [[1.8, 2, 2.3], [4.9, 5.7, 2.5], [8.8, 7, 3]]
-z_height = 1.7
-RT60s = np.linspace(0.1, 0.9, 5)
+z_height = 1.43
+RT60s = np.linspace(0.3, 0.9, 4)
 user_rotations = [0, np.pi/2, np.pi, np.pi*3/2]
 tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
 M_D = 12
