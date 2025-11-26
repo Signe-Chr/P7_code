@@ -270,8 +270,8 @@ def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D)
     plt.show()
     
 from performance_evaluation_unfiltered import compute_pressure_with_input as cpwi
-def attenuation(rir, raw_wav, filtered):
-    raw_signal = cpwi(rir, raw_wav)
+def attenuation(rir, raw_wav, filtered,zone):
+    raw_signal = cpwi(rir, raw_wav)[zone]
     e_raw = torch.sum(raw_signal**2)
     e_filt = torch.sum(filtered**2)
     return 10 * np.log10(e_raw/e_filt)
@@ -308,7 +308,7 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index_test
         mean_STOI_B,mean_STOI_D=compute_STOI(p_C, wav_input, BZ_idx, DZ_idx)
         
         #Compute attentuation in dark zone
-        atten = attenuation(rirs, wav_input, p_C[dark_zone_mics_index_test])
+        atten = attenuation(rirs, wav_input, p_C[dark_zone_mics_index_test],dark_zone_mics_index_test)
         
 
         pesq_B.append(mean_pesq_B)

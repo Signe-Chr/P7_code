@@ -262,22 +262,9 @@ if __name__ == "__main__":
         dictionary=y_train, 
         IR_train=IR_train, 
         IR_test=IR_test, 
-        fcentres=fcentres, 
-        M_B=M_B, 
-        M_D=M_D,
-        x_input=x_input, # Pass the input signal
-        k_neighbors=20
+        x_input=x_input,
+        k_neighbors=20,
+        max_filters=max_filters
     )
-    #print(type(data[1]),type(chosen_indices[0]))
-    filter_q = data_[1][chosen_indices]
-    torch.save(filter_q, "Saved Filters/baseline_filters.pt")
+    """
 
-    
-    end_time = time.time()
-    
-print(f"\n--- ANN Baseline Results (K=20, Composite Loss) ---")
-print(f"Total Test Samples Processed: {len(chosen_indices)}")
-print(f"Average Combined Loss (across all samples): {avg_baseline_loss:.6f}")
-print(f"Total Search Time: {end_time - start_time:.4f} seconds")
-print(f"\nIndices of All Chosen Filters (from y_train):")
-print(chosen_indices)
