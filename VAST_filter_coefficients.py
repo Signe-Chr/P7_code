@@ -1,12 +1,11 @@
 import numpy as np
 import pyroomacoustics as pra
+import time
+import matplotlib.pyplot as plt
 from scipy.io import wavfile
 from scipy.signal import fftconvolve
 from scipy.linalg import toeplitz, eigh
-import time
-import os
-import matplotlib.pyplot as plt
-import time
+
 
 
 def setup_acoustic_scenario(sources, 

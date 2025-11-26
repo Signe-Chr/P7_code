@@ -6,50 +6,69 @@ import matplotlib.pyplot as plt
 from scipy.signal import lfilter, fftconvolve
 # Assuming the file 'Dataset_generator_script.py' exists and is imported correctly
 import Dataset_generator_script as dgs 
+import os
+from Dataset_generator_script import room_indices as ri
+from Dataset_class import CustomDataset, L, J
+from torch.utils.data import DataLoader
 
-# ================================================================
-# 1. Define the model (FIXED ARCHITECTURE)
-# The architecture is updated to match the saved weights in mlp_weights.pth
-# ================================================================
-class SoftFilterNet(nn.Module):
-    def __init__(self, input_size, num_filters, filter_dim, filters_tensor):
-        super().__init__()
-        # Layers reconstructed based on the state_dict errors:
-        self.fc1 = nn.Linear(input_size, 512)
-        self.fc2 = nn.Linear(512, 256)       # Matched checkpoint size
-        self.fc3 = nn.Linear(256, 512)       # Matched checkpoint size
-        self.fc4 = nn.Linear(512, num_filters) # Matched checkpoint size (maps to num_filters)
-        self.register_buffer("filters", filters_tensor)
-
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))             # Added activation for the new fc3
-        logits = self.fc4(x)                # Changed to fc4 as final layer
-        weights = F.softmax(logits, dim=1)
-        predicted_filters = weights @ self.filters
-        return predicted_filters, weights
+#load q
+baseline_filters = np.array(torch.load(r"C:\Users\marst\OneDrive\Skrivebord\UNI\S. 7\PROJEKT\P7\Saved Filters\baseline_filters.pt"))
+classification_filters = np.array(torch.load(r"C:\Users\marst\OneDrive\Skrivebord\UNI\S. 7\PROJEKT\P7\Saved Filters\classification_filters.pt"))
+interpolation_filters = np.array(torch.load(r"C:\Users\marst\OneDrive\Skrivebord\UNI\S. 7\PROJEKT\P7\Saved Filters\interpolation_filters.pt"))
+random_selection_filters = np.array(torch.load(r"C:\Users\marst\OneDrive\Skrivebord\UNI\S. 7\PROJEKT\P7\Saved Filters\random_selection_filters.pt"))
+regression_filters = np.array(torch.load(r"C:\Users\marst\OneDrive\Skrivebord\UNI\S. 7\PROJEKT\P7\Saved Filters\regression_filters.pt"))
 
 
-# ================================================================
-# 2. Load the trained model + filter dictionary (FIXED DATA LOADING)
-# ================================================================
-data = np.load("VAST_filter_archive.npy", allow_pickle=True).item()
-filters_list = []
-for inner in data.values():
-    q = inner.get("q_matrix", np.zeros((3, 1024), dtype=np.float32))
-    # FIX: Use the actual q_matrix from the data archive, not an array of ones.
-    filters_list.append(q.reshape(-1))# flatten
-filters_np = np.stack(filters_list).astype(np.float32)
-filters_tensor = torch.unique(torch.from_numpy(filters_np), dim=0)
-num_filters, filter_dim = filters_tensor.shape
+#---Load data and split into test and traning data---
+data_dir="Signes_data"
+full_data = os.listdir(data_dir)
+data_points = []
+train_points = []
+test_points = []
+for data in full_data:
+    data_points.append(data)
+    i = int(data.split("_")[1])
+    if i not in ri[::4]:
+        train_points.append(data)
+    else:
+        test_points.append(data)
+        
+data_train=CustomDataset(data_dir,train_points)
+data_train_loader=DataLoader(data_train,batch_size=len(data_train), shuffle=False)
+data_test=CustomDataset(data_dir,test_points)
+data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=False)
 
-input_size = 6
-model = SoftFilterNet(input_size, num_filters, filter_dim, filters_tensor)
-model.load_state_dict(torch.load("mlp_weights.pth", map_location="cpu"))
-model.eval()
-print(f"\nLoaded SoftFilterNet model with weights from 'mlp_weights.pth'")
-print(f"Model successfully loaded with {num_filters} unique filters.")
+temp_var_train=[batch for batch in data_train_loader][0]
+temp_var_test=[batch for batch in data_test_loader][0]
+
+
+
+X_train=temp_var_train[0]
+X_test=temp_var_test[0]
+
+
+filters_train=temp_var_train[1]
+filters_test=temp_var_test[1]
+
+bright_zone_mics_index_train=temp_var_train[2]
+bright_zone_mics_index_test=temp_var_test[2]
+
+dark_zone_mics_index_train=temp_var_train[3]
+dark_zone_mics_index_test=temp_var_test[3]
+
+n_srcs_train=temp_var_train[4]
+n_srcs_test=temp_var_test[4]
+
+
+RIRs_train=temp_var_train[5]
+RIRs_test=temp_var_test[5]
+
+srcs_pos_train = temp_var_train[7]
+srcs_pos_test = temp_var_test[7]
+
+
+dark_zone_mics_index=[0,1,2,3,4,5,6,7,8,9,10,11]
+bright_zone_mics_index=[12]
 
 # ================================================================
 # 3. 2D Pressure Field Visualization with Bright/Dark Zones
@@ -97,7 +116,7 @@ def pressure_field_2d(room_dim, sources, q_opt, center, fs=16000, grid_res=40, J
                 
                 # Apply FIR filter (q_opt[l]) and then simulate propagation (h)
                 filtered = lfilter(q_opt[l], 1, test_signal)
-                out_l = fftconvolve(filtered, h)
+                out_l = fftconvolve(filtered, h) ##################################################################
                 
                 # Compute RMS pressure contribution
                 p += np.sqrt(np.mean(out_l**2))
@@ -105,7 +124,8 @@ def pressure_field_2d(room_dim, sources, q_opt, center, fs=16000, grid_res=40, J
             pressure_field[i, j] = p
 
     # Normalize and convert to dB
-    pressure_dB = 20 * np.log10(pressure_field / (np.max(pressure_field) + 1e-12))
+    pressure_dB = 20 * np.log10( pressure_field / (np.max(pressure_field) + 1e-12) )
+
 
     # ------------------------------------------------------------
     # Bright and dark zones
@@ -135,7 +155,7 @@ def pressure_field_2d(room_dim, sources, q_opt, center, fs=16000, grid_res=40, J
     plt.colorbar(im, label='SPL [dB]')
     plt.xlabel('x [m]')
     plt.ylabel('y [m]')
-    plt.title('Predicted Sound Pressure Field (SoftFilterNet)')
+    #plt.title('Predicted Sound Pressure Field (SoftFilterNet)')
 
     # Plot speakers
     spk_x = [s[0] for s in sources]
@@ -153,57 +173,9 @@ def pressure_field_2d(room_dim, sources, q_opt, center, fs=16000, grid_res=40, J
     plt.show()
 
 
-# ================================================================
-# 4. Predict filter + visualize
-# ================================================================
 
-Center = np.array([2.0, 2.0, 1.5])
-room_dim = [5, 4, 3]
-sources_position_list = np.array([
-    [Center[0]-0.1, Center[1]-0.2, Center[2]],
-    [Center[0]+0.1, Center[1]-0.2, Center[2]],
-    [Center[0],Center[1]-0.2, Center[2]+0.2],
-])
+test_index = 0
 
-rt60 = 0.4
-tilt_rotation = np.deg2rad(15)
-user_rotation = np.deg2rad(45)
 
-# NOTE: The rotation logic below seems to be intended to calculate source positions
-# relative to a rotated user, but it's not actually used in X_input.
-# Since X_input only uses the raw Center coordinates and the rotations/tilt angles,
-# the code will likely run now, but the geometry calculation might be redundant 
-# for the model's prediction. We keep the original calculation for visualization purposes.
+pressure_field_2d(list(X_test[test_index][6:]), srcs_pos_test[0], filters_test[0], list(X_test[test_index][3:6]), fs=16000, grid_res=40, J=1024, r_zone=dgs.dark_mic_radius)
 
-user_orientation = np.array([
-                        [np.cos(user_rotation),-np.sin(user_rotation), 0],
-                        [np.sin(user_rotation),np.cos(user_rotation), 0],
-                        [0,0,1]
-                    ])
-
-rotation_x = np.array([
-                              [1,0,0],
-                              [0, np.cos(tilt_rotation),-np.sin(tilt_rotation)],
-                              [0, np.sin(tilt_rotation),np.cos(tilt_rotation)]
-                          ])
-
-orientation_source_temp = np.matmul(user_orientation, sources_position_list.T - Center.reshape(-1, 1))
-
-orientation_source_final = np.matmul(rotation_x, orientation_source_temp).T
-orientation_source_final += Center
-
-# Model Input: [rt60, phone_tilt, user_rotation, spatial_position_x, y, z]
-X_input = np.array([[rt60, tilt_rotation, user_rotation] + list(Center)], dtype=np.float32)
-X_tensor = torch.from_numpy(X_input)
-
-with torch.no_grad():
-    predicted_filter, weights = model(X_tensor)
-
-# Note: predicted_filter[0] is used because the batch size is 1.
-q_opt = predicted_filter[0].cpu().numpy().reshape(3, -1)
-print(f"Predicted filter shape: {q_opt.shape}")
-
-# Using the *original* source positions for visualization as the prediction is based on the unrotated center.
-# If the prediction logic includes the rotations, the 'orientation_source_final' should be used.
-# For now, we use the output of the rotation calculation for consistency with original script logic.
-pressure_field_2d(room_dim, orientation_source_final, q_opt, Center, fs=16000, grid_res=40, J=q_opt.shape[1], r_zone=1.0)

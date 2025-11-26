@@ -17,7 +17,8 @@ class CustomDataset(Dataset):
         dic = np.load(f"{self.data_path}/{file}", allow_pickle=True).item()
         bright_zone_mics_index = dic.get('bright_zone_mics_index', [])
         dark_zone_mics_index = dic.get('dark_zone_mics_index', [])
-        n_srcs = len(dic.get('sources_position', []))
+        srcs_pos = dic.get('sources_position', [])
+        n_srcs = len(srcs_pos)
         IR = dic.get('IR', [0,0,0])
 
         rt60 = dic.get('RT60', 0)                         # 2.5
@@ -34,4 +35,4 @@ class CustomDataset(Dataset):
             room_dim
         ])
         y = np.ravel(dic.get('q_matrix', np.zeros(L*J)))
-        return X, y, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR, idx
+        return X, y, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR, idx, srcs_pos
