@@ -6,14 +6,26 @@ import torch.nn.functional as F
 import numpy as np
 from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
-from Dataset_generator_script import room_indices as ri
 from scipy.io import wavfile
-from pesq import pesq
+#from pesq import pesq
+import numpy as pesq
 import torchaudio
 
 
 
 #---Load data and split into test and traning data---
+widths = range(2, 11)
+depths = range(2, 11)
+heights = range(4, 13)
+rooms = [[width, depth, height/2] for width in widths for depth in depths for height in heights]+[[100, 100, 100]]  # if width<=depth (This code snippet can be added in the list loop if rooms like 2x10xz and 10x2xz are deemed equal)
+target_rooms = [
+    [2, 2, 2], [2, 4, 3], [ 2, 6, 4], [ 2,  8, 3], [ 2, 10, 3],
+    [4, 2, 3], [4, 4, 2], [ 4, 8, 4], [ 4, 10, 4], [ 6,  2, 2],
+    [6, 4, 3], [6, 6, 3], [ 6, 8, 4], [ 6, 10, 4], [ 8,  2, 3],
+    [8, 6, 3], [8, 8, 4], [10, 2, 3], [10,  6, 5], [10, 10, 4]
+]
+ri = [i for i in range(len(rooms)) if rooms[i] in target_rooms]
+
 data_dir="Signes_data"
 full_data = os.listdir(data_dir)
 data_points = []
@@ -205,7 +217,8 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
 
 #---Compute STOI---
 
-from pystoi import stoi
+#from pystoi import stoi
+import numpy as stoi
 
 def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
                              bright_zone_mics_index: list[int],

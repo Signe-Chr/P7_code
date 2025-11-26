@@ -9,6 +9,10 @@ class FilterNet_regression(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(input_size, 512),
             nn.ReLU(),
+            nn.Linear(512,512),
+            nn.ReLU(),
+            nn.Linear(512,512),
+            nn.ReLU(),
             nn.Linear(512, output_size))
 
     def forward(self, x):
