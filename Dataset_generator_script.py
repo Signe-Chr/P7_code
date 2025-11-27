@@ -9,6 +9,7 @@ import multiprocessing as mp
 from VAST_filter_coefficients import design_vast_filter
 from tqdm import tqdm
 
+
 def sources_mics(R, Center, M_D):
     mic_positions_list = []
     direction_list = []

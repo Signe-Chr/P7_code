@@ -6,7 +6,8 @@ import time
 def compute_ACC_from_file(file_path):
     """
     Compute ACC filter from a single RIR archive file.
-    IR is a list of lists of arrays (IR[source][mic] = np.array)
+    Works when IR is a list of lists of arrays (IR[source][mic] = np.array)
+    Safely skips mic indices that are out of range.
     """
     data = np.load(file_path, allow_pickle=True).item()
     IR = data['IR']
@@ -16,8 +17,8 @@ def compute_ACC_from_file(file_path):
     dark_idx = data['dark_zone_mics_index']
 
     n_srcs = len(IR)
-    n_mics = len(IR[0])        # number of mics per source
-    N = IR[0][0].shape[0]      # length of IR for one mic
+    n_mics = [len(IR[i]) for i in range(n_srcs)]  # list of #mics per source
+    N = IR[0][0].shape[0]  # length of IR for one mic (assume all same length)
 
     # Initialize matrices
     R_B = np.zeros((n_srcs*J, n_srcs*J))
@@ -30,11 +31,15 @@ def compute_ACC_from_file(file_path):
         for j in range(n_srcs):
             # bright region
             for m in bright_idx:
-                h = IR[i][m]  # shape (N,)
+                if m >= n_mics[i]:
+                    continue  # skip if index out of range
+                h = IR[i][m]
                 T_B = toeplitz(np.r_[h, np.zeros(J-1)], np.zeros(J))
                 R_B[i*J:(i+1)*J, j*J:(j+1)*J] += T_B.T @ T_B
             # dark region
             for m in dark_idx:
+                if m >= n_mics[i]:
+                    continue
                 h = IR[i][m]
                 T_D = toeplitz(np.r_[h, np.zeros(J-1)], np.zeros(J))
                 R_D[i*J:(i+1)*J, j*J:(j+1)*J] += T_D.T @ T_D

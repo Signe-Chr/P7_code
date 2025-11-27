@@ -7,6 +7,11 @@ from scipy.signal import fftconvolve
 from scipy.linalg import toeplitz, eigh
 
 
+def unit_vector_to_angles(v):
+    x, y, z = v
+    azimuth = np.arctan2(y, x)       # angle in XY-plane
+    colatitude = np.arccos(z)        # angle down from +Z axis
+    return azimuth, colatitude
 
 def setup_acoustic_scenario(sources, 
                         mic_positions_list, 
@@ -17,7 +22,7 @@ def setup_acoustic_scenario(sources,
                         rt60,
                         mic_directions, 
                         user_rotation,
-                        maxmax_order=20):
+                        phone_tilt):
     """
     Sets up a pyroomacoustics simulation environment (ShoeBox) and computes RIRs.
 
@@ -33,16 +38,11 @@ def setup_acoustic_scenario(sources,
 
     # Define Room
     e_absorption, max_order = pra.inverse_sabine(rt60, room_dim)
-    max_order = min(max_order, maxmax_order)
     room = pra.ShoeBox(
         room_dim,
         fs=fs_target,
         materials=pra.Material(e_absorption),
         max_order=max_order)
-    
-    # Add Sources (Loudspeakers)
-    for s in sources_list:
-        room.add_source(s)
 
     # Define and Add Microphone Grid
     mic_positions = np.array(mic_positions_list).T
@@ -51,20 +51,39 @@ def setup_acoustic_scenario(sources,
         room.fs)
     room.add_microphone_array(mic_array)
 
+    final_mic_dir = np.array([np.sin(user_rotation), -np.cos(user_rotation), 0])
+    final_mic_dir /= np.linalg.norm(final_mic_dir)
+    az, col = unit_vector_to_angles(final_mic_dir)
     room.mic_array.set_directivity(mic_directions[:-1]+[pra.directivities.HyperCardioid(
-                    pra.directivities.DirectionVector(user_rotation-np.pi/2)
-            )])
+                    pra.directivities.DirectionVector(az, col, degrees=False))])
+    
+    # Add Sources (Loudspeakers)
+    source_dir_vecs = [np.array([np.sin(phone_tilt)*np.cos(user_rotation), np.sin(phone_tilt)*np.sin(user_rotation), -np.cos(phone_tilt)]),
+                       np.array([np.sin(phone_tilt)*np.cos(user_rotation), np.sin(phone_tilt)*np.sin(user_rotation), -np.cos(phone_tilt)]),
+                       -final_mic_dir]
+    source_dir_vecs[0] /= np.linalg.norm(source_dir_vecs[0])
+    source_dir_vecs[1] /= np.linalg.norm(source_dir_vecs[1])
+    source_directions = [pra.directivities.HyperCardioid(
+                            pra.directivities.DirectionVector(
+                                *unit_vector_to_angles(source_dir_vecs[0]), degrees=False)),
+                         pra.directivities.HyperCardioid(
+                            pra.directivities.DirectionVector(
+                                *unit_vector_to_angles(source_dir_vecs[1]), degrees=False)),
+                         pra.directivities.HyperCardioid(
+                            pra.directivities.DirectionVector(
+                                *unit_vector_to_angles(source_dir_vecs[2]), degrees=False))]
+    for direc, s in enumerate(sources_list):
+        room.add_source(s, directivity=source_directions[direc])
 
     # Compute RIRs
     #print(f"Computing RIRs for {mic_positions.shape[1]} mics (Bright: {M_B}, Dark: {M_D}) and {len(sources_list)} sources...")
     room.compute_rir()
 
-
-
     # RIRs are stored in room.rir: room.rir[mic_index][source_index]
     IR = room.rir 
 
     return IR, M_B, M_D
+
 
 
 def build_U_ml_single(x, h_ml, N, J):
