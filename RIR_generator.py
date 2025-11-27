@@ -10,7 +10,6 @@ import numpy as np
 import scipy.io.wavfile as wavfile
 import pyroomacoustics as pra
 import multiprocessing as mp
-from VAST_filter_coefficients import design_vast_filter
 from tqdm import tqdm
 
 def setup_acoustic_scenario(sources, 
@@ -95,15 +94,11 @@ def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
     
     return np.array(rir_list)
 
-def sources_mics(IR_old, n_mics, n_srcs):
+def sources_mics(R, Center, M_D):
     # --- Save Coefficients ---
     #np.save(out_q_path, q_matrix)
     #print(f"Successfully designed filter and saved q_matrix to {out_q_path} in {time.perf_counter() - t_start_total:.2f} s")
-
-    IR = prepare_rir_input(IR_old, n_mics, n_srcs, max_length=512)
-    return IR
-
-def sources_mics(R, Center, M_D):
+    #IR = prepare_rir_input(IR_old, n_mics, n_srcs, max_length=512)
     mic_positions_list = []
     direction_list = []
     dark_zone_mics_index = []
@@ -128,7 +123,7 @@ def sources_mics(R, Center, M_D):
                              [Center[0]     , Center[1]-0.12, Center[2]]]
     return sources_position_list, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, direction_list
 
-def archive_dictionary(archive_path, key_name, sources_position, rt60, IR, mic_positions,
+def archive_RIRs(archive_path, key_name, sources_position, rt60, IR, mic_positions,
                      room_dim, spatial_position, R, user_orientation, phone_tilt,
                      bright_zone_mics_index, dark_zone_mics_index, J, N, V, mu):
     dict_update = {
@@ -173,7 +168,7 @@ def main(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_ind
                         user_rotation,
                         phone_tilt)[0]
 
-    archive_dictionary(out_path, m, orientation_source_final,
+    archive_RIRs(out_path, m, orientation_source_final,
         RT60, IR, mic_positions_list, room_dim,
         spatial_position, dark_mic_radius, user_rotation, tilt_rotation,
         bright_zone_mics_index, dark_zone_mics_index
@@ -181,11 +176,8 @@ def main(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_ind
     return
 
 J = 1024
-V = 1
-mu = 1
 fs_target = 16000
 reg_term = 1e-6
-target_amplitude = 0.080792 # WTF IS THISSSSS?????
 dark_mic_radius = 0.5
 rooms = [[1.8, 2, 2.3], [4.9, 5.7, 2.5], [8.8, 7, 3]]
 z_height = 1.43
@@ -193,14 +185,10 @@ RT60s = np.linspace(0.3, 0.9, 4)
 user_rotations = [0, np.pi/2, np.pi, np.pi*3/2]
 tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
 M_D = 12
-'''wav_path = "relaxing-guitar-loop-v5-245859.wav"
-fs_wav, wav = wavfile.read(wav_path)
-x_input = wav[5*44100:7*44100] / (np.max(np.abs(wav)) + 1e-12)'''
 x_input = np.array([1])
 N = len(x_input)
 if __name__ == "__main__":
     out_q_path = "ACC_filter_archive"
-    raw_out = "/TOTAL DATA"
 
     total_iterations = len(RT60s) * len(rooms) * len(user_rotations) * len(tilt_rotations) * 3
     loop = tqdm(total=total_iterations)
@@ -236,23 +224,11 @@ if __name__ == "__main__":
                         orientation_source_final = np.matmul(user_orientation, (orientation_source_temp-np.array(spatial_position)).T).T
                         orientation_source_final += np.array(spatial_position)
                         args = (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                            x_input, RT60, mic_directions, user_rotation, fs_target, J, N, V, mu, room_dim, reg_term, target_amplitude,
-                            i, ii, iii, iv, r, out_q_path+raw_out, spatial_position, dark_mic_radius, tilt_rotation)
+                            x_input, RT60, mic_directions, user_rotation, fs_target, J, N, room_dim, reg_term,
+                            i, ii, iii, iv, r, out_q_path, spatial_position, dark_mic_radius, tilt_rotation)
                         pool.apply_async(main, args=args, callback=lambda _:loop.update(1))
     pool.close()
     pool.join()
     print("Done creating total data!")
-    from sklearn.model_selection import train_test_split
-    total = os.listdir(out_q_path+raw_out)
-    train, test = train_test_split(total)
-    os.makedirs(out_q_path+"/Train", exist_ok=True)
-    os.makedirs(out_q_path+"/Test", exist_ok=True)
-    for data in train:
-        temp = np.load(os.path.join(out_q_path+raw_out, data), allow_pickle=True)
-        path = os.path.join(out_q_path+"/Train", data)
-        np.save(path, temp, allow_pickle=True)
-    for data in test:
-        temp = np.load(os.path.join(out_q_path+raw_out, data), allow_pickle=True)
-        path = os.path.join(out_q_path+"/Test", data)
-        np.save(path, temp, allow_pickle=True)
+    total = os.listdir(out_q_path)
     print("Done!")
