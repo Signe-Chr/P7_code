@@ -7,6 +7,7 @@ from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
 from multiprocessing import cpu_count
 from tqdm import tqdm
+import Loss_functions as lf
 
 def train(data, wav, epochs, model, dev):
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -27,8 +28,15 @@ def train(data, wav, epochs, model, dev):
             flat_outputs = model(batch_X)
             outputs = flat_outputs.reshape(L, J)
             H = compute_H_matrix(batch_IR)[0].to(dev)
+            bright_indices = [0,1,2,3,4,5,6,7,8,9,10,11]
+            dark_indices = [12]
 
-            loss = MSE(outputs, batch_y) + Cosine_similarity(flat_outputs, flat_batch_y) + MSEP(outputs, batch_y, batch_IR, batch_IR, wav, bright_batch, dark_batch)[0] + AC_loss(outputs, batch_y, H, bright_batch, dark_batch)
+            alpha=0.5
+            beta=0.5
+            gamma=0.5
+            #L_3_reg(q_pred, freqs, L,g_max=1):
+            loss = alpha*lf.L_1_reg(outputs, batch_y, H, bright_indices) + (1-alpha)* lf.L_2_reg(outputs, H, dark_indices) + beta*lf.L_3_reg(outputs, L) +  gamma*lf.L_4_reg(outputs, dev)
+            #loss = MSE(outputs, batch_y) + Cosine_similarity(flat_outputs, flat_batch_y) + MSEP(outputs, batch_y, batch_IR, batch_IR, wav, bright_batch, dark_batch)[0] + AC_loss(outputs, batch_y, H, bright_batch, dark_batch)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()

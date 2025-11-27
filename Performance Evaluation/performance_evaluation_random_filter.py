@@ -380,9 +380,6 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         "STOI_B": (np.sqrt(np.var(STOI_B_list)) ,np.mean(STOI_B_list), np.min(STOI_B_list), np.max(STOI_B_list)),
         "STOI_D": (np.sqrt(np.var(STOI_D_list)) ,np.mean(STOI_D_list), np.min(STOI_D_list), np.max(STOI_D_list)),
     }
-<<<<<<< HEAD
-
-=======
     print(f"AC (std, mean, min, max): {results['AC']}")
     print(f"PESQ Bright Zone (std, mean, min, max): {results['PESQ_B']}")
     print(f"PESQ Dark Zone (std, mean, min, max): {results['PESQ_D']}")
@@ -390,7 +387,6 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     print(f"NSDP Dark Zone (std, mean, min, max): {results['NSDP_D']}")
     print(f"STOI Bright Zone (std, mean, min, max): {results['STOI_B']}")
     print(f"STOI Dark Zone (std, mean, min, max): {results['STOI_D']}")
->>>>>>> 86c348a73eef6d2391af99430c553050555c4364
     # Optional: plot metrics
     #plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDP_B_list, NSDP_D_list, STOI_B_list, STOI_D_list, tot_loss_list)
 
@@ -398,18 +394,6 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
 # Assuming `selected_filters_test` comes from your random selection
 results = average_performance_metrics_with_filters(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
-<<<<<<< HEAD
-print(f"AC (mean, min, max): {results['AC']}")
-print(f"PESQ Bright Zone (mean, min, max): {results['PESQ_B']}")
-print(f"PESQ Dark Zone (mean, min, max): {results['PESQ_D']}")
-print(f"NSDP Bright Zone (mean, min, max): {results['NSDP_B']}")
-print(f"NSDP Dark Zone (mean, min, max): {results['NSDP_D']}")
-print(f"STOI Bright Zone (mean, min, max): {results['STOI_B']}")
-print(f"STOI Dark Zone (mean, min, max): {results['STOI_D']}")
-print(f"Total loss Bright Zone (mean, min, max):{results['Total Loss']}")
-print(f"Attenuation Dark Zone (mean, min, max):{results['Attenuation']}")
-print(f"Individual Losses (MSE, Cosine, MSEP, AC) (mean, min, max):{results['Individual Losses']}")
-=======
 def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDP_B, NSDP_D, STOI_B, STOI_D, total_loss):
     """
     Creates boxplots for AC, PESQ, NSDP, and STOI for bright and dark zones.
@@ -514,4 +498,3 @@ loss_function_evaluation(RIRs_test, filters_random, x_input, bright_zone_mics_in
 
 #loss_functions(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
->>>>>>> 86c348a73eef6d2391af99430c553050555c4364

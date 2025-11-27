@@ -22,14 +22,14 @@ def setup_acoustic_scenario(sources,
     Sets up a pyroomacoustics simulation environment (ShoeBox) and computes RIRs.
 
     Returns:
-        tuple: (IR, M_b, M_d)
+        tuple: (IR, M_B, M_D)
             IR (list of lists): Room Impulse Responses.
-            M_b (int): Number of bright zone microphones.
-            M_d (int): Number of dark zone microphones.
+            M_B (int): Number of bright zone microphones.
+            M_D (int): Number of dark zone microphones.
     """
     sources_list = sources 
 
-    M_b, M_d = len(bright_zone_mics_index), len(dark_zone_mics_index)
+    M_B, M_D = len(bright_zone_mics_index), len(dark_zone_mics_index)
 
     # Define Room
     e_absorption, max_order = pra.inverse_sabine(rt60, room_dim)
@@ -56,7 +56,7 @@ def setup_acoustic_scenario(sources,
             )])
 
     # Compute RIRs
-    #print(f"Computing RIRs for {mic_positions.shape[1]} mics (Bright: {M_b}, Dark: {M_d}) and {len(sources_list)} sources...")
+    #print(f"Computing RIRs for {mic_positions.shape[1]} mics (Bright: {M_B}, Dark: {M_D}) and {len(sources_list)} sources...")
     room.compute_rir()
 
 
@@ -64,7 +64,7 @@ def setup_acoustic_scenario(sources,
     # RIRs are stored in room.rir: room.rir[mic_index][source_index]
     IR = room.rir 
 
-    return IR, M_b, M_d
+    return IR, M_B, M_D
 
 
 def build_U_ml_single(x, h_ml, N, J):
@@ -178,7 +178,7 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     n_srcs = len(sources)
     n_mics = len(mic_positions_list)
 
-    IR, M_b, M_d = setup_acoustic_scenario(
+    IR, M_B, M_D = setup_acoustic_scenario(
         sources=sources, 
         mic_positions_list=mic_positions_list, 
         bright_zone_mics_index=bright_zone_mics_index, 
@@ -205,9 +205,9 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
     #print(f"Using V={V} modes for VAST solution.")
 
     # --- Compute VAST Filter Vector (q) ---
-
     # Define desired signal d_B (constant amplitude across time/mics)
-    d_B = np.ones((N, M_b)) * target_amplitude
+    d_B = np.ones((N, M_B)) * target_amplitude
+    #d_B = IR[12]
 
     r_B = compute_rB(bright_zone_mics_index, x, IR, d_B, N, J, n_srcs)
 
