@@ -31,13 +31,12 @@ def train(data, wav, epochs, model, dev):
             dark_indices = [0,1,2,3,4,5,6,7,8,9,10,11]
             bright_indices = [12]
 
-            #loss = MSE(outputs, batch_y) + Cosine_similarity(flat_outputs, flat_batch_y) + MSEP(outputs, batch_y, batch_IR, batch_IR, wav, bright_batch, dark_batch)[0] + AC_loss(outputs, batch_y, H, bright_batch, dark_batch)
-            #L_1_reg(q_pred, q_true, N, bright_indices):
-            #def L_2_reg(q_pred, H,freqs, dark_indices):
+
             alpha=0.5
             beta=0.5
             gamma=0.5
-            loss = alpha*lf.L_1_reg(outputs, batch_y, H, bright_indices) +(1-alpha)* lf.L_2_reg(outputs, H, dark_indices) + gamma*lf.L_4_reg(outputs, dev)
+            #L_3_reg(q_pred, freqs, L,g_max=1):
+            loss = alpha*lf.L_1_reg(outputs, batch_y, H, bright_indices) + (1-alpha)* lf.L_2_reg(outputs, H, dark_indices) + beta*lf.L_3_reg(outputs, L) +  gamma*lf.L_4_reg(outputs, dev)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()

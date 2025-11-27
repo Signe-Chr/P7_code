@@ -235,8 +235,8 @@ def L_2_reg(q_pred, H, dark_indices):
         total_loss+torch.abs(torch.matmul(H[dark_indices][:,:,n].to(torch.complex128), g[:,n].to(torch.complex128))).pow(2)
     return(1/(N*M_D)*total_loss)
 
-def L_3_reg(q_pred, freqs, L,g_max=1):
-    N = len(freqs)
+def L_3_reg(q_pred, L, g_max=1):
+    N = len(q_pred)
 
     # FFT along the filter length
     g = torch.fft.fft(q_pred, dim=1)   # q_pred is already (3,1024)
@@ -249,12 +249,13 @@ def L_3_reg(q_pred, freqs, L,g_max=1):
 
     total_loss = 0.0
 
-    for freq in range(N):
+    for n in range(N):
         # max(0, |g| - bound)
-        excess = torch.relu(mag[:, freq] - bound)
+        excess = torch.relu(mag[:, n] - bound)
 
         # squared norm
         total_loss += torch.sum(excess**2)
+    print("det virker")
 
     return total_loss / (N * L)
 
