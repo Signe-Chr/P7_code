@@ -3,6 +3,32 @@ from scipy.linalg import toeplitz, eigh
 import os
 import time
 
+
+input = [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0]
+J = 1024
+L = 3
+
+
+def toeplitz(x, K, J):
+    X = np.zeros((K, J))
+
+    for k in range(K):
+        for j in range(J):
+            n = k + j - 2
+            if 0 <= n < len(x):
+                X[k, j] = x[n]
+    return X
+
+
+def R_c(x, rir):
+    K = max(np.shape(rir))
+    mathcal_X = np.kron(toeplitz(x, K, J), np.eye(L))
+
+
+    return 0
+
+
+
 def compute_ACC_from_file(file_path):
     """
     Compute ACC filter from a single RIR archive file.
@@ -64,7 +90,7 @@ def compute_ACC_from_file(file_path):
 
     return q_vec, q_matrix
 
-
+exit()
 if __name__ == "__main__":
     rir_folder = "RIR_archive"
     save_folder = "ACC_filter_archive"
