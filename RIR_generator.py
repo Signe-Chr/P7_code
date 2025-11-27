@@ -10,6 +10,23 @@ def unit_vector_to_angles(v):
     colatitude = np.arccos(z)        # angle down from +Z axis
     return azimuth, colatitude
 
+def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
+    rir_list = []
+
+    for mic_idx in range(n_mics):
+        rir_temp = []
+        for src_idx in range(n_srcs):
+            rir = IR[mic_idx][src_idx]
+            # Truncate or zero-pad to max_length
+            if len(rir) > max_length:
+                rir = rir[:max_length]
+            else:
+                rir = np.pad(rir, (0, max_length - len(rir)))
+            rir_temp.append(rir)
+        rir_list.append(rir_temp)
+    
+    return np.array(rir_list)
+
 def setup_acoustic_scenario(sources, 
                         mic_positions_list, 
                         bright_zone_mics_index, 
@@ -77,26 +94,10 @@ def setup_acoustic_scenario(sources,
     room.compute_rir()
 
     # RIRs are stored in room.rir: room.rir[mic_index][source_index]
-    IR = room.rir 
+    pre_IR = room.rir 
+    IR = prepare_rir_input(pre_IR, mic_positions.shape[1], len(sources_list), max_length=512)
 
     return IR, M_B, M_D
-
-def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
-    rir_list = []
-
-    for mic_idx in range(n_mics):
-        rir_temp = []
-        for src_idx in range(n_srcs):
-            rir = IR[mic_idx][src_idx]
-            # Truncate or zero-pad to max_length
-            if len(rir) > max_length:
-                rir = rir[:max_length]
-            else:
-                rir = np.pad(rir, (0, max_length - len(rir)))
-            rir_temp.append(rir)
-        rir_list.append(rir_temp)
-    
-    return np.array(rir_list)
 
 def sources_mics(R, Center, M_D):
     # --- Save Coefficients ---
