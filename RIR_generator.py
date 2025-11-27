@@ -138,12 +138,10 @@ def sources_mics(R, Center, M_D):
 
 def archive_RIRs(archive_path, key_name, sources_position, rt60, IR, mic_positions,
                      room_dim, spatial_position, R, user_orientation, phone_tilt,
-                     bright_zone_mics_index, dark_zone_mics_index, J, N, V, mu):
+                     bright_zone_mics_index, dark_zone_mics_index):
     dict_update = {
         'J': J, # Order of filter
         'N': N, # Samples in x_input (=1 if dirac delta)
-        'V': V,
-        'mu': mu,
         'room_dim': room_dim,
         'sources_position': sources_position,
         'mic_positions': mic_positions,
@@ -204,8 +202,8 @@ def generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_m
 
 
 
-
 J = 1024
+M_D = 12
 fs_target = 16000
 dark_mic_radius = 0.5
 rooms = [[1.8, 2, 2.3], [4.9, 5.7, 2.5], [8.8, 7, 3]]
@@ -213,15 +211,14 @@ z_height = 1.43
 RT60s = np.linspace(0.3, 0.9, 4)
 user_rotations = [0, np.pi/2, np.pi, np.pi*3/2]
 tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
-M_D = 12
 x_input = np.array([1])
 N = len(x_input)
-if __name__ == "__main__":
-    save_path = "ACC_filter_archive"
 
+if __name__ == "__main__":
+    save_path = "RIR_archive"
     args = generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_mic_radius, z_height, M_D)
     
-    for arg in args:
+    for arg in tqdm(args):
         (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
                             x_input, RT60, mic_directions, user_rotation, fs_target, room_dim,
                             i, ii, iii, iv, r, save_path, spatial_position, dark_mic_radius, phone_tilt) = arg
@@ -235,9 +232,9 @@ if __name__ == "__main__":
                             mic_directions, 
                             user_rotation,
                             phone_tilt)[0]
-        m = f"ACC_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
-        #print(m, datetime.datetime.now())
-        #archive_RIRs(save_path, m, orientation_source_final,
-        #    RT60, IR, mic_positions_list, room_dim,
-        #    spatial_position, dark_mic_radius, user_rotation, phone_tilt,
-        #    bright_zone_mics_index, dark_zone_mics_index)
+        m = f"RIR_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
+        print(m)
+        archive_RIRs(save_path, m, orientation_source_final,
+            RT60, IR, mic_positions_list, room_dim,
+            spatial_position, dark_mic_radius, user_rotation, phone_tilt,
+            bright_zone_mics_index, dark_zone_mics_index)
