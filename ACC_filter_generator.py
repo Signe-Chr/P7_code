@@ -1,57 +1,85 @@
 import numpy as np
-from scipy.signal import fftconvolve
-from scipy.linalg import eigh
-import time
+from scipy.linalg import toeplitz, eigh
 import os
-import Room_configuration as rc  # Make sure this points to your module
+import time
 
-def ACC_solution():
+def compute_ACC_from_file(file_path):
     """
-    Solve generalized eigenproblem R_B q = gamma R_D q
-    Returns the eigenvector q_vec and reshaped q_matrix per source.
+    Compute ACC filter from a single RIR archive file.
+    IR is a list of lists of arrays (IR[source][mic] = np.array)
     """
-    R_B, R_D_reg, r_d = rc.build_R()
-    n_srcs = len(rc.sources)
+    data = np.load(file_path, allow_pickle=True).item()
+    IR = data['IR']
+    sources = data['sources_position']
+    J = data['J']
+    bright_idx = data['bright_zone_mics_index']
+    dark_idx = data['dark_zone_mics_index']
 
-    print("Solving generalized eigenvalue problem (may take a while)...")
+    n_srcs = len(IR)
+    n_mics = len(IR[0])        # number of mics per source
+    N = IR[0][0].shape[0]      # length of IR for one mic
+
+    # Initialize matrices
+    R_B = np.zeros((n_srcs*J, n_srcs*J))
+    R_D = np.zeros((n_srcs*J, n_srcs*J))
+
+    print(f"Building R_B and R_D for {os.path.basename(file_path)}...")
     tstart = time.perf_counter()
-    eigvals, eigvecs = eigh(R_B, R_D_reg)   # ascending eigenvalues
+
+    for i in range(n_srcs):
+        for j in range(n_srcs):
+            # bright region
+            for m in bright_idx:
+                h = IR[i][m]  # shape (N,)
+                T_B = toeplitz(np.r_[h, np.zeros(J-1)], np.zeros(J))
+                R_B[i*J:(i+1)*J, j*J:(j+1)*J] += T_B.T @ T_B
+            # dark region
+            for m in dark_idx:
+                h = IR[i][m]
+                T_D = toeplitz(np.r_[h, np.zeros(J-1)], np.zeros(J))
+                R_D[i*J:(i+1)*J, j*J:(j+1)*J] += T_D.T @ T_D
+
+    R_D_reg = R_D + 1e-6*np.eye(n_srcs*J)
+
+    t_matrix = time.perf_counter() - tstart
+    print(f"Matrices built in {t_matrix:.2f}s.")
+
+    # Solve generalized eigenproblem
+    print("Solving generalized eigenvalue problem...")
+    tstart = time.perf_counter()
+    eigvals, eigvecs = eigh(R_B, R_D_reg)
     t_eig = time.perf_counter() - tstart
     print(f"Eigenproblem solved in {t_eig:.2f}s; number of eigvals = {len(eigvals)}")
 
-    # Pick eigenvector with largest eigenvalue
     idx = np.argmax(eigvals)
-    gamma_max = eigvals[idx]
     q_vec = np.real(eigvecs[:, idx])
-    print("Maximum Acoustic Contrast (gamma_max) =", gamma_max)
-
-    # Normalize for sensible amplitude
-    q_vec = q_vec / (np.max(np.abs(q_vec)) + 1e-12)
-
-    # Reshape into per-source filters: (n_srcs, J)
-    q_matrix = q_vec.reshape(n_srcs, rc.J)
+    q_vec /= np.max(np.abs(q_vec)) + 1e-12
+    q_matrix = q_vec.reshape(n_srcs, J)
     print("q_matrix shape:", q_matrix.shape)
 
     return q_vec, q_matrix
 
+
 if __name__ == "__main__":
-    save_dir = "ACC_filter_archive"
-    os.makedirs(save_dir, exist_ok=True)
+    rir_folder = "RIR_archive"
+    save_folder = "ACC_filter_archive"
+    os.makedirs(save_folder, exist_ok=True)
 
-    # Loop over all RIR configurations in your archive
-    rir_files = [f for f in os.listdir("RIR_archive")]  # or .wav/.npz depending on format
+    for rir_file in os.listdir(rir_folder):
+        if not rir_file.endswith(".npy"):
+            continue
 
-    for rir_file in rir_files:
         config_name = os.path.splitext(rir_file)[0]
-        print(f"Processing configuration: {config_name}")
+        out_path = os.path.join(save_folder, f"{config_name}_q.npy")
 
-        # Load RIR or other room data
-        rc.load_RIR(os.path.join("RIR_archive", rir_file))  # Make sure you have a function to load it into rc.IR etc.
+        # Skip if already computed
+        if os.path.exists(out_path):
+            print(f"\nSkipping already processed configuration: {config_name}")
+            continue
 
-        # Compute ACC filters
-        q_vec, q_matrix = ACC_solution()
+        print(f"\nProcessing configuration: {config_name}")
+        file_path = os.path.join(rir_folder, rir_file)
+        q_vec, q_matrix = compute_ACC_from_file(file_path)
 
-        # Save q_matrix for this configuration
-        out_path = os.path.join(save_dir, f"{config_name}_q.npy")
         np.save(out_path, q_matrix)
         print(f"Saved q_matrix to {out_path}")
