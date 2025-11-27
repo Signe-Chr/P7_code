@@ -35,11 +35,11 @@ def ACC_solution():
     return q_vec, q_matrix
 
 if __name__ == "__main__":
-    save_dir = "q_matrices"
+    save_dir = "ACC_filter_archive"
     os.makedirs(save_dir, exist_ok=True)
 
     # Loop over all RIR configurations in your archive
-    rir_files = [f for f in os.listdir("RIR_archive") if f.endswith(".npy")]  # or .wav/.npz depending on format
+    rir_files = [f for f in os.listdir("RIR_archive")]  # or .wav/.npz depending on format
 
     for rir_file in rir_files:
         config_name = os.path.splitext(rir_file)[0]
