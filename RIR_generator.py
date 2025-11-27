@@ -3,6 +3,8 @@ import pyroomacoustics as pra
 from scipy.signal import fftconvolve
 from scipy.linalg import toeplitz, eigh
 import os
+
+import torch
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -222,19 +224,25 @@ if __name__ == "__main__":
         (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
                             x_input, RT60, mic_directions, user_rotation, fs_target, room_dim,
                             i, ii, iii, iv, r, save_path, spatial_position, dark_mic_radius, phone_tilt) = arg
-        IR = setup_acoustic_scenario(orientation_source_final, 
-                            mic_positions_list, 
-                            bright_zone_mics_index, 
-                            dark_zone_mics_index, 
-                            fs_target, 
-                            room_dim, 
-                            RT60,
-                            mic_directions, 
-                            user_rotation,
-                            phone_tilt)[0]
-        m = f"RIR_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
-        print(m)
-        archive_RIRs(save_path, m, orientation_source_final,
-            RT60, IR, mic_positions_list, room_dim,
-            spatial_position, dark_mic_radius, user_rotation, phone_tilt,
-            bright_zone_mics_index, dark_zone_mics_index)
+        m = f"RIR_{r}_{i}_{ii}_{iii}_{iv}"
+
+        if os.path.exists(os.path.join(save_path, m)):
+            print("Skipped already existing configuration")
+
+        else:
+            IR = setup_acoustic_scenario(orientation_source_final, 
+                                mic_positions_list, 
+                                bright_zone_mics_index, 
+                                dark_zone_mics_index, 
+                                fs_target, 
+                                room_dim, 
+                                RT60,
+                                mic_directions, 
+                                user_rotation,
+                                phone_tilt)[0]
+            # room, spatial position, user orientation, phone tilt
+            #print(m)
+            archive_RIRs(save_path, m, orientation_source_final,
+                RT60, IR, mic_positions_list, room_dim,
+                spatial_position, dark_mic_radius, user_rotation, phone_tilt,
+                bright_zone_mics_index, dark_zone_mics_index)
