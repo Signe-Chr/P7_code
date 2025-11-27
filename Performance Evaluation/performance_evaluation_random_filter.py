@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from scipy.io import wavfile
-#from pesq import pesq
-#from pystoi import stoi
-import numpy as pesq
-import numpy as stoi
+from pesq import pesq
+from pystoi import stoi
+#import numpy as pesq
+#import numpy as stoi
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
 from Dataset_class import CustomDataset, L, J
@@ -274,19 +274,6 @@ def attenuation(rir, raw_wav, filtered, zone):
     return 10 * np.log10(e_raw/e_filt)
 
 def nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, bright_zone_mics_index, rir: torch.Tensor):
-    """
-    Computes normalized Signal Distortion Power (nSDP) for bright zone microphones.
-    Reference signal is convolved with bright-zone RIRs.
-    
-    Parameters:
-        p_C: [n_mics, n_samples] torch.Tensor (filtered pressures)
-        wav_input: [1, n_input_samples] torch.Tensor (original input signal)
-        bright_zone_mics_index: list of bright-zone mic indices
-        rir: [n_mics, n_srcs, n_rir_samples] torch.Tensor (RIRs for each mic)
-    
-    Returns:
-        mean nSDP value across bright zone mics
-    """
     p_B = p_C[bright_zone_mics_index]
     ref = wav_input.float()
 
@@ -308,12 +295,16 @@ def nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, bright_zone_mics_index, rir
     min_len = min(d_B_tensor.shape[1], p_B.shape[1])
     d_B_tensor = d_B_tensor[:, :min_len]
     p_B = p_B[:, :min_len]
+    
+    rms_ref = torch.sqrt(torch.mean(ref ** 2))
+    rms_pB = torch.sqrt(torch.mean(p_B ** 2))
+    ref = ref * (rms_pB / rms_ref)
 
     numerator = torch.sum((d_B_tensor - p_B) ** 2, dim=1)
     denominator = torch.sum(d_B_tensor ** 2, dim=1)
-    nSDP_val = 10 * torch.log10(numerator / denominator)
+    nSDP = 10 * torch.log10(numerator / denominator)
 
-    return torch.mean(nSDP_val)
+    return torch.mean(nSDP)
 
 
 #--------------------------------------------------------------
