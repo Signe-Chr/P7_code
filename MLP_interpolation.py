@@ -1,19 +1,18 @@
 # =============================
 #   PyTorch Softmax NN Trainer
 # =============================
-
-import torch
+import torch, os
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import Loss_functions as LF
 import Cross_validation_models as cvm
 import Dataset_class as dc
-import os
 import Dataset_generator_script as dgs
 from tqdm import tqdm
-import sys
+from torch.utils.data import Dataset, DataLoader
+from Train_test_split import load_test_train_data
+from Dataset_generator_script import room_indices as ri
 
 # ---- 3. Training function ----
 def train_model(model, data_loader, optimizer, device, wav, YY): 
@@ -66,8 +65,7 @@ def train_model(model, data_loader, optimizer, device, wav, YY):
 # ---- 5. Main training environment ----
 
 def main():
-
-    from Dataset_generator_script import room_indices as ri
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # Data loading and setup
     data_dir = "Signes_data"
     a = os.listdir(data_dir)
@@ -78,17 +76,12 @@ def main():
         r = int(data.split("_")[1])
         if (r not in ri[::4]):
             train_set.append(data)
+    X_train, X_test = load_test_train_data(test_size=0.25, random_seed=42) # Finde ud af hvordan man bruger denne istedet for det andet bøvl
 
 
     dataset = dc.CustomDataset(data_dir, train_set)
-    
 
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
-
-    
-
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Safely determine input and output size based on the dataset structure
     # This assumes dataset[0] returns a tuple/list (input_sample, target_sample)
@@ -109,7 +102,6 @@ def main():
     wav = torch.from_numpy(dgs.wav).to(device)
 
     # Training loop
-
     for epoch in range(1, 21):
         print("Epoch:", epoch)
         # We pass the criterion, as previously discussed

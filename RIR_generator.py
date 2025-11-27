@@ -210,7 +210,7 @@ N = len(x_input)
 if __name__ == "__main__":
     save_path = "RIR_archive"
     args = generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_mic_radius, z_height, M_D)
-    start = 300     
+    start = 72     
     for arg in tqdm(args[start:], initial=start, total=len(args)):
         (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
                             x_input, RT60, mic_directions, user_rotation, fs_target, room_dim,
