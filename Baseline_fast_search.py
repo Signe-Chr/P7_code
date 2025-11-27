@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KDTree 
 from scipy.io import wavfile
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 
 # --- CONFIGURATION ---
@@ -124,10 +125,11 @@ def Extensive_search(
             f"Test {i+1}/{N_test}: "
             f"best filter = {best_idx}, "
             f"loss = {min_loss:.6f}, "
-            f"time per test sample = {times_per_test[-1]:.6f}s"
+            f"time per test sample = {np.mean(times_per_test):.6f}s"
         )
 
     avg_time_per_test = np.mean(times_per_test)
+    os.makedirs("Saved Filters", exist_ok=True)
     with open("Saved Filters/baseline_filters_time.txt", "a") as f:
         f.write(f"Chosen indices: {chosen_indices}\n")
         f.write(f"Average time per test sample: {avg_time_per_test:.6f}s\n")
@@ -244,7 +246,7 @@ if __name__ == "__main__":
     # Dummy check for fcentres
     fcentres = torch.tensor([1000, 2000], device=device) # Example
     bright_zone_mics_index, dark_zone_mics_index, x_input, y_train, y_test, IR_train, IR_test, data_ = load_data()
-    max_filters = 10  
+    max_filters = 540
     
     
     Extensive_search(

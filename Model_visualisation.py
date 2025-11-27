@@ -10,6 +10,8 @@ import os
 from Dataset_generator_script import room_indices as ri
 from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
+import scipy.io.wavfile as wavfile
+
 
 #load q
 baseline_filters = np.array(torch.load(r"C:\Users\marst\OneDrive\Skrivebord\UNI\S. 7\PROJEKT\P7\Saved Filters\baseline_filters.pt"))
@@ -38,14 +40,15 @@ data_train_loader=DataLoader(data_train,batch_size=len(data_train), shuffle=Fals
 data_test=CustomDataset(data_dir,test_points)
 data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=False)
 
+room_index = 1
+
+
 temp_var_train=[batch for batch in data_train_loader][0]
 temp_var_test=[batch for batch in data_test_loader][0]
 
 
-
 X_train=temp_var_train[0]
 X_test=temp_var_test[0]
-
 
 filters_train=temp_var_train[1]
 filters_test=temp_var_test[1]
@@ -70,6 +73,37 @@ srcs_pos_test = temp_var_test[7]
 dark_zone_mics_index=[0,1,2,3,4,5,6,7,8,9,10,11]
 bright_zone_mics_index=[12]
 
+wav_path = "relaxing-guitar-loop-v5-245859.wav"
+
+fs_wav, wav = wavfile.read(wav_path)
+
+wav = wav[5*44100:7*44100]
+
+
+"""
+IR = RIRs_test[0]
+
+bright_zone_IR = IR[12]
+dark_zone_IR = dict_['IR'][11]
+
+
+def resulting_amp_bright(q):
+    y_tot = 0
+    for i in range(len(q)):
+        y_temp = np.convolve(q[i], bright_zone_IR[i])
+        y = np.convolve(y_temp, wav)
+        y_tot += y
+    return y_tot
+
+def resulting_amp_dark(q):
+    y_tot = 0
+    for i in range(len(q)):
+        y_temp = np.convolve(q[i], dark_zone_IR[i])
+        y = np.convolve(y_temp, wav)
+        y_tot += y
+    return y_tot"""
+
+
 # ================================================================
 # 3. 2D Pressure Field Visualization with Bright/Dark Zones
 # ================================================================
@@ -92,14 +126,6 @@ def pressure_field_2d(room_dim, sources, q_opt, center, fs=16000, grid_res=40, J
     pressure_field = np.zeros_like(X)
     
     # Check if dgs.wav exists, otherwise use a default sine wave signal for simulation
-    try:
-        test_signal = dgs.wav
-    except AttributeError:
-        # Placeholder signal: 0.5 second, 1 kHz sine wave
-        T = np.arange(0, 0.5, 1/fs)
-        test_signal = np.sin(2 * np.pi * 1000 * T).astype(np.float32)
-        print("Warning: Using placeholder sine wave as 'dgs.wav' was not found.")
-
 
     for i in range(grid_res):
         for j in range(grid_res):
@@ -115,8 +141,8 @@ def pressure_field_2d(room_dim, sources, q_opt, center, fs=16000, grid_res=40, J
                     h[delay] = 1.0 / (r + 1e-6)
                 
                 # Apply FIR filter (q_opt[l]) and then simulate propagation (h)
-                filtered = lfilter(q_opt[l], 1, test_signal)
-                out_l = fftconvolve(filtered, h) ##################################################################
+                filtered = lfilter(q_opt[l], 1, wav)
+                out_l = fftconvolve(wav, h) ##################################################################
                 
                 # Compute RMS pressure contribution
                 p += np.sqrt(np.mean(out_l**2))
@@ -124,7 +150,8 @@ def pressure_field_2d(room_dim, sources, q_opt, center, fs=16000, grid_res=40, J
             pressure_field[i, j] = p
 
     # Normalize and convert to dB
-    pressure_dB = 20 * np.log10( pressure_field / (np.max(pressure_field) + 1e-12) )
+    pressure_dB = 20 * np.log10( pressure_field / (201668.7454930172 + 1e-12) )
+    print("Max pressure",np.max(pressure_field))
 
 
     # ------------------------------------------------------------
@@ -176,6 +203,10 @@ def pressure_field_2d(room_dim, sources, q_opt, center, fs=16000, grid_res=40, J
 
 test_index = 0
 
+#print(np.shape(regression_filters[2]))
 
-pressure_field_2d(list(X_test[test_index][6:]), srcs_pos_test[0], filters_test[0], list(X_test[test_index][3:6]), fs=16000, grid_res=40, J=1024, r_zone=dgs.dark_mic_radius)
+#print(len(regression_filters[2][0]))
+
+pressure_field_2d(list(X_test[test_index][6:]), srcs_pos_test[0], regression_filters[2][0], list(X_test[test_index][3:6]), fs=16000, grid_res=40, J=1024, r_zone=dgs.dark_mic_radius)
+#pressure_field_2d(list(X_test[test_index][6:]), srcs_pos_test[0], filters_test[0], list(X_test[test_index][3:6]), fs=16000, grid_res=40, J=1024, r_zone=dgs.dark_mic_radius)
 

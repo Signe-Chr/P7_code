@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import scipy.io.wavfile as wavfile
 from scipy.signal import fftconvolve  # faster convolution
 
-# === Paths ===
+# === Paths ==
 parent_dir = r"c:\Users\Signe Christensen\Downloads\Aalborg universitet\Matematik teknologi\7.semester\Projekt"
 
 wav_path = os.path.join(parent_dir, "P7", "relaxing-guitar-loop-v5-245859.wav")
