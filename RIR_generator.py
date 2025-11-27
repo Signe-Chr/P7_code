@@ -149,50 +149,10 @@ def archive_RIRs(archive_path, key_name, sources_position, rt60, IR, mic_positio
     # Save the updated dictionary back, overwriting the old file
     np.save(path, dict_update, allow_pickle=True)
 
-def main(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-         wav, RT60, mic_directions, user_rotation, fs_target, J, N, V, mu, room_dim, reg_eps, target_amplitude,
-         i, ii, iii, iv, r, out_path, spatial_position, dark_mic_radius, phone_tilt):
-    
-
-    m = f"ACC_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
-    #print(m, datetime.datetime.now())
-    
-    IR = setup_acoustic_scenario(sources, 
-                        mic_positions_list, 
-                        bright_zone_mics_index, 
-                        dark_zone_mics_index, 
-                        fs_target, 
-                        room_dim, 
-                        RT60,
-                        mic_directions, 
-                        user_rotation,
-                        phone_tilt)[0]
-
-    archive_RIRs(out_path, m, orientation_source_final,
-        RT60, IR, mic_positions_list, room_dim,
-        spatial_position, dark_mic_radius, user_rotation, tilt_rotation,
-        bright_zone_mics_index, dark_zone_mics_index
-    )
-    return
-
-J = 1024
-fs_target = 16000
-reg_term = 1e-6
-dark_mic_radius = 0.5
-rooms = [[1.8, 2, 2.3], [4.9, 5.7, 2.5], [8.8, 7, 3]]
-z_height = 1.43
-RT60s = np.linspace(0.3, 0.9, 4)
-user_rotations = [0, np.pi/2, np.pi, np.pi*3/2]
-tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
-M_D = 12
-x_input = np.array([1])
-N = len(x_input)
-if __name__ == "__main__":
-    out_q_path = "ACC_filter_archive"
-
-    total_iterations = len(RT60s) * len(rooms) * len(user_rotations) * len(tilt_rotations) * 3
-    loop = tqdm(total=total_iterations)
-    pool = mp.Pool(processes=mp.cpu_count()-1)
+def generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_mic_radius, z_height, M_D):
+    #total_iterations = len(RT60s) * len(rooms) * len(user_rotations) * len(tilt_rotations) * 3
+    #loop = tqdm(total=total_iterations)
+    #pool = mp.Pool(processes=mp.cpu_count()-1)
     for r, room_dim in enumerate(rooms):
         spatial_positions = [
                 [room_dim[0]/2              , room_dim[1]/2              , z_height],   # 0 — Center
@@ -224,11 +184,44 @@ if __name__ == "__main__":
                         orientation_source_final = np.matmul(user_orientation, (orientation_source_temp-np.array(spatial_position)).T).T
                         orientation_source_final += np.array(spatial_position)
                         args = (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                            x_input, RT60, mic_directions, user_rotation, fs_target, J, N, room_dim, reg_term,
-                            i, ii, iii, iv, r, out_q_path, spatial_position, dark_mic_radius, tilt_rotation)
-                        pool.apply_async(main, args=args, callback=lambda _:loop.update(1))
-    pool.close()
-    pool.join()
-    print("Done creating total data!")
-    total = os.listdir(out_q_path)
-    print("Done!")
+                            x_input, RT60, mic_directions, user_rotation, fs_target, room_dim,
+                            i, ii, iii, iv, r, save_path, spatial_position, dark_mic_radius, tilt_rotation)
+    return args
+
+
+
+
+J = 1024
+fs_target = 16000
+dark_mic_radius = 0.5
+rooms = [[1.8, 2, 2.3], [4.9, 5.7, 2.5], [8.8, 7, 3]]
+z_height = 1.43
+RT60s = np.linspace(0.3, 0.9, 4)
+user_rotations = [0, np.pi/2, np.pi, np.pi*3/2]
+tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
+M_D = 12
+x_input = np.array([1])
+N = len(x_input)
+if __name__ == "__main__":
+    save_path = "ACC_filter_archive"
+
+    (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
+                            x_input, RT60, mic_directions, user_rotation, fs_target, room_dim,
+                            i, ii, iii, iv, r, save_path, spatial_position, dark_mic_radius, phone_tilt) = generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_mic_radius, z_height, M_D)
+    
+    IR = setup_acoustic_scenario(orientation_source_final, 
+                        mic_positions_list, 
+                        bright_zone_mics_index, 
+                        dark_zone_mics_index, 
+                        fs_target, 
+                        room_dim, 
+                        RT60,
+                        mic_directions, 
+                        user_rotation,
+                        phone_tilt)[0]
+    m = f"ACC_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
+    #print(m, datetime.datetime.now())
+    archive_RIRs(save_path, m, orientation_source_final,
+        RT60, IR, mic_positions_list, room_dim,
+        spatial_position, dark_mic_radius, user_rotation, phone_tilt,
+        bright_zone_mics_index, dark_zone_mics_index)
