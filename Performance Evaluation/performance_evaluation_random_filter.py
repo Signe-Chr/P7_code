@@ -8,6 +8,8 @@ from torch.utils.data import DataLoader
 from scipy.io import wavfile
 from pesq import pesq
 from pystoi import stoi
+#import numpy as pesq
+#import numpy as stoi
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
 from Dataset_generator_script import room_indices as ri
@@ -273,6 +275,39 @@ def attenuation(rir, raw_wav, filtered, zone):
     e_raw = torch.sum(raw_signal**2)
     e_filt = torch.sum(filtered[zone]**2)
     return 10 * np.log10(e_raw/e_filt)
+
+def nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, bright_zone_mics_index, rir: torch.Tensor):
+    p_B = p_C[bright_zone_mics_index]
+    ref = wav_input.float()
+
+    d_B_list = []
+    for m in bright_zone_mics_index:
+        rir_m = rir[m] 
+        max_len = ref.shape[-1] + rir_m.shape[-1] - 1
+        mic_pressure = torch.zeros(max_len, device=rir.device)
+
+        for s in range(rir_m.shape[0]):
+            conv_result = F.conv1d(ref.unsqueeze(0), rir_m[s].unsqueeze(0).unsqueeze(0))
+            conv_result = conv_result.squeeze()  
+            conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[0]))
+            mic_pressure += conv_result
+
+        d_B_list.append(mic_pressure) 
+
+    d_B_tensor = torch.stack(d_B_list) 
+    min_len = min(d_B_tensor.shape[1], p_B.shape[1])
+    d_B_tensor = d_B_tensor[:, :min_len]
+    p_B = p_B[:, :min_len]
+    
+    rms_ref = torch.sqrt(torch.mean(ref ** 2))
+    rms_pB = torch.sqrt(torch.mean(p_B ** 2))
+    ref = ref * (rms_pB / rms_ref)
+
+    numerator = torch.sum((d_B_tensor - p_B) ** 2, dim=1)
+    denominator = torch.sum(d_B_tensor ** 2, dim=1)
+    nSDP = 10 * torch.log10(numerator / denominator)
+
+    return torch.mean(nSDP)
 
 
 #--------------------------------------------------------------
