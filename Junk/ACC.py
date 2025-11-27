@@ -6,7 +6,7 @@ from scipy.linalg import toeplitz, eigh
 import matplotlib.pyplot as plt
 import time
 import os
-import Room_configuration as rc
+import Gemt.Room_configuration as rc
 
 
 def ACC_solution():

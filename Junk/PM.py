@@ -5,7 +5,7 @@ from scipy.signal import fftconvolve
 from scipy.linalg import toeplitz
 import matplotlib.pyplot as plt
 import time, os
-import Room_configuration as rc
+import Gemt.Room_configuration as rc
 
 # -------------------------
 # Compute PM solution
