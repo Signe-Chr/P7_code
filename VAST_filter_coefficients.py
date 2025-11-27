@@ -1,12 +1,7 @@
 import numpy as np
 import pyroomacoustics as pra
-import time
-import matplotlib.pyplot as plt
-from scipy.io import wavfile
 from scipy.signal import fftconvolve
 from scipy.linalg import toeplitz, eigh
-
-
 
 def setup_acoustic_scenario(sources, 
                         mic_positions_list, 
@@ -17,7 +12,7 @@ def setup_acoustic_scenario(sources,
                         rt60,
                         mic_directions, 
                         user_rotation,
-                        maxmax_order=20):
+                        phone_tilt):
     """
     Sets up a pyroomacoustics simulation environment (ShoeBox) and computes RIRs.
 
@@ -33,16 +28,11 @@ def setup_acoustic_scenario(sources,
 
     # Define Room
     e_absorption, max_order = pra.inverse_sabine(rt60, room_dim)
-    max_order = min(max_order, maxmax_order)
     room = pra.ShoeBox(
         room_dim,
         fs=fs_target,
         materials=pra.Material(e_absorption),
         max_order=max_order)
-    
-    # Add Sources (Loudspeakers)
-    for s in sources_list:
-        room.add_source(s)
 
     # Define and Add Microphone Grid
     mic_positions = np.array(mic_positions_list).T
@@ -51,36 +41,47 @@ def setup_acoustic_scenario(sources,
         room.fs)
     room.add_microphone_array(mic_array)
 
+    final_mic_dir = np.array([np.sin(user_rotation), -np.cos(user_rotation), 0])
+    final_mic_dir /= np.linalg.norm(final_mic_dir)
     room.mic_array.set_directivity(mic_directions[:-1]+[pra.directivities.HyperCardioid(
-                    pra.directivities.DirectionVector(user_rotation-np.pi/2)
-            )])
+                    final_mic_dir)])
+    
+    # Add Sources (Loudspeakers)
+    source_dir_vecs = [np.array([np.sin(phone_tilt)*np.cos(user_rotation), np.sin(phone_tilt)*np.sin(user_rotation), -np.cos(phone_tilt)]),
+                       np.array([np.sin(phone_tilt)*np.cos(user_rotation), np.sin(phone_tilt)*np.sin(user_rotation), -np.cos(phone_tilt)]),
+                       -final_mic_dir]
+    source_directions = [pra.directivities.HyperCardioid(
+                            source_dir_vecs[0] / np.linalg.norm(source_dir_vecs[0])),
+                         pra.directivities.HyperCardioid(
+                            source_dir_vecs[1] / np.linalg.norm(source_dir_vecs[1])),
+                         pra.directivities.HyperCardioid(
+                            source_dir_vecs[2])]
+    for direc, s in enumerate(sources_list):
+        room.add_source(s, directivity=source_directions[direc])
 
     # Compute RIRs
     #print(f"Computing RIRs for {mic_positions.shape[1]} mics (Bright: {M_b}, Dark: {M_d}) and {len(sources_list)} sources...")
     room.compute_rir()
-
-
 
     # RIRs are stored in room.rir: room.rir[mic_index][source_index]
     IR = room.rir 
 
     return IR, M_b, M_d
 
-
 def build_U_ml_single(x, h_ml, N, J):
     """ Build U^{m,l} (N x J) for a single mic m and single speaker l (Toeplitz matrix). """
     # u = x * h_ml (full conv), truncated to N samples
-    u = fftconvolve(x, h_ml)[:N]
+    u = fftconvolve(x, h_ml)
+    if N > len(h_ml):
+        u = u[:N]
     if u.shape[0] < N:
         u = np.pad(u, (0, N - u.shape[0]))
 
     # Create the Toeplitz matrix (first column is u, first row is zeros of length J)
     first_col = u
     first_row = np.zeros(J)
-    U_ml = toeplitz(first_col, first_row)[:N, :J]
+    U_ml = toeplitz(first_col, first_row)
     return U_ml
-
-
 
 def build_Um_for_mic(m_idx, x, IR, N, J, n_srcs):
     """ 
@@ -94,7 +95,6 @@ def build_Um_for_mic(m_idx, x, IR, N, J, n_srcs):
         U_blocks.append(U_ml)
     U_m = np.hstack(U_blocks)
     return U_m
-
 
 def build_R_from_micset(mic_indices, x, IR, N, J, n_srcs, reg_eps=0):
     """
@@ -116,11 +116,10 @@ def build_R_from_micset(mic_indices, x, IR, N, J, n_srcs, reg_eps=0):
 
     return R
 
-
 def compute_rB(bright_mics_index, x, IR, d_B, N, J, n_srcs):
     """ Compute the cross-correlation vector r_B = E[U_B^T d_B] """
     LJ = n_srcs * J
-    r_B = np.zeros((LJ,), dtype=float)
+    r_B = np.zeros(LJ, dtype=float)
 
     for mi, m in enumerate(bright_mics_index):
         U_m = build_Um_for_mic(m, x, IR, N, J, n_srcs)  # (N, LJ)
@@ -132,7 +131,6 @@ def compute_rB(bright_mics_index, x, IR, d_B, N, J, n_srcs):
 
     return r_B
 
-
 def compute_q_vast(V, mu, lambda_vals, U, r_B):
     q = np.zeros_like(r_B)
     for v in range(V):
@@ -140,7 +138,6 @@ def compute_q_vast(V, mu, lambda_vals, U, r_B):
         projection = np.dot(U[:, v].T, r_B)
         q += weight * projection * U[:, v]
     return q
-
 
 def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
     rir_list = []
@@ -156,23 +153,17 @@ def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
                 rir = np.pad(rir, (0, max_length - len(rir)))
             rir_temp.append(rir)
         rir_list.append(rir_temp)
-
     
     return np.array(rir_list)
 
 
 def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                        wav, rt60, direction_list, user_rotation, fs_target, J, N, 
+                        x_input, rt60, direction_list, user_rotation, phone_tilt, fs_target, J, N, 
                         V, mu, room_dim, reg_eps, target_amplitude):
-
-    #print("--- Starting VAST Time-Domain Filter Design ---")
-    t_start_total = time.perf_counter()
-
-    wav = np.array(wav, dtype=float)
-    if wav.ndim > 1:
-        wav = wav[:, 0]
-    wav = wav / (np.max(np.abs(wav)) + 1e-12)
-    x = wav[:N].copy() if len(wav) >= N else np.pad(wav, (0, max(0, N-len(wav))), mode='constant')
+    x_input = np.array(x_input, dtype=float)
+    if x_input.ndim > 1:
+        x_input = np.mean(x_input, axis=1)
+    x = x_input[:N].copy() if len(x_input) >= N else np.pad(x_input, (0, max(0, N-len(x_input))), mode='constant')
 
     # --- Setup Acoustic Scenario and Compute RIRs ---
     n_srcs = len(sources)
@@ -183,11 +174,11 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
         mic_positions_list=mic_positions_list, 
         bright_zone_mics_index=bright_zone_mics_index, 
         dark_zone_mics_index=dark_zone_mics_index,
-        fs_target=fs_target, room_dim=room_dim, rt60=rt60, mic_directions=direction_list, user_rotation=user_rotation
+        fs_target=fs_target, room_dim=room_dim, rt60=rt60, mic_directions=direction_list,
+        user_rotation=user_rotation, phone_tilt=phone_tilt
     )
 
     # --- Compute Covariance Matrices R_B and R_D ---
-    tstart = time.perf_counter()
     R_B = build_R_from_micset(bright_zone_mics_index, x, IR, N, J, n_srcs, reg_eps=0)
     R_D = build_R_from_micset(dark_zone_mics_index, x, IR, N, J, n_srcs, reg_eps=reg_eps)
     #print("Built R_B and R_D in {:.2f} s".format(time.perf_counter() - tstart))
