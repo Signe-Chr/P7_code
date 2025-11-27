@@ -1,18 +1,8 @@
-import numpy as np
-import pyroomacoustics as pra
-from scipy.signal import fftconvolve
-from scipy.linalg import toeplitz, eigh
 import os
-
-import torch
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
 import numpy as np
-import scipy.io.wavfile as wavfile
 import pyroomacoustics as pra
-import multiprocessing as mp
 from tqdm import tqdm
+
 
 def unit_vector_to_angles(v):
     x, y, z = v
@@ -226,7 +216,7 @@ if __name__ == "__main__":
                             i, ii, iii, iv, r, save_path, spatial_position, dark_mic_radius, phone_tilt) = arg
         m = f"RIR_{r}_{i}_{ii}_{iii}_{iv}"
 
-        if os.path.exists(os.path.join(save_path, m)):
+        if os.path.exists(os.path.join(save_path, m+".npy")):
             print("Skipped already existing configuration")
 
         else:
@@ -240,8 +230,7 @@ if __name__ == "__main__":
                                 mic_directions, 
                                 user_rotation,
                                 phone_tilt)[0]
-            # room, spatial position, user orientation, phone tilt
-            #print(m)
+
             archive_RIRs(save_path, m, orientation_source_final,
                 RT60, IR, mic_positions_list, room_dim,
                 spatial_position, dark_mic_radius, user_rotation, phone_tilt,
