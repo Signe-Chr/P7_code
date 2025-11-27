@@ -1,7 +1,6 @@
 import torch
 import torch.nn.functional as F
 import Dataset_generator_script as dgs
-import numpy
 
 def compute_H_matrix(rir_array, fs=16000, n_fft=None):
     """

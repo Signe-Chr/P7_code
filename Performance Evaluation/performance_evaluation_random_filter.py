@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from scipy.io import wavfile
-#from pesq import pesq
-#from pystoi import stoi
-import numpy as pesq
-import numpy as stoi
+from pesq import pesq
+from pystoi import stoi
+#import numpy as pesq
+#import numpy as stoi
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
 from Dataset_generator_script import room_indices as ri
@@ -221,10 +221,10 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
                 s_target = ref[:min_len]
             else:  # dark zone -> silence target
                 s_target = np.zeros_like(s_est)
-            
+
             numerator = np.sum((s_target - s_est)**2)
             denominator = np.sum(s_target**2) if target_type == "bright" else np.sum(s_est**2)
-            
+
             # For dark zone, compare distortion power to its own signal power
             if denominator == 0:
                 NSDP_val = 1e10
@@ -236,7 +236,7 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor,
     mean_B = compute_zone_nSDP(bright_zone_mics_index, "bright")
     mean_D = compute_zone_nSDP(dark_zone_mics_index, "dark")
     
-    return mean_B, mean_D
+    return mean_B,mean_D
 
 def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
                              bright_zone_mics_index: list[int],
@@ -276,6 +276,39 @@ def attenuation(rir, raw_wav, filtered, zone):
     e_filt = torch.sum(filtered[zone]**2)
     return 10 * np.log10(e_raw/e_filt)
 
+def nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, bright_zone_mics_index, rir: torch.Tensor):
+    p_B = p_C[bright_zone_mics_index]
+    ref = wav_input.float()
+
+    d_B_list = []
+    for m in bright_zone_mics_index:
+        rir_m = rir[m] 
+        max_len = ref.shape[-1] + rir_m.shape[-1] - 1
+        mic_pressure = torch.zeros(max_len, device=rir.device)
+
+        for s in range(rir_m.shape[0]):
+            conv_result = F.conv1d(ref.unsqueeze(0), rir_m[s].unsqueeze(0).unsqueeze(0))
+            conv_result = conv_result.squeeze()  
+            conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[0]))
+            mic_pressure += conv_result
+
+        d_B_list.append(mic_pressure) 
+
+    d_B_tensor = torch.stack(d_B_list) 
+    min_len = min(d_B_tensor.shape[1], p_B.shape[1])
+    d_B_tensor = d_B_tensor[:, :min_len]
+    p_B = p_B[:, :min_len]
+    
+    rms_ref = torch.sqrt(torch.mean(ref ** 2))
+    rms_pB = torch.sqrt(torch.mean(p_B ** 2))
+    ref = ref * (rms_pB / rms_ref)
+
+    numerator = torch.sum((d_B_tensor - p_B) ** 2, dim=1)
+    denominator = torch.sum(d_B_tensor ** 2, dim=1)
+    nSDP = 10 * torch.log10(numerator / denominator)
+
+    return torch.mean(nSDP)
+
 
 #--------------------------------------------------------------
 # Main evaluation functions
@@ -300,7 +333,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     tot_loss_list = []
 
     for i in tqdm(range(RIR_test.shape[0]), disable=not sys.stdout.isatty()):
-        #print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
+        print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
         rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
         n_srcs = 3
         filter_len = 1024
@@ -358,6 +391,8 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     #plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDP_B_list, NSDP_D_list, STOI_B_list, STOI_D_list, tot_loss_list)
 
     return results
+# Assuming `selected_filters_test` comes from your random selection
+results = average_performance_metrics_with_filters(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
 def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDP_B, NSDP_D, STOI_B, STOI_D, total_loss):
     """
@@ -459,7 +494,7 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
 #filters_random, filters_baseline, filters_classification, filters_regression, filters_interpolation, filters_test
 
 #average_performance_metrics_with_filters(RIRs_test, filters_baseline, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
-loss_function_evaluation(RIRs_test, filters_regression, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+loss_function_evaluation(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
 #loss_functions(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
