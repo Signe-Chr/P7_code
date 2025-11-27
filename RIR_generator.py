@@ -12,6 +12,12 @@ import pyroomacoustics as pra
 import multiprocessing as mp
 from tqdm import tqdm
 
+def unit_vector_to_angles(v):
+    x, y, z = v
+    azimuth = np.arctan2(y, x)       # angle in XY-plane
+    colatitude = np.arccos(z)        # angle down from +Z axis
+    return azimuth, colatitude
+
 def setup_acoustic_scenario(sources, 
                         mic_positions_list, 
                         bright_zone_mics_index, 
@@ -52,19 +58,25 @@ def setup_acoustic_scenario(sources,
 
     final_mic_dir = np.array([np.sin(user_rotation), -np.cos(user_rotation), 0])
     final_mic_dir /= np.linalg.norm(final_mic_dir)
+    az, col = unit_vector_to_angles(final_mic_dir)
     room.mic_array.set_directivity(mic_directions[:-1]+[pra.directivities.HyperCardioid(
-                    final_mic_dir)])
+                    pra.directivities.DirectionVector(az, col, degrees=False))])
     
     # Add Sources (Loudspeakers)
     source_dir_vecs = [np.array([np.sin(phone_tilt)*np.cos(user_rotation), np.sin(phone_tilt)*np.sin(user_rotation), -np.cos(phone_tilt)]),
                        np.array([np.sin(phone_tilt)*np.cos(user_rotation), np.sin(phone_tilt)*np.sin(user_rotation), -np.cos(phone_tilt)]),
                        -final_mic_dir]
+    source_dir_vecs[0] /= np.linalg.norm(source_dir_vecs[0])
+    source_dir_vecs[1] /= np.linalg.norm(source_dir_vecs[1])
     source_directions = [pra.directivities.HyperCardioid(
-                            source_dir_vecs[0] / np.linalg.norm(source_dir_vecs[0])),
+                            pra.directivities.DirectionVector(
+                                *unit_vector_to_angles(source_dir_vecs[0]), degrees=False)),
                          pra.directivities.HyperCardioid(
-                            source_dir_vecs[1] / np.linalg.norm(source_dir_vecs[1])),
+                            pra.directivities.DirectionVector(
+                                *unit_vector_to_angles(source_dir_vecs[1]), degrees=False)),
                          pra.directivities.HyperCardioid(
-                            source_dir_vecs[2])]
+                            pra.directivities.DirectionVector(
+                                *unit_vector_to_angles(source_dir_vecs[2]), degrees=False))]
     for direc, s in enumerate(sources_list):
         room.add_source(s, directivity=source_directions[direc])
 
@@ -108,14 +120,15 @@ def sources_mics(R, Center, M_D):
                                    R * np.sin(angle) + Center[1],
                                    Center[2]])
         dir_vec = np.array([-np.cos(angle), -np.sin(angle), 0])
+        dir_vec /= np.linalg.norm(dir_vec)
         direction_list.append(pra.directivities.HyperCardioid(
-            dir_vec / np.linalg.norm(dir_vec)
-        ))
+            pra.directivities.DirectionVector(*unit_vector_to_angles(dir_vec), degrees=False)))
         dark_zone_mics_index.append(i)
     
     mic_positions_list.append([Center[0], Center[1]-0.1, Center[2]])
     dir_vec = np.array([0, -1, 0])
-    direction_list.append(pra.directivities.HyperCardioid(dir_vec))
+    direction_list.append(pra.directivities.HyperCardioid(
+        pra.directivities.DirectionVector(*unit_vector_to_angles(dir_vec), degrees=False)))
     bright_zone_mics_index = [M_D]
 
     sources_position_list = [[Center[0]-0.04, Center[1]-0.12, Center[2]-0.16],
@@ -153,11 +166,12 @@ def generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_m
     #total_iterations = len(RT60s) * len(rooms) * len(user_rotations) * len(tilt_rotations) * 3
     #loop = tqdm(total=total_iterations)
     #pool = mp.Pool(processes=mp.cpu_count()-1)
+    args = []
     for r, room_dim in enumerate(rooms):
         spatial_positions = [
-                [room_dim[0]/2              , room_dim[1]/2              , z_height],   # 0 — Center
-                [room_dim[0]/2              , room_dim[1]-dark_mic_radius, z_height],   # 1 — Up against one wall
-                [room_dim[0]-dark_mic_radius, room_dim[1]-dark_mic_radius, z_height],   # 2 — Corner
+                [room_dim[0]/2                   , room_dim[1]/2                   , z_height],   # 0 — Center
+                [room_dim[0]/2                   , room_dim[1]-dark_mic_radius-0.05, z_height],   # 1 — Up against one wall
+                [room_dim[0]-dark_mic_radius-0.05, room_dim[1]-dark_mic_radius-0.05, z_height],   # 2 — Corner
             ]
         for i, RT60 in enumerate(RT60s):
             for ii, spatial_position in enumerate(spatial_positions):
@@ -183,9 +197,9 @@ def generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_m
                         
                         orientation_source_final = np.matmul(user_orientation, (orientation_source_temp-np.array(spatial_position)).T).T
                         orientation_source_final += np.array(spatial_position)
-                        args = (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
+                        args.append((orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
                             x_input, RT60, mic_directions, user_rotation, fs_target, room_dim,
-                            i, ii, iii, iv, r, save_path, spatial_position, dark_mic_radius, tilt_rotation)
+                            i, ii, iii, iv, r, save_path, spatial_position, dark_mic_radius, tilt_rotation))
     return args
 
 
@@ -205,23 +219,25 @@ N = len(x_input)
 if __name__ == "__main__":
     save_path = "ACC_filter_archive"
 
-    (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                            x_input, RT60, mic_directions, user_rotation, fs_target, room_dim,
-                            i, ii, iii, iv, r, save_path, spatial_position, dark_mic_radius, phone_tilt) = generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_mic_radius, z_height, M_D)
+    args = generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_mic_radius, z_height, M_D)
     
-    IR = setup_acoustic_scenario(orientation_source_final, 
-                        mic_positions_list, 
-                        bright_zone_mics_index, 
-                        dark_zone_mics_index, 
-                        fs_target, 
-                        room_dim, 
-                        RT60,
-                        mic_directions, 
-                        user_rotation,
-                        phone_tilt)[0]
-    m = f"ACC_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
-    #print(m, datetime.datetime.now())
-    archive_RIRs(save_path, m, orientation_source_final,
-        RT60, IR, mic_positions_list, room_dim,
-        spatial_position, dark_mic_radius, user_rotation, phone_tilt,
-        bright_zone_mics_index, dark_zone_mics_index)
+    for arg in args:
+        (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
+                            x_input, RT60, mic_directions, user_rotation, fs_target, room_dim,
+                            i, ii, iii, iv, r, save_path, spatial_position, dark_mic_radius, phone_tilt) = arg
+        IR = setup_acoustic_scenario(orientation_source_final, 
+                            mic_positions_list, 
+                            bright_zone_mics_index, 
+                            dark_zone_mics_index, 
+                            fs_target, 
+                            room_dim, 
+                            RT60,
+                            mic_directions, 
+                            user_rotation,
+                            phone_tilt)[0]
+        m = f"ACC_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
+        #print(m, datetime.datetime.now())
+        #archive_RIRs(save_path, m, orientation_source_final,
+        #    RT60, IR, mic_positions_list, room_dim,
+        #    spatial_position, dark_mic_radius, user_rotation, phone_tilt,
+        #    bright_zone_mics_index, dark_zone_mics_index)
