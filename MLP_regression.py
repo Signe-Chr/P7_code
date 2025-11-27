@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 from multiprocessing import cpu_count
 from tqdm import tqdm
 import Loss_functions as lf
+from Train_test_split import load_test_train_data
 
 def train(data, wav, epochs, model, dev):
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -47,19 +48,12 @@ def train(data, wav, epochs, model, dev):
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    data_dir = "VAST_filter_archive_730"
-    full_data = os.listdir(data_dir)
-    train_points = []
-    for data in full_data:
-        i = int(data.split("_")[1])
-        if (i in dgs.ri) and (i not in dgs.ri[::4]):
-            train_points.append(data)
-    trainset = CustomDataset(data_dir, train_points)
-    p_features = len(trainset[0][0])    # Load the first data point and then find the length of the X matrix
-    out_features = len(trainset[0][1])  # Length of the flattened filter coeffecients
+    X_train, X_test = load_test_train_data(test_size=0.25, random_seed=42)
+    p_features = len(X_train[0][0])    # Load the first data point and then find the length of the X matrix
+    out_features = len(X_train[0][1])  # Length of the flattened filter coeffecients
     compute_cpus = cpu_count()-1
     torch.set_num_threads(compute_cpus)
-    train_loader = DataLoader(trainset, batch_size=1, shuffle=True, num_workers=1)
+    train_loader = DataLoader(X_train, batch_size=1, shuffle=True, num_workers=1)
     wav = dgs.wav / np.max(np.abs(dgs.wav))
     model = cvm.FilterNet_regression(p_features, out_features).to(device)
     if os.path.exists("MLP_regression_checkpoint.pth"):

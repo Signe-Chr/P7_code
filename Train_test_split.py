@@ -17,4 +17,4 @@ def load_test_train_data(test_size=0.25, random_seed=42):
     train_dataset = CustomDataset(data_dir, train_files)
     test_dataset = CustomDataset(data_dir, test_files)
 
-    return train_dataset, test_dataset
+    return test_dataset, train_dataset
