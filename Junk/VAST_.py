@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import time
 from scipy.linalg import eig
 import os
-import Room_configuration as rc
+import Gemt.Room_configuration as rc
 
 '''
 # -------------- Load signal --------------
