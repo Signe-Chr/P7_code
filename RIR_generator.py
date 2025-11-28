@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pyroomacoustics as pra
 from tqdm import tqdm
-
+from Dataset_class import J
 
 def unit_vector_to_angles(v):
     x, y, z = v
@@ -193,9 +193,6 @@ def generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_m
                             i, ii, iii, iv, r, save_path, spatial_position, dark_mic_radius, tilt_rotation))
     return args
 
-
-
-J = 1024
 M_D = 12
 fs_target = 16000
 dark_mic_radius = 0.5
@@ -206,7 +203,6 @@ user_rotations = [0, np.pi/2, np.pi, np.pi*3/2]
 tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
 x_input = np.array([1])
 N = len(x_input)
-
 if __name__ == "__main__":
     save_path = "RIR_archive"
     args = generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_mic_radius, z_height, M_D)
