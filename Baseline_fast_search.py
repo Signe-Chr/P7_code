@@ -9,6 +9,7 @@ from sklearn.neighbors import KDTree
 from scipy.io import wavfile
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from Train_test_split import load_test_train_data
 
 
 # --- CONFIGURATION ---
@@ -17,7 +18,7 @@ J = 1024    # Filter order
 # fs_target (used in loss functions) is assumed to be available in dgs
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
-data_dir = "Signes_data"
+data_dir = "Data Archive"
 
 # ---- 1. Load and Prepare Data ----
 def load_data(data_dir=data_dir):
@@ -55,6 +56,7 @@ def load_data(data_dir=data_dir):
     IR_train = IR_array[train_index].to(device)
     IR_test = IR_array[test_index].to(device)
     return bright_zone_mics_index, dark_zone_mics_index, x_input, y_train, y_test, IR_train, IR_test, data_full
+
 
 # ---- 2. Baseline: Extensive Brute-Force Search ----
 def Extensive_search(
@@ -133,7 +135,7 @@ def Extensive_search(
     with open("Saved Filters/baseline_filters_time.txt", "a") as f:
         f.write(f"Chosen indices: {chosen_indices}\n")
         f.write(f"Average time per test sample: {avg_time_per_test:.6f}s\n")
-    filter_q = data_[1][chosen_indices].to(device)
+    filter_q = filters_train[chosen_indices].to(device)
     torch.save(filter_q, "Saved Filters/baseline_filters.pt")
     return chosen_indices, avg_time_per_test
 
@@ -229,7 +231,7 @@ def ANN_Search_and_Refine(
             
     # Since we break after the first iteration, N_test is effectively 1 for the results below.
     baseline_loss = total_combined_loss / (i + 1)
-    filter_q = data_[1][best_indices].to(device)
+    filter_q = filters_train[best_indices].to(device)
     end_time = time.time()
     #avg_baseline_loss = baseline_loss.item()
     #torch.save(filter_q, "Saved Filters/baseline_filters.pt")
@@ -245,13 +247,23 @@ def ANN_Search_and_Refine(
 if __name__ == "__main__":
     # Dummy check for fcentres
     fcentres = torch.tensor([1000, 2000], device=device) # Example
-    bright_zone_mics_index, dark_zone_mics_index, x_input, y_train, y_test, IR_train, IR_test, data_ = load_data()
+    #bright_zone_mics_index, dark_zone_mics_index, x_input, y_train, y_test, IR_train, IR_test, data_ = load_data()
     max_filters = 540
-    
+
+    dark_zone_mics_index = [0,1,2,3,4,5,6,7,8,9,10,11]
+    bright_zone_mics_index = [12]
+    data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
+    data_train_loader = DataLoader(data_train, batch_size=len(data_train), shuffle=False)
+    data_test_loader = DataLoader(data_test, batch_size=len(data_test), shuffle=False)
+    temp_var_train = [batch for batch in data_train_loader][0]
+    temp_var_test = [batch for batch in data_test_loader][0]
+    filters_train, filters_test = temp_var_train[1], temp_var_test[1]
+    x_input = np.array([1])
+    IR_train = temp_var_train[5]
     
     Extensive_search(
-        test_filters=y_test, 
-        dictionary=y_train, 
+        test_filters=filters_test, 
+        dictionary=filters_train, 
         IR_train=IR_train, 
         x_input=x_input,
         bright_zone_mics_index=bright_zone_mics_index,
