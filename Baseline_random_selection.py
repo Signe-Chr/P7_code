@@ -1,6 +1,5 @@
 from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
-from Dataset_generator_script import room_indices as ri
 import torch
 import os
 from Train_test_split import load_test_train_data
@@ -49,6 +48,7 @@ from Train_test_split import load_test_train_data
 ##---Perform random selection between filters for the entire test set---
 X_test, X_train = load_test_train_data(test_size=0.25, random_seed=42)
 filters_train, filters_test = X_train[1], X_test[1]
+print(filters_train)
 
 def random_selection(X_test, dictionary, seed_value):
     torch.manual_seed(seed_value)
