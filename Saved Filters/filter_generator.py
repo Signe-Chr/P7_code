@@ -3,9 +3,6 @@ import numpy as np
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 import Cross_validation_models as cvm
-from Dataset_class import CustomDataset
-from torch.utils.data import DataLoader
-from Dataset_generator_script import room_indices as ri
 from tqdm import tqdm
 from Train_test_split import load_test_train_data
 
@@ -28,7 +25,7 @@ model_names = ("regression", "classification", "interpolation")
 #YY = temp_var_train[1]
 X_test, X_train = load_test_train_data(test_size=0.25, random_seed=42)
 Y_test = X_test[1] #I tvivl om dette er korrekt!!!!!!!!!!!!!
-print(Y_test.shape)
+print(Y_test)
 
 def load_model(a):
     model_name = model_names[a]  # vælg model her
