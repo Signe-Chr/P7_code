@@ -5,7 +5,7 @@ from Dataset_class import CustomDataset
 import Dataset_generator_script as dgs
 
 def load_test_train_data(test_size=0.25, random_seed=42):
-    data_dir = "ACC_filter_archive"
+    data_dir = "Data Archive"
     full_data = os.listdir(data_dir)
 
     # Perform train/test split with fixed random seed
