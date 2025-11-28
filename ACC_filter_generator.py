@@ -2,34 +2,22 @@ import numpy as np
 from scipy.linalg import toeplitz, eigh
 import os
 import time
+import RIR_generator as RG
 
 
-
-input = [0,0,0,0,0,0,0,1,0,0]+[0 for i in range(100)]
-J = 1024
-L = 3
-M = 13
 dark_index = [0,1,2,3,4,5,6,7,8,9,10,11]
 bright_index = [12]
 
-def load_ir(folder_path, n):
+J = RG.J
+L = 3
+M = len(dark_index)+len(bright_index)
 
-    # List all files in folder and filter for .npy files starting with 'RIR_'
-    files = [f for f in os.listdir(folder_path) if f.startswith("RIR_") and f.endswith(".npy")]
 
-    if not files:
-        raise FileNotFoundError("No RIR .npy files found in the specified folder.")
-
-    # Sort files to ensure consistent ordering
-    files.sort()
-
-    if n < 0 or n >= len(files):
-        raise IndexError(f"Requested index {n} is out of range. {len(files)} files available.")
-
-    file_path = os.path.join(folder_path, files[n])
+def load_ir(file_path):
     rir_dict = np.load(file_path, allow_pickle=True).item()  # Load dict from .npy
-    return rir_dict, file_path
+    return rir_dict
 
+dict, file = load_ir(r"Data_archive")
 
 def toeplitz(x, n, K, J):
     X = np.zeros((K, J))
@@ -42,10 +30,10 @@ def toeplitz(x, n, K, J):
     return X
 
 
-def R_c(x, rir, N):
+def R_c(x, rir):
     K = max(np.shape(rir))
     #mathcal_X = np.kron(toeplitz(x,0, K, J), np.eye(L))
-
+    N = RG.N
     h = []
     for m in range(M):
         h_m = []
@@ -76,13 +64,13 @@ def acc_coeffs(R):
     lambda_vals, eigenvecs = eigh(R[0], R[1]+1e-6*np.eye(len(R[1])))
     return eigenvecs[:, -1].reshape(3, 1024)
 
-def load_save(N):
-    for i in range(N):
-        dict, file = load_ir(r"Data_archive", 0)
+def load_save():
+    for i in os.listdir("Data_archive"):
+        dict = load_ir(f"Data_archive/{i}")
         ir = dict["IR"]
-        dict.update({"q_acc": acc_coeffs(R_c(input, ir, 1))})
-        np.save(file, dict, allow_pickle=True)
-        print(f"Saved filter {i} in {file}")
-load_save(1)
+        dict.update({"q_acc": acc_coeffs(R_c(input, ir))})
+        np.save(f"Data_archive/{i}", dict, allow_pickle=True)
+        print(f"Saved filter {i}")
+load_save()
 
 dict, file = load_ir(r"Data_archive", 0)
