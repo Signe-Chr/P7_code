@@ -17,8 +17,6 @@ def load_ir(file_path):
     rir_dict = np.load(file_path, allow_pickle=True).item()  # Load dict from .npy
     return rir_dict
 
-dict, file = load_ir(r"Data Archive")
-
 def toeplitz(x, n, K, J):
     X = np.zeros((K, J))
 
@@ -61,6 +59,7 @@ def R_c(x, rir):
     return R_B, R_D
 
 def acc_coeffs(R):
+    print(np.shape(R[1]))
     lambda_vals, eigenvecs = eigh(R[0], R[1]+1e-6*np.eye(len(R[1])))
     return eigenvecs[:, -1].reshape(3, 1024)
 
@@ -68,9 +67,9 @@ def load_save():
     for i in os.listdir("Data Archive"):
         dict = load_ir(f"Data Archive/{i}")
         ir = dict["IR"]
-        dict.update({"q_acc": acc_coeffs(R_c(input, ir))})
+        dict.update({"q_acc": acc_coeffs(R_c(RG.x_input, ir))})
         np.save(f"Data Archive/{i}", dict, allow_pickle=True)
         print(f"Saved filter {i}")
 load_save()
 
-dict, file = load_ir(r"Data Archive", 0)
+#dict, file = load_ir(r"Data Archive", 0)
