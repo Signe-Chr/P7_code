@@ -1,8 +1,8 @@
 import os
-import torch
 from sklearn.model_selection import train_test_split
 from Dataset_class import CustomDataset
-import Dataset_generator_script as dgs
+from torch.utils.data import DataLoader
+
 
 def load_test_train_data(test_size=0.25, random_seed=42):
     data_dir = "Data Archive"
@@ -14,7 +14,12 @@ def load_test_train_data(test_size=0.25, random_seed=42):
     )
 
     # Create dataset instances
-    train_dataset = CustomDataset(data_dir, train_files)
-    test_dataset = CustomDataset(data_dir, test_files)
+    temp_var_train = CustomDataset(data_dir, train_files)
+    temp_var_test = CustomDataset(data_dir, test_files)
 
-    return test_dataset, train_dataset
+    train_loader = DataLoader(temp_var_train, batch_size=len(temp_var_train), shuffle=False)
+    test_loader = DataLoader(temp_var_test, batch_size=len(temp_var_test), shuffle=False)
+    data_train = [batch for batch in train_loader][0]
+    data_test = [batch for batch in test_loader][0]
+
+    return data_test, data_train

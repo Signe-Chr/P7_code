@@ -1,57 +1,11 @@
-from Dataset_class import CustomDataset, L, J
-from torch.utils.data import DataLoader
 import torch
-import os
+from torch.utils.data import DataLoader
 from Train_test_split import load_test_train_data
 
-#---Load data and split into test and traning data---
-#data_dir="Signes_data"
-#full_data = os.listdir(data_dir)
-#data_points = []
-#train_points = []
-#test_points = []
-#for data in full_data:
-#    i = int(data.split("_")[1])
-#    if (i in ri) and (i not in ri[::4]):
-#        train_points.append(data)
-#        data_points.append(data)
-#    else:
-#        test_points.append(data)
-#        data_points.append(data)
-#        
-#data_train=CustomDataset(data_dir,train_points)
-#data_train_loader=DataLoader(data_train,batch_size=len(data_train), shuffle=False)
-#data_test=CustomDataset(data_dir,test_points)
-#data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=False)
-#
-#temp_var_train=[batch for batch in data_train_loader][0]
-#temp_var_test=[batch for batch in data_test_loader][0]
-#
-#X_train=temp_var_train[0]
-#X_test=temp_var_test[0]
-#
-#filters_train=temp_var_train[1]
-#filters_test=temp_var_test[1]
-#
-#bright_zone_mics_index_train=temp_var_train[2]
-#bright_zone_mics_index_test=temp_var_test[2]
-#
-#dark_zone_mics_index_train=temp_var_train[3]
-#dark_zone_mics_index_test=temp_var_test[3]
-#
-#n_srcs_train=temp_var_train[4]
-#n_srcs_test=temp_var_test[4]
-#
-#RIRs_train=temp_var_train[5]
-#RIRs_test=temp_var_test[5]
-#
+
 ##---Perform random selection between filters for the entire test set---
-X_test, X_train = load_test_train_data(test_size=0.25, random_seed=42)
-data_train_loader = DataLoader(X_train, batch_size=len(X_train), shuffle=False)
-data_test_loader = DataLoader(X_test, batch_size=len(X_test), shuffle=False)
-temp_var_train = [batch for batch in data_train_loader][0]
-temp_var_test = [batch for batch in data_test_loader][0]
-filters_train, filters_test = temp_var_train[1], temp_var_test[1]
+data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
+filters_test, filters_train = data_test[1], data_train[1]
 
 def random_selection(X_test, dictionary, seed_value):
     torch.manual_seed(seed_value)

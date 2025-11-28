@@ -249,14 +249,11 @@ if __name__ == "__main__":
     dark_zone_mics_index = [0,1,2,3,4,5,6,7,8,9,10,11]
     bright_zone_mics_index = [12]
     data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
-    data_train_loader = DataLoader(data_train, batch_size=len(data_train), shuffle=False)
-    data_test_loader = DataLoader(data_test, batch_size=len(data_test), shuffle=False)
-    temp_var_train = [batch for batch in data_train_loader][0]
-    temp_var_test = [batch for batch in data_test_loader][0]
-    filters_train, filters_test = temp_var_train[1], temp_var_test[1]
+    filters_test, filters_train = data_test[1], data_train[1]
     x_input = torch.tensor([1])
-    IR_train = temp_var_train[5]
+    IR_train = data_train[5]
     
+    print(IR_train)
     Extensive_search(
         filters_test=filters_test, 
         dictionary=filters_train, 
