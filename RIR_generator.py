@@ -204,7 +204,7 @@ tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
 x_input = np.array([1])
 N = len(x_input)
 if __name__ == "__main__":
-    save_path = "Data_archive"
+    save_path = "Data Archive"
     args = generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_mic_radius, z_height, M_D)
     start = 140
     for arg in tqdm(args[start:], initial=start, total=len(args)):
