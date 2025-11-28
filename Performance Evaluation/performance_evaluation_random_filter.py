@@ -18,6 +18,7 @@ from Test_train_split import load_test_train_data
 data_random_selection = torch.load("Saved Filters/random_selection_filters.pt")
 filters_random = data_random_selection['selected_filters']
 
+print(len(filters_random))
 #Baseline filters
 filters_baseline = torch.load("Saved Filters/baseline_filters.pt")
 
