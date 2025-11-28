@@ -4,17 +4,14 @@ sys.path.append(parent_dir)
 import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
 from scipy.io import wavfile
 from pesq import pesq
 from pystoi import stoi
-#import numpy as pesq
-#import numpy as stoi
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
-from Dataset_generator_script import room_indices as ri
-from Dataset_class import CustomDataset, L, J
+from Dataset_class import L, J
 from performance_evaluation_unfiltered import compute_pressure_with_input as cpwi
+from Test_train_split import load_test_train_data
 
 
 #Random filter selection
@@ -35,65 +32,39 @@ filters_interpolation=torch.load("Saved Filters/interpolation_filters.pt")
 
 
 #---Load data and split into test and traning data---
+data_test, data_train = load_test_train_data()
 
-def load_data(data_dir):
-    data_dir="Signes_data"
-    full_data = os.listdir(data_dir)
-    data_points = []
-    train_points = []
-    test_points = []
-    for data in full_data:
-        data_points.append(data)
-        i = int(data.split("_")[1])
-        if i not in ri[::4]:
-            train_points.append(data)
-        else:
-            test_points.append(data)
-            
-    data_train=CustomDataset(data_dir,train_points)
-    data_train_loader=DataLoader(data_train,batch_size=len(data_train), shuffle=False)
-    data_test=CustomDataset(data_dir,test_points)
-    data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=False)
+X_train=data_train[0]
+X_test=data_test[0]
 
-    temp_var_train=[batch for batch in data_train_loader][0]
-    temp_var_test=[batch for batch in data_test_loader][0]
+filters_train=data_train[1]
+filters_test=data_test[1]
 
-    X_train=temp_var_train[0]
-    X_test=temp_var_test[0]
+bright_zone_mics_index_train=data_train[2]
+bright_zone_mics_index_test=data_test[2]
 
-    filters_train=temp_var_train[1]
-    filters_test=temp_var_test[1]
+dark_zone_mics_index_train=data_train[3]
+dark_zone_mics_index_test=data_test[3]
 
-    bright_zone_mics_index_train=temp_var_train[2]
-    bright_zone_mics_index_test=temp_var_test[2]
+n_srcs_train=data_train[4]
+n_srcs_test=data_test[4]
 
-    dark_zone_mics_index_train=temp_var_train[3]
-    dark_zone_mics_index_test=temp_var_test[3]
+RIRs_train=data_train[5]
+RIRs_test=data_test[5]
 
-    n_srcs_train=temp_var_train[4]
-    n_srcs_test=temp_var_test[4]
+dark_zone_mics_index=[0,1,2,3,4,5,6,7,8,9,10,11]
+bright_zone_mics_index=[12]
 
-    RIRs_train=temp_var_train[5]
-    RIRs_test=temp_var_test[5]
+#---Load Wav file---
+wav_path = "relaxing-guitar-loop-v5-245859.wav"
+fs_wav, wav = wavfile.read(wav_path)
+if wav.ndim > 1:
+    wav = np.mean(wav, axis=1)
+wav = wav[5*fs_wav : 7*fs_wav]
+wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
+x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
+x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
 
-    dark_zone_mics_index=[0,1,2,3,4,5,6,7,8,9,10,11]
-    bright_zone_mics_index=[12]
-    #---Load Wav file---
-    wav_path = "relaxing-guitar-loop-v5-245859.wav"
-    fs_wav, wav = wavfile.read(wav_path)
-    if wav.ndim > 1:
-        wav = np.mean(wav, axis=1)
-    wav = wav[5*fs_wav : 7*fs_wav]
-    wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
-    x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
-    x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
-    return (X_train, X_test, filters_train, filters_test, bright_zone_mics_index,
-            bright_zone_mics_index, dark_zone_mics_index, dark_zone_mics_index, n_srcs_train, n_srcs_test,
-            RIRs_train, RIRs_test, x_input)
-
-(X_train, X_test, filters_train, filters_test, bright_zone_mics_index, bright_zone_mics_index_test,
- dark_zone_mics_index, dark_zone_mics_index_test, n_srcs_train, n_srcs_test,
- RIRs_train, RIRs_test, x_input) = load_data("Signes_data")
 
 def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
     n_mics, n_srcs, n_rir_samples = rir.shape
@@ -144,7 +115,7 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, refer
 # Performance metric functions:
 # Acoustic Contrast, PESQ, NSDP, STOI, total loss, attenuation
 # -------------------------------------------------------------
-def acoustic_contrast(p_C,bright_zone_mics_index,dark_zone_mics_index):
+def acoustic_contrast(p_C, bright_zone_mics_index, dark_zone_mics_index):
     p_B=p_C[bright_zone_mics_index]
     p_D=p_C[dark_zone_mics_index]
     e_B=torch.sum(p_B**2)
@@ -330,7 +301,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     AC_list, pesq_B_list, pesq_D_list = [], [], []
     NSDP_B_list, NSDP_D_list = [], []
     STOI_B_list, STOI_D_list = [], []
-    tot_loss_list = []
+    attenuation_list = []
 
     for i in tqdm(range(RIR_test.shape[0]), disable=not sys.stdout.isatty()):
         print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
@@ -351,6 +322,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         mean_pesq_B, mean_pesq_D = compute_pesq_unfiltered(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
         mean_NSDP_B, mean_NSDP_D = compute_nSDP(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
         mean_STOI_B, mean_STOI_D = compute_STOI(p_C, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
+        atten = attenuation(rirs, wav_input, p_C[dark_zone_mics_index_test], dark_zone_mics_index_test)
     
         # Append results
         AC_list.append(AC_i)
@@ -360,6 +332,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         NSDP_D_list.append(mean_NSDP_D)
         STOI_B_list.append(mean_STOI_B)
         STOI_D_list.append(mean_STOI_D)
+        attenuation_list.append(atten)
 
     # Convert to numpy arrays
     AC_list = np.array(AC_list)
@@ -369,6 +342,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     NSDP_D_list = np.array(NSDP_D_list)
     STOI_B_list = np.array(STOI_B_list)
     STOI_D_list = np.array(STOI_D_list)
+    attenuation_arr = np.array(attenuation_list)
 
     # Compute statistics
     results = {
@@ -379,6 +353,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         "NSDP_D": (np.sqrt(np.var(NSDP_D_list)) ,np.mean(NSDP_D_list), np.min(NSDP_D_list), np.max(NSDP_D_list)),
         "STOI_B": (np.sqrt(np.var(STOI_B_list)) ,np.mean(STOI_B_list), np.min(STOI_B_list), np.max(STOI_B_list)),
         "STOI_D": (np.sqrt(np.var(STOI_D_list)) ,np.mean(STOI_D_list), np.min(STOI_D_list), np.max(STOI_D_list)),
+        "Attenuation": (np.sqrt(np.var(attenuation_arr)),np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr))
     }
     print(f"AC (std, mean, min, max): {results['AC']}")
     print(f"PESQ Bright Zone (std, mean, min, max): {results['PESQ_B']}")
@@ -387,12 +362,11 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     print(f"NSDP Dark Zone (std, mean, min, max): {results['NSDP_D']}")
     print(f"STOI Bright Zone (std, mean, min, max): {results['STOI_B']}")
     print(f"STOI Dark Zone (std, mean, min, max): {results['STOI_D']}")
+    print(f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation']}")
     # Optional: plot metrics
     #plot_performance_metrics(AC_list, pesq_B_list, pesq_D_list, NSDP_B_list, NSDP_D_list, STOI_B_list, STOI_D_list, tot_loss_list)
 
     return results
-# Assuming `selected_filters_test` comes from your random selection
-results = average_performance_metrics_with_filters(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
 def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDP_B, NSDP_D, STOI_B, STOI_D, total_loss):
     """
@@ -447,11 +421,9 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
         Average, min, max of each metric for bright and dark zones
     """
     tot_loss_list = []
-    attenuation_list = []
     individual_losses = []
 
     for i in tqdm(range(RIR_test.shape[0]), disable=not sys.stdout.isatty()):
-        #print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
         rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
         n_srcs = 3
         filter_len = 1024
@@ -460,33 +432,24 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
         true_filters_flat=true_filter[i].float()
         true_filters=true_filters_flat.reshape(n_srcs,filter_len)
 
-
-        # Compute pressures with filters
-        p_C = compute_pressure_with_input(rirs, filters, wav_input)
-
         # Compute metrics    
         total_loss_i, indiv_losses = loss_functions(true_filters, filters, rirs, wav_input, bright_zone_mics_index_test, dark_zone_mics_index_test)
-        atten = attenuation(rirs, wav_input, p_C[dark_zone_mics_index_test], dark_zone_mics_index_test)
-
+        
         # Append results
         tot_loss_list.append(total_loss_i)
         individual_losses.append(indiv_losses)
-        attenuation_list.append(atten)
 
     # Convert to numpy arrays
     tot_loss_list = np.array(tot_loss_list)
     individual_losses_arr = np.array(individual_losses)
-    attenuation_arr = np.array(attenuation_list)
-
+    
     # Compute statistics
     results = {
         "Total Loss":(np.sqrt(np.var(tot_loss_list)),np.mean(tot_loss_list), np.min(tot_loss_list),   np.max(tot_loss_list)),
         "Individual Losses" : (individual_losses_arr.mean(axis=0), individual_losses_arr.min(axis=0), individual_losses_arr.max(axis=0)),
-        "Attenuation": (np.sqrt(np.var(attenuation_arr)),np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr))
     }
 
     print(f"Total loss Bright Zone (std, mean, min, max):{results['Total Loss']}")
-    print(f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation']}")
     print(f"Individual Losses (MSE, Cosine, MSEP, AC) (mean, min, max):{results['Individual Losses']}")
 
     return results
@@ -495,6 +458,4 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
 
 #average_performance_metrics_with_filters(RIRs_test, filters_baseline, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 loss_function_evaluation(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
-
-#loss_functions(RIRs_test, filters_classification, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 

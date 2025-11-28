@@ -4,7 +4,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 import Cross_validation_models as cvm
 from tqdm import tqdm
-from Train_test_split import load_test_train_data
+from Test_train_split import load_test_train_data
 
 
 

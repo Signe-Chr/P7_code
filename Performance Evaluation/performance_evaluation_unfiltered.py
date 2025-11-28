@@ -10,52 +10,35 @@ from Dataset_generator_script import room_indices as ri
 from scipy.io import wavfile
 from pesq import pesq
 import torchaudio
+from Test_train_split import load_test_train_data
 
 
 
 #---Load data and split into test and traning data---
-data_dir="Signes_data"
-full_data = os.listdir(data_dir)
-data_points = []
-train_points = []
-test_points = []
-for data in full_data:
-    i = int(data.split("_")[1])
-    if (i in ri) and (i not in ri[::4]):
-        train_points.append(data)
-        data_points.append(data)
-    else:
-        test_points.append(data)
-        data_points.append(data)
-        
-data_train=CustomDataset(data_dir,train_points)
-data_train_loader=DataLoader(data_train,batch_size=len(data_train), shuffle=True)
-data_test=CustomDataset(data_dir,test_points)
-data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=True)
+#---Load data and split into test and traning data---
+data_test, data_train = load_test_train_data()
 
-temp_var_train=[batch for batch in data_train_loader][0]
-temp_var_test=[batch for batch in data_test_loader][0]
+X_train=data_train[0]
+X_test=data_test[0]
 
-X_train=temp_var_train[0]
-X_test=temp_var_test[0]
+filters_train=data_train[1]
+filters_test=data_test[1]
 
-filters_train=temp_var_train[1]
-filters_test=temp_var_test[1]
+bright_zone_mics_index_train=data_train[2]
+bright_zone_mics_index_test=data_test[2]
 
-bright_zone_mics_index_train=temp_var_train[2]
-bright_zone_mics_index_test=temp_var_test[2]
+dark_zone_mics_index_train=data_train[3]
+dark_zone_mics_index_test=data_test[3]
 
-dark_zone_mics_index_train=temp_var_train[3]
-dark_zone_mics_index_test=temp_var_test[3]
+n_srcs_train=data_train[4]
+n_srcs_test=data_test[4]
 
-n_srcs_train=temp_var_train[4]
-n_srcs_test=temp_var_test[4]
-
-RIRs_train=temp_var_train[5]
-RIRs_test=temp_var_test[5]
+RIRs_train=data_train[5]
+RIRs_test=data_test[5]
 
 dark_zone_mics_index=[0,1,2,3,4,5,6,7,8,9,10,11]
 bright_zone_mics_index=[12]
+
 #---Load Wav file---
 wav_path = "relaxing-guitar-loop-v5-245859.wav"
 fs_wav, wav = wavfile.read(wav_path)
