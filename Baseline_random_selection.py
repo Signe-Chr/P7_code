@@ -1,6 +1,5 @@
 from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
-from Dataset_generator_script import room_indices as ri
 import torch
 import os
 from Train_test_split import load_test_train_data
