@@ -14,58 +14,53 @@ from performance_evaluation_unfiltered import compute_pressure_with_input as cpw
 from Test_train_split import load_test_train_data
 
 
-#Random filter selection
-data_random_selection = torch.load("Saved Filters/random_selection_filters.pt")
-filters_random = data_random_selection['selected_filters']
 
-print(len(filters_random))
-#Baseline filters
-filters_baseline = torch.load("Saved Filters/baseline_filters.pt")
+def load_data(chosen_model):
+    if chosen_model == "random":
+        data_random_selection = torch.load("Saved Filters/random_selection_filters.pt")
+        model = data_random_selection['selected_filters']
 
-#Filters from classification MLP
-filters_classification=torch.load("Saved Filters/classification_filters.pt")
+    if chosen_model == "baseline":
+        model = torch.load("Saved Filters/baseline_filters.pt")
 
-#Filters from regression MLP
-filters_regression=torch.load("Saved Filters/regression_filters.pt")
+    if chosen_model == "classification":
+        model = torch.load("Saved Filters/classification_filters.pt")
 
-#Filters from interpolation MLP
-filters_interpolation=torch.load("Saved Filters/interpolation_filters.pt")
+    if chosen_model == "regression":
+        model = torch.load("Saved Filters/regression_filters.pt")
 
+    if chosen_model == "interpolation":
+        model = torch.load("Saved Filters/interpolation_filters.pt")
 
-#---Load data and split into test and traning data---
-data_test, data_train = load_test_train_data()
+    #---Load data and split into test and traning data---
+    data_test, data_train = load_test_train_data()
 
-X_train=data_train[0]
-X_test=data_test[0]
+    X_train=data_train[0]
+    X_test=data_test[0]
 
-filters_train=data_train[1]
-filters_test=data_test[1]
+    filters_train=data_train[1]
+    filters_test=data_test[1]
 
-bright_zone_mics_index_train=data_train[2]
-bright_zone_mics_index_test=data_test[2]
+    n_srcs_train=data_train[4]
+    n_srcs_test=data_test[4]
 
-dark_zone_mics_index_train=data_train[3]
-dark_zone_mics_index_test=data_test[3]
+    RIRs_train=data_train[5]
+    RIRs_test=data_test[5]
 
-n_srcs_train=data_train[4]
-n_srcs_test=data_test[4]
+    dark_zone_mics_index=[0,1,2,3,4,5,6,7,8,9,10,11]
+    bright_zone_mics_index=[12]
+    x_input = torch.tensor([1])
+    return dark_zone_mics_index, bright_zone_mics_index, n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, x_input, model
 
-RIRs_train=data_train[5]
-RIRs_test=data_test[5]
-
-dark_zone_mics_index=[0,1,2,3,4,5,6,7,8,9,10,11]
-bright_zone_mics_index=[12]
-
-#---Load Wav file---
-wav_path = "relaxing-guitar-loop-v5-245859.wav"
-fs_wav, wav = wavfile.read(wav_path)
-if wav.ndim > 1:
-    wav = np.mean(wav, axis=1)
-wav = wav[5*fs_wav : 7*fs_wav]
-wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
-x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
-x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
-
+def load_wav_file():
+    wav_path = "relaxing-guitar-loop-v5-245859.wav"
+    fs_wav, wav = wavfile.read(wav_path)
+    if wav.ndim > 1:
+        wav = np.mean(wav, axis=1)
+    wav = wav[5*fs_wav : 7*fs_wav]
+    wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
+    x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
+    x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
 
 def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
     n_mics, n_srcs, n_rir_samples = rir.shape
@@ -455,8 +450,17 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
 
     return results
 
-#filters_random, filters_baseline, filters_classification, filters_regression, filters_interpolation, filters_test
+'Choose between:'
+"random"
+"baseline"
+"interpolation"
+"regression"
+"classification"
 
-#average_performance_metrics_with_filters(RIRs_test, filters_baseline, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
-loss_function_evaluation(RIRs_test, filters_random, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+chosen_model = "random"
+
+dark_zone_mics_index, bright_zone_mics_index, n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, x_input, model = load_data(chosen_model)
+
+average_performance_metrics_with_filters(RIRs_test, model, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+#loss_function_evaluation(RIRs_test, model, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
