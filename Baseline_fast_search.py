@@ -3,8 +3,6 @@ import torch.nn.functional as F
 import numpy as np
 import Loss_functions as LF
 import Dataset_class as dc
-from Dataset_generator_script import room_indices as ri
-from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KDTree 
 from scipy.io import wavfile
 from torch.utils.data import DataLoader
@@ -144,10 +142,7 @@ def ANN_Search_and_Refine(
     test_filters: torch.Tensor, dictionary: torch.Tensor, IR_train: torch.Tensor, IR_test: torch.Tensor, 
     x_input: torch.Tensor, k_neighbors: int = 20, max_filters: int = None
 ):  
-    print("\nStarting K-20 ANN Search and Refinement with FULL COMPOSITE LOSS...")
-    
-    N_test = max_filters if max_filters is not None else len(test_filters)
-    
+    print("\nStarting K-20 ANN Search and Refinement with FULL COMPOSITE LOSS...")    
     # 1. Build the K-D Tree Index on the dictionary filters (y_train)
     dictionary_np = dictionary.cpu().numpy()
     test_filters_np = test_filters.cpu().numpy()
@@ -258,7 +253,7 @@ if __name__ == "__main__":
     temp_var_train = [batch for batch in data_train_loader][0]
     temp_var_test = [batch for batch in data_test_loader][0]
     filters_train, filters_test = temp_var_train[1], temp_var_test[1]
-    x_input = np.array([1])
+    x_input = torch.tensor([1])
     IR_train = temp_var_train[5]
     
     Extensive_search(
