@@ -55,11 +55,11 @@ loss_1_layer_train=[]
 loss_2_layers_train=[]
 loss_3_layers_train=[]
 for model_ in models:
-    train_error_list=[]
-    test_error_list=[]
+    train_err_list=[]
+    test_err_list=[]
     for neuron in neurons:
-        fold_train_error = []
-        fold_test_error = []
+        fold_train_err = []
+        fold_test_err= []
 
         for folds in range(num_folds):
             data_test,data_train=load_test_train_data(random_seed=folds)
@@ -90,30 +90,31 @@ for model_ in models:
 
             print("\n Training complete!")
             
-            model.eval()
-            with torch.no_grad():
-                train_pred_logits = model(X_train)
-                test_pred_logits = model(X_test)
-                
-                pred_classes_train = train_pred_logits.argmax(dim=1)
-                pred_classes_test = test_pred_logits.argmax(dim=1)
+            if layers==1:
+                model.eval()
+                with torch.no_grad():
+                    train_pred_logits = model(X_train)
+                    test_pred_logits = model(X_test)
+                    
+                    pred_classes_train = train_pred_logits.argmax(dim=1)
+                    pred_classes_test = test_pred_logits.argmax(dim=1)
 
-                true_filters_train = filters_train
-                true_filters_test = filters_test
-                
-                pred_filters_train = filters_train[pred_classes_train.numpy()]
-                pred_filters_test = filters_test[pred_classes_test.numpy()]
-                
-                train_err=np.mean((true_filters_train-pred_filters_train) ** 2).item()
-                test_err=np.mean((true_filters_test-pred_filters_test) ** 2).item()
+                    true_filters_train = filters_train
+                    true_filters_test = filters_test
+                    
+                    pred_filters_train = filters_train[pred_classes_train.numpy()]
+                    pred_filters_test = filters_test[pred_classes_test.numpy()]
+                    
+                    train_err=np.mean((true_filters_train-pred_filters_train) ** 2).item()
+                    test_err=np.mean((true_filters_test-pred_filters_test) ** 2).item()
 
-                fold_train_acc.append(train_acc)
-                fold_test_acc.append(test_acc)
-            print(f"Neuron: {neuron}, Fold {folds+1} -- Train MSE: {train_acc:.4f}, Test MSE: {test_acc:.4f}")
-        
-        print(f"Neuron: {neuron} -- Average Train Acc: {np.mean(fold_train_acc):.4f}, "
-          f"Average Test Acc: {np.mean(fold_test_acc):.4f}\n")
-        train_acc_list.append(np.mean(fold_train_acc))
-        test_acc_list.append(np.mean(fold_train_acc))
-    for neuronss,train,test in zip(neurons,train_acc_list,test_acc_list):
-        print(f"Average over 5 folds: (Neurons, Train MSE, Test MSE): ({neuronss}, {train:.20f}, {test:.20f})")
+                    fold_train_err.append(train_err)
+                    fold_test_err.append(test_err)
+                print(f"Neuron: {neuron}, Fold {folds+1} -- Train MSE: {train_err:.4f}, Test MSE: {test_err:.4f}")
+            
+            print(f"Neuron: {neuron} -- Average Train Acc: {np.mean(fold_train_err):.4f}, "
+            f"Average Test Acc: {np.mean(fold_test_err):.4f}\n")
+            train_err_list.append(np.mean(fold_train_err))
+            test_err_list.append(np.mean(fold_train_err))
+        for neuronss,train,test in zip(neurons,train_err_list,test_err_list):
+            print(f"Average over 5 folds: (Neurons, Train MSE, Test MSE): ({neuronss}, {train:.20f}, {test:.20f})")
