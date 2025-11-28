@@ -203,13 +203,12 @@ def AC_loss(q_pred, q_true, H, bright_indices, dark_indices):
         k_high = int(torch.ceil(f_high/delta_f))
         AC_loss_temp = 0
         for k in range(k_low, k_high):
-            AC_des = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g_true[:,k], M_B, M_D)
+            AC_des = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g_true[:,k], M_B, M_D)  # FORTSÆT HER JORD
             AC_sim = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g[:,k], M_B, M_D)
             w_AC = w_ac(freq, ref_frequency=100, beta=1, min_weight=1)
             C = C_i(AC_des, w_AC, AC_sim)
             AC_loss_temp += C**2
         AC_loss_total += torch.sqrt(AC_loss_temp)
-        del AC_loss_temp
     return AC_loss_total
 
 

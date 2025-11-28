@@ -52,7 +52,7 @@ def Extensive_search(
 
             df = dictionary[j].reshape(1, -1)
             df2D = df.reshape(L, J)
-            rir_j = IR_train[j]
+            rir_j = IR_train[j].to(torch.double)
 
             # Compute losses
             mse_loss = LF.MSE(tf, df)
@@ -60,16 +60,14 @@ def Extensive_search(
             H = LF.compute_H_matrix(rir_j)[0].to(device)
             ac_loss = LF.AC_loss(tf2D, df2D, H, bright_zone_mics_index, dark_zone_mics_index)
             msep_loss = LF.MSEP(tf2D, df2D, rir_j, x_input, bright_zone_mics_index, dark_zone_mics_index)[0]
-
+            
             combined = (
                 lamda_mse * mse_loss
                 + lambda_cosine * cosine_loss
                 + lambda_ac * ac_loss
                 + lambda_msep * msep_loss
             )
-
             
-
             if combined.item() < min_loss:
                 min_loss = combined.item()
                 best_idx = j
@@ -200,7 +198,7 @@ def ANN_Search_and_Refine(
 if __name__ == "__main__":
     # Dummy check for fcentres
     #fcentres = torch.tensor([1000, 2000], device=device) # Example
-    max_filters = 540
+    
 
     # --- CONFIGURATION ---
     dark_zone_mics_index = [0,1,2,3,4,5,6,7,8,9,10,11]
@@ -214,6 +212,7 @@ if __name__ == "__main__":
 
     data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
     filters_test, filters_train = data_test[1], data_train[1]
+    max_filters = len(filters_test)
     x_input = torch.tensor([1])
     IR_train = data_train[5]
     
