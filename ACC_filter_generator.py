@@ -78,11 +78,11 @@ def acc_coeffs(R):
 
 def load_save(N):
     for i in range(N):
-        dict, file = load_ir(r"RIR_archive", 0)
+        dict, file = load_ir(r"Data_archive", 0)
         ir = dict["IR"]
-        dict.update({"q_matrix": acc_coeffs(R_c(input, ir, 1))})
+        dict.update({"q_acc": acc_coeffs(R_c(input, ir, 1))})
         np.save(file, dict, allow_pickle=True)
         print(f"Saved filter {i} in {file}")
 load_save(1)
 
-dict, file = load_ir(r"RIR_archive", 0)
+dict, file = load_ir(r"Data_archive", 0)
