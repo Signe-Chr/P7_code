@@ -39,26 +39,26 @@ def load_data(data_dir=data_dir):
     wav = wav / np.max(np.abs(wav))
     x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0).to(device)
 
-    train_index = []
-    test_index = []
+    index_train = []
+    index_test = []
     for i, fname in enumerate(full_data):
         r = int(fname.split("_")[1])
         if r not in ri[::4]:
-            train_index.append(i)
+            index_train.append(i)
         else:
-            test_index.append(i)
+            index_test.append(i)
 
 
-    y_train = y[train_index].to(device)
-    y_test = y[test_index].to(device)
-    IR_train = IR_array[train_index].to(device)
-    IR_test = IR_array[test_index].to(device)
+    y_train = y[index_train].to(device)
+    y_test = y[index_test].to(device)
+    IR_train = IR_array[index_train].to(device)
+    IR_test = IR_array[index_test].to(device)
     return bright_zone_mics_index, dark_zone_mics_index, x_input, y_train, y_test, IR_train, IR_test, data_full
 
 
 # ---- 2. Baseline: Extensive Brute-Force Search ----
 def Extensive_search(
-    test_filters: torch.Tensor,
+    filters_test: torch.Tensor,
     dictionary: torch.Tensor,
     IR_train: torch.Tensor,
     x_input: torch.Tensor,
@@ -82,7 +82,7 @@ def Extensive_search(
 
         start_test = time.time()
 
-        tf = test_filters[i].reshape(1, -1)
+        tf = filters_test[i].reshape(1, -1)
         tf2D = tf.reshape(L, J)
 
         min_loss = float("inf")
@@ -139,17 +139,18 @@ def Extensive_search(
 
 # ---- 3. K-20 ANN Search and Refinement (MODIFIED) ---
 def ANN_Search_and_Refine(
-    test_filters: torch.Tensor, dictionary: torch.Tensor, IR_train: torch.Tensor, IR_test: torch.Tensor, 
+    filters_test: torch.Tensor, dictionary: torch.Tensor, IR_train: torch.Tensor, IR_test: torch.Tensor, 
     x_input: torch.Tensor, k_neighbors: int = 20, max_filters: int = None
 ):  
     print("\nStarting K-20 ANN Search and Refinement with FULL COMPOSITE LOSS...")    
     # 1. Build the K-D Tree Index on the dictionary filters (y_train)
     dictionary_np = dictionary.cpu().numpy()
-    test_filters_np = test_filters.cpu().numpy()
+    filters_test_np = filters_test.cpu().numpy()
     tree = KDTree(dictionary_np, leaf_size=30)
+    N_test = len(filters_test)
     
     # 2. Perform Approximate Search (Find indices of top K neighbors by Euclidean distance)
-    _, indices = tree.query(test_filters_np, k=k_neighbors) 
+    _, indices = tree.query(filters_test_np, k=k_neighbors) 
     indices_tensor = torch.tensor(indices, device=dictionary.device)
     
     total_combined_loss = 0.0
@@ -164,7 +165,7 @@ def ANN_Search_and_Refine(
     start_time = time.time()
     # 3. Refinement Loop: Calculate complex 4-component loss only on k_neighbors
     for i in range(N_test):
-        test_filter_i_flat = test_filters[i].unsqueeze(0) # [1, L*J]
+        test_filter_i_flat = filters_test[i].unsqueeze(0) # [1, L*J]
         test_filter_i_reshaped = test_filter_i_flat.reshape(L, J) # [L, J]
         rir_test_i = IR_test[i] # [n_mics, L, n_samples]
         
@@ -257,7 +258,7 @@ if __name__ == "__main__":
     IR_train = temp_var_train[5]
     
     Extensive_search(
-        test_filters=filters_test, 
+        filters_test=filters_test, 
         dictionary=filters_train, 
         IR_train=IR_train, 
         x_input=x_input,
@@ -267,7 +268,7 @@ if __name__ == "__main__":
     )
     """
     ANN_Search_and_Refine(
-        test_filters=y_test, 
+        filters_test=y_test, 
         dictionary=y_train, 
         IR_train=IR_train, 
         IR_test=IR_test, 
