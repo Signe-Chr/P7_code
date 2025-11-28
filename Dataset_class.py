@@ -34,5 +34,5 @@ class CustomDataset(Dataset):
             spatial,
             room_dim
         ])
-        y = np.ravel(dic.get('q_matrix', np.zeros(L*J)))
+        y = np.ravel(dic.get('q_acc', np.zeros(L*J)))
         return X, y, bright_zone_mics_index, dark_zone_mics_index, n_srcs, IR, idx, srcs_pos
