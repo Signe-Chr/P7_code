@@ -3,7 +3,7 @@ from scipy.linalg import toeplitz, eigh
 import os
 import time
 import RIR_generator as RG
-
+from tqdm import tqdm
 
 dark_index = [0,1,2,3,4,5,6,7,8,9,10,11]
 bright_index = [12]
@@ -63,12 +63,12 @@ def acc_coeffs(R):
     return eigenvecs[:, -1].reshape(3, 1024)
 
 def load_save():
-    for i in os.listdir("Data Archive"):
+    for i in tqdm(os.listdir("Data Archive")):
         dict = load_ir(f"Data Archive/{i}")
         ir = dict["IR"]
         dict.update({"q_acc": acc_coeffs(R_c(RG.x_input, ir))})
         np.save(f"Data Archive/{i}", dict, allow_pickle=True)
-        print(f"Saved filter {i}")
+        #print(f"Saved filter {i}")
 load_save()
 
 #dict, file = load_ir(r"Data Archive", 0)
