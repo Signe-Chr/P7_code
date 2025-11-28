@@ -15,7 +15,7 @@ def random_selection(X_test, dictionary, seed_value):
     selected_filters=dictionary[random_indices]
     return X_test, selected_filters, random_indices
 
-X_test, selected_filters, random_indices = random_selection(X_test, filters_train, 42)
+X_test, selected_filters, random_indices = random_selection(data_test, filters_train, 42)
 
 torch.save({
     'selected_filters': selected_filters,

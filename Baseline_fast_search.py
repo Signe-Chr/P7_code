@@ -10,50 +10,7 @@ from tqdm import tqdm
 from Train_test_split import load_test_train_data
 
 
-# --- CONFIGURATION ---
-L = 3       # Loudspeaker (Sources)
-J = 1024    # Filter order
-# fs_target (used in loss functions) is assumed to be available in dgs
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
-data_dir = "Data Archive"
 
-# ---- 1. Load and Prepare Data ----
-def load_data(data_dir=data_dir):
-    full_data = os.listdir(data_dir)
-    dataset = dc.CustomDataset(data_dir, full_data) 
-    data_loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
-    data_full = next(iter(data_loader))
-
-    bright_zone_mics_index = dataset[0][2]
-    dark_zone_mics_index = dataset[0][3]
-
-    y = data_full[1].float()
-    IR_array = data_full[5].float() # [N_total, n_mics, n_srcs, n_samples]
-
-    wav_path = "relaxing-guitar-loop-v5-245859.wav"
-    fs_wav, wav = wavfile.read(wav_path)
-    if wav.ndim > 1:
-        wav = np.mean(wav, axis=1)
-    wav = wav[5*fs_wav : 7*fs_wav]
-    wav = wav / np.max(np.abs(wav))
-    x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0).to(device)
-
-    index_train = []
-    index_test = []
-    for i, fname in enumerate(full_data):
-        r = int(fname.split("_")[1])
-        if r not in ri[::4]:
-            index_train.append(i)
-        else:
-            index_test.append(i)
-
-
-    y_train = y[index_train].to(device)
-    y_test = y[index_test].to(device)
-    IR_train = IR_array[index_train].to(device)
-    IR_test = IR_array[index_test].to(device)
-    return bright_zone_mics_index, dark_zone_mics_index, x_input, y_train, y_test, IR_train, IR_test, data_full
 
 
 # ---- 2. Baseline: Extensive Brute-Force Search ----
@@ -242,12 +199,19 @@ def ANN_Search_and_Refine(
 # ---- 4. Execution ----
 if __name__ == "__main__":
     # Dummy check for fcentres
-    fcentres = torch.tensor([1000, 2000], device=device) # Example
-    #bright_zone_mics_index, dark_zone_mics_index, x_input, y_train, y_test, IR_train, IR_test, data_ = load_data()
+    #fcentres = torch.tensor([1000, 2000], device=device) # Example
     max_filters = 540
 
+    # --- CONFIGURATION ---
     dark_zone_mics_index = [0,1,2,3,4,5,6,7,8,9,10,11]
     bright_zone_mics_index = [12]
+    L = 3       # Loudspeaker (Sources)
+    J = 1024    # Filter order
+    # fs_target (used in loss functions) is assumed to be available in dgs
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    data_dir = "Data Archive"
+
     data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
     filters_test, filters_train = data_test[1], data_train[1]
     x_input = torch.tensor([1])
