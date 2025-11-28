@@ -208,7 +208,7 @@ x_input = np.array([1])
 N = len(x_input)
 
 if __name__ == "__main__":
-    save_path = "RIR_archive"
+    save_path = "Data_archive"
     args = generate_configurations(rooms, RT60s, user_rotations, tilt_rotations, dark_mic_radius, z_height, M_D)
     start = 72     
     for arg in tqdm(args[start:], initial=start, total=len(args)):
