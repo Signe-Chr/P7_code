@@ -11,7 +11,7 @@ import Dataset_class as dc
 import Dataset_generator_script as dgs
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
-from Train_test_split import load_test_train_data
+from Test_train_split import load_test_train_data
 from Dataset_generator_script import room_indices as ri
 
 # ---- 3. Training function ----

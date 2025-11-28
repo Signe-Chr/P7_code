@@ -1,4 +1,6 @@
-
+import torch.nn as nn
+input_size = 9
+output_size = 3072    
 L = []
 
 
@@ -16,6 +18,7 @@ for æ in Æ:
                         nn.ReLU(),
                         nn.Linear(i, output_size)
                     )
+                    self.name=f"Number of layers:{æ}, neurons layer 1:{i}"
 
                 def forward(self, x):
                     return self.net(x)
@@ -32,7 +35,8 @@ for æ in Æ:
                                 nn.ReLU(),
                                 nn.Linear(q, output_size)
                             )
-
+                            self.name=f"Number of layers:{æ}, neurons layer 1:{i}, neurons layer 2:{q}"
+                            
                         def forward(self, x):
                             return self.net(x)
                     L.append(FilterNet(input_size, output_size))
@@ -50,7 +54,7 @@ for æ in Æ:
                                 nn.ReLU(),
                                 nn.Linear(qq, output_size)
                             )
-
+                            self.name=f"Number of layers:{æ}, neurons layer 1:{i}, neurons layer 2:{q}, neurons layer 3:{qq}"
                         def forward(self, x):
                             return self.net(x)
                     L.append(FilterNet(input_size, output_size))

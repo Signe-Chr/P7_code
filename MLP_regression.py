@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from multiprocessing import cpu_count
 from tqdm import tqdm
 import Loss_functions as lf
-from Train_test_split import load_test_train_data
+from Test_train_split import load_test_train_data
 
 def train(data, wav, epochs, model, dev):
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)

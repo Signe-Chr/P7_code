@@ -4,7 +4,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 import Cross_validation_models as cvm
 from tqdm import tqdm
-from Train_test_split import load_test_train_data
+from Test_train_split import load_test_train_data
 
 
 
@@ -14,29 +14,20 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model_names = ("regression", "classification", "interpolation")
 
 #---Load data and split into test and traning data---
-
-#data_test=CustomDataset(data_dir,test_points)
-#data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=True)
-#temp_var_test=[batch for batch in data_test_loader][0]
-#X_test=temp_var_test[0]
-#data_train = CustomDataset(data_dir, train_points)
-#data_train_loader = DataLoader(data_train, batch_size = len(data_train), shuffle=True)
-#temp_var_train = [batch for batch in data_train_loader][0]
-#YY = temp_var_train[1]
-X_test, X_train = load_test_train_data(test_size=0.25, random_seed=42)
-Y_test = X_test[1] #I tvivl om dette er korrekt!!!!!!!!!!!!!
-print(Y_test)
+data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
+filters_test = data_test[1] #I tvivl om dette er korrekt!!!!!!!!!!!!!
+print(filters_test)
 
 def load_model(a):
     model_name = model_names[a]  # vælg model her
     input_size = 9
     output_file = os.path.join(save_dir, f"{model_name}_filters.pt")
     if model_name == "regression":
-        output_size = 2160-540 #???????????
+        output_size = 3072
         model = cvm.FilterNet_regression(input_size, output_size).to(device)
         model.load_state_dict(torch.load("MLP_regression.pth", map_location=device))
     elif model_name == "classification":
-        output_size = 324  # antal klasser ????????????????
+        output_size = 324 
         model = cvm.FilterNet_classification(input_size, output_size).to(device)
         model.load_state_dict(torch.load("MLP_classification.pth", map_location=device))
     elif model_name == "interpolation":
@@ -46,7 +37,7 @@ def load_model(a):
     model.eval()
     return model, output_file
 
-def generate_filters(a, X_test=X_test, Y_test=Y_test):
+def generate_filters(a, X_test=data_test, Y_test=filters_test):
     model, output_file = load_model(a) # Choose model here (0-2)
     all_outputs = []
 
@@ -83,16 +74,16 @@ def test_model_efficiency(a, X_tests, device='cpu'):
 
     # --- Runtime and scaling test ---
     times = []
-    print(f"\nTesting computational efficiency for {len(X_tests)} input sizes...\n")
+    print(f"\nTesting computational efficiency for {len(data_test)} input sizes...\n")
 
-    for X_test in X_tests:
+    for X_test in data_test:
         start = time.perf_counter()
         with torch.no_grad():
             for x in tqdm(X_test, desc=f"Size {tuple(X_test.shape)}"):
                 x = x.to(device).unsqueeze(0).float()
                 output = model(x)
-                if Y_test is not None:
-                    output = torch.matmul(Y_test.T.float().to(device), output.T.float()).T
+                if filters_test is not None:
+                    output = torch.matmul(filters_test.T.float().to(device), output.T.float()).T
         if device == 'cuda':
             torch.cuda.synchronize()  # ensure GPU timing is accurate
         end = time.perf_counter()
@@ -125,7 +116,7 @@ def test_model_efficiency(a, X_tests, device='cpu'):
 
 for a in range(3):
     print(f"\n=== Evaluating Model {a} ({model_names[a]}) ===")
-    test_model_efficiency(a, [X_test[:size] for size in [200]], device=device)
+    test_model_efficiency(a, [filters_test[:size] for size in [200]], device=device)
 
 #generate_filters(0)  # vælg model her (0-2)
 #generate_filters(1)

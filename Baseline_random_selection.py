@@ -1,21 +1,21 @@
 import torch
 from torch.utils.data import DataLoader
-from Train_test_split import load_test_train_data
+from Test_train_split import load_test_train_data
 
 
 ##---Perform random selection between filters for the entire test set---
 data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
 filters_test, filters_train = data_test[1], data_train[1]
 
-def random_selection(X_test, dictionary, seed_value):
+def random_selection(filters_test, filters_train, seed_value):
     torch.manual_seed(seed_value)
-    N_dic=dictionary.shape[0]
-    N_test=X_test.shape[0]
+    N_dic=filters_train.shape[0]
+    N_test=len(filters_test)
     random_indices=torch.randint(low=0,high=N_dic,size=(N_test,))
-    selected_filters=dictionary[random_indices]
-    return X_test, selected_filters, random_indices
+    selected_filters=filters_train[random_indices]
+    return data_test, selected_filters, random_indices
 
-X_test, selected_filters, random_indices = random_selection(data_test, filters_train, 42)
+X_test, selected_filters, random_indices = random_selection(filters_test, filters_train, 42)
 
 torch.save({
     'selected_filters': selected_filters,
