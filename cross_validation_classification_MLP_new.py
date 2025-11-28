@@ -1,11 +1,12 @@
 import torch.nn as nn
-from Train_test_split import load_test_train_data
+from Test_train_split import load_test_train_data
 from torch.utils.data import DataLoader
 from MLP_classification import train_epoch
 import Cross_validation_models as cvm
 import torch.optim as optim
 import torch
 import numpy as np
+from torchsummary import summary
 
 
 neurons = [128, 256, 512]
@@ -22,6 +23,8 @@ input_size = len(data_train[0][0])
 output_size = 50
 
 models=cvm.cv_models(input_size,output_size)
+#for model in models:
+ #   summary(model, input_size=(input_size,))
 """
 filters_train=temp_var_train[1]
 filters_test=temp_var_test[1]
