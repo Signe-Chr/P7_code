@@ -48,7 +48,11 @@ from Train_test_split import load_test_train_data
 #
 ##---Perform random selection between filters for the entire test set---
 X_test, X_train = load_test_train_data(test_size=0.25, random_seed=42)
-filters_train, filters_test = X_train[1], X_test[1]
+data_train_loader = DataLoader(X_train, batch_size=len(X_train), shuffle=False)
+data_test_loader = DataLoader(X_test, batch_size=len(X_test), shuffle=False)
+temp_var_train = [batch for batch in data_train_loader][0]
+temp_var_test = [batch for batch in data_test_loader][0]
+filters_train, filters_test = temp_var_train[1], temp_var_test[1]
 
 def random_selection(X_test, dictionary, seed_value):
     torch.manual_seed(seed_value)
