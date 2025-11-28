@@ -59,7 +59,6 @@ def R_c(x, rir):
     return R_B, R_D
 
 def acc_coeffs(R):
-    print(np.shape(R[1]))
     lambda_vals, eigenvecs = eigh(R[0], R[1]+1e-6*np.eye(len(R[1])))
     return eigenvecs[:, -1].reshape(3, 1024)
 
