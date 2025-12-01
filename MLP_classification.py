@@ -43,10 +43,10 @@ def train_epoch(model, data, criterion, optimizer, device):
 
     #loop = tqdm(data, disable=not sys.stdout.isatty())
     for index in indeces_train:
-        X, y = X_train[index], index
+        X, y = X_train[index].to(torch.float32), index.unsqueeze(0)
 
         optimizer.zero_grad()
-        outputs = model(X)                     # shape: (batch, num_classes)
+        outputs = model(X).unsqueeze(0) # shape: (batch, num_classes)
         loss = criterion(outputs, y)           # CrossEntropyLoss expects class indices (not one-hot)
         loss.backward()
         optimizer.step()
@@ -58,7 +58,7 @@ def train_epoch(model, data, criterion, optimizer, device):
 
     avg_loss = total_loss / total
     accuracy = 100 * correct / total
-    return avg_loss, accuracy
+    return model, avg_loss, accuracy
 
 # ---------------------------------------------------
 # 5. Main training environment
@@ -90,7 +90,7 @@ def main():
     x_input = torch.tensor([1])
 #
     input_size = len(data_train[0][0])
-    output_size = len(data_train)
+    output_size = len(data_train[0])
 
     # Model, loss, optimizer
     model = cvm.FilterNet_classification(input_size, output_size).to(device)
@@ -99,8 +99,8 @@ def main():
     if os.path.exists("MLP_classification.pth"):
         model.load_state_dict(torch.load("MLP_classification.pth"))
     # Training loop
-    for epoch in range(1, 41):
-        train_loss, train_acc = train_epoch(model, data_train, criterion, optimizer, device)
+    for epoch in range(1, 51):
+        model, train_loss, train_acc = train_epoch(model, data_train, criterion, optimizer, device)
         print(f"Epoch {epoch:02d} | Loss: {train_loss:.4f} | Acc: {train_acc:.2f}%")
 
     print("\n Training complete!")
