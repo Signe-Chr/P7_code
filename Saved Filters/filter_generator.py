@@ -44,7 +44,9 @@ def generate_filters(a, X_test=X_test, Y_test=filters_test):
     for configuration in X_test:
         with torch.no_grad():
             output = model(configuration.unsqueeze(0).float())
-            if a in [1, 2]:
+            if a == 1:
+                output = 
+            if a == 2:
                 output = torch.matmul(Y_test.T.float(), output.T.float()).T
 
         # Gem output i dict
