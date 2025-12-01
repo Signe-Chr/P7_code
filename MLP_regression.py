@@ -93,6 +93,7 @@ def train(data, wav, epochs, model, dev):
             total_loss += loss.item()
 
         print(f"Epoch {epoch+1}: loss = {total_loss/len(data):.4f}")
+    return model
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
