@@ -221,9 +221,9 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
 
     # Compute statistics
     results = {
-        "AC": (np.sqrt(np.var(AC_list)) ,np.mean(AC_list) ,np.min(AC_list), np.max(AC_list)),
-        "NSDP_B": (np.sqrt(np.var(NSDP_B_list)) ,np.mean(NSDP_B_list), np.min(NSDP_B_list), np.max(NSDP_B_list)),
-        "Attenuation": (np.sqrt(np.var(attenuation_arr)),np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr))
+        "AC": (np.sqrt(np.var(AC_list)).item(), np.mean(AC_list).item(), np.min(AC_list).item(), np.max(AC_list).item()),
+        "NSDP_B": (np.sqrt(np.var(NSDP_B_list)).item(), np.mean(NSDP_B_list).item(), np.min(NSDP_B_list).item(), np.max(NSDP_B_list).item()),
+        "Attenuation": (np.sqrt(np.var(attenuation_arr)).item(), np.mean(attenuation_arr).item(), np.min(attenuation_arr).item(), np.max(attenuation_arr).item())
     }
     print(f"AC (std, mean, min, max): {results['AC']}")
     print(f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}")
