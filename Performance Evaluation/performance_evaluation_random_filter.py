@@ -151,11 +151,11 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, bright_zone_mics_in
         conv_result = conv_result.squeeze(0)
         conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[-1]))
         mic_pressure += conv_result
-
+    mic_pressure[mic_pressure==0] += 1e-12
     d_B_list.append(mic_pressure) 
 
     d_B_tensor = torch.stack(d_B_list) 
-    min_len = min(d_B_tensor.shape[1], p_B.shape[1])
+    min_len = min(d_B_tensor.shape[-1], p_B.shape[1])
     d_B_tensor = d_B_tensor[:, :min_len]
     p_B = p_B[:, :min_len]
     
