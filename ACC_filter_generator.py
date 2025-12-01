@@ -22,7 +22,7 @@ def toeplitz(x, n, K, J):
 
     for k in range(K):
         for j in range(J):
-            index = n - k + j - 2
+            index = n - k - j + 2
             if 0 <= index < len(x):
                 X[k, j] = x[index]
     return X
@@ -67,7 +67,7 @@ def load_save():
         dict = load_ir(f"Data Archive/{i}")
         ir = dict["IR"]
         dict.update({"q_acc": acc_coeffs(R_c(RG.x_input, ir))})
-        np.save(f"Data Archive/{i}", dict, allow_pickle=True)
+        #np.save(f"Data Archive/{i}", dict, allow_pickle=True)
         #print(f"Saved filter {i}")
 load_save()
 
