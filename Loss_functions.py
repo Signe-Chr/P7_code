@@ -120,34 +120,18 @@ def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, x_inp
     # The final pressure length (p) is h_combined_len + n_input_samples - 1
     output_len = torch.tensor(n_rir_samples + filter_len + n_input_samples - 2)
     
-    # Zero pad x_input for convolution
-    x_input_padded = F.pad(x_input, (0, output_len - n_input_samples), 'constant', 0)
     p = torch.zeros((n_mics, output_len), device=rir.device)
 
     for m in range(n_mics):
         p_m = torch.zeros(output_len, device=rir.device)
         for s in range(n_srcs):
             # Combined filter impulse response: h_combined = RIR * filter_q (via standard convolution)
-            rir_m_s = rir[m, s, :].unsqueeze(0).unsqueeze(0) # [1, 1, n_rir_samples]
-            q_s = filter_q[s, :].unsqueeze(0).unsqueeze(0) # [1, 1, filter_len]
+            rir_m_s = rir[m, s, :].unsqueeze(0).unsqueeze(0).float()  # cast to float32
+            q_s = filter_q[s, :].unsqueeze(0).unsqueeze(0).float()    # cast to float32
+
+            h_combined = F.conv1d(rir_m_s, q_s, padding=q_s.shape[-1]-1)
             
-            # --- CRITICAL FIX: SWAP INPUT/KERNEL FOR CONV1D ---
-            # Since n_rir_samples (512) < filter_len (1024), we must swap them for F.conv1d.
-            # Convolution is commutative: rir * q = q * rir
-            h_combined = F.conv1d(q_s, rir_m_s, padding=0).squeeze()
-            
-            # Convolve h_combined with input signal x (x_input) using FFT
-            
-            # Pad h_combined to ensure final output length matches 'output_len'
-            h_combined_padded = F.pad(h_combined, (0, output_len - h_combined.shape[0]), 'constant', 0)
-            
-            n_fft = 2**int(torch.ceil(torch.log2(output_len)))
-            
-            H = torch.fft.rfft(h_combined_padded, n=n_fft)
-            X_fft = torch.fft.rfft(x_input_padded, n=n_fft).squeeze(0)
-            
-            P_fft = H * X_fft
-            p_m_s = torch.fft.irfft(P_fft, n=n_fft)[:output_len] # Back to time domain
+            p_m_s = F.conv1d(x_input.reshape((1, 1, n_input_samples)).float(), h_combined, padding=h_combined.shape[-1]-1).squeeze()
             
             p_m += p_m_s
         p[m, :] = p_m
