@@ -133,7 +133,7 @@ def loss_functions(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_
 def attenuation(rir, raw_wav, filtered, zone):
     raw_signal = cpwi(rir, raw_wav)[zone]
     e_raw = torch.sum(raw_signal**2)
-    e_filt = torch.sum(filtered[zone]**2)
+    e_filt = torch.sum(filtered**2)
     return 10 * np.log10(e_raw/e_filt)
 
 def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, bright_zone_mics_index, rir: torch.Tensor):
@@ -190,6 +190,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     AC_list =[]
     NSDP_B_list= []
     attenuation_list = []
+    attenuation_list_bz=[]
 
     for i in tqdm(range(RIR_test.shape[0]), disable=not sys.stdout.isatty()):
         #print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
@@ -208,26 +209,31 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
         AC_i = float(acoustic_contrast(p_C, bright_zone_mics_index_test, dark_zone_mics_index_test))
         mean_NSDP_B = compute_nSDP(p_C, wav_input, bright_zone_mics_index_test, rirs)
         atten = attenuation(rirs, wav_input, p_C[dark_zone_mics_index_test], dark_zone_mics_index_test)
+        atten_bz=attenuation(rirs, wav_input, p_C[bright_zone_mics_index_test], bright_zone_mics_index_test)
     
         # Append results
         AC_list.append(AC_i)
         NSDP_B_list.append(mean_NSDP_B)
         attenuation_list.append(atten)
+        attenuation_list_bz.append(atten_bz)
 
     # Convert to numpy arrays
     AC_list = np.array(AC_list)
     NSDP_B_list = np.array(NSDP_B_list)
     attenuation_arr = np.array(attenuation_list)
+    attenuation_arr_bz = np.array(attenuation_list_bz)
 
     # Compute statistics
     results = {
         "AC": (np.sqrt(np.var(AC_list)) ,np.mean(AC_list) ,np.min(AC_list), np.max(AC_list)),
         "NSDP_B": (np.sqrt(np.var(NSDP_B_list)) ,np.mean(NSDP_B_list), np.min(NSDP_B_list), np.max(NSDP_B_list)),
-        "Attenuation": (np.sqrt(np.var(attenuation_arr)),np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr))
+        "Attenuation_DZ": (np.sqrt(np.var(attenuation_arr)),np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr)),
+        "Attenuation_BZ": (np.sqrt(np.var(attenuation_arr_bz)),np.mean(attenuation_arr_bz), np.min(attenuation_arr_bz), np.max(attenuation_arr_bz))
     }
     print(f"AC (std, mean, min, max): {results['AC']}")
     print(f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}")
-    print(f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation']}")
+    print(f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation_DZ']}")
+    print(f"Attenuation Bright Zone (std, mean, min, max):{results['Attenuation_BZ']}")
 
     return results
 
@@ -320,10 +326,11 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
 "regression"
 "classification"
 
-chosen_model = "baseline"
+chosen_model = "regression"
 
 dark_zone_mics_index, bright_zone_mics_index, n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, x_input, model = load_data_and_model(chosen_model)
 
 average_performance_metrics_with_filters(RIRs_test, model, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
-#loss_function_evaluation(RIRs_test, model, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+loss_function_evaluation(RIRs_test, model, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+
 
