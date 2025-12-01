@@ -70,7 +70,7 @@ def train(data, wav, epochs, model, dev):
 
             # Pak datapunktet ud
             X = torch.tensor(sample[0], dtype=torch.float32).to(dev)
-            flat_y = torch.tensor(sample[1], dtype=torch.float32).to(dev)
+            flat_y = torch.tensor(sample[1], dtype=torch.float32).to(dev).unsqueeze(0)
             IR = sample[5]    # eller sample[2], afhængigt af strukturen
 
             # Reshape kun hvis størrelsen matcher
@@ -81,12 +81,12 @@ def train(data, wav, epochs, model, dev):
 
             optimizer.zero_grad()
 
-            out_flat = model(X)
+            out_flat = model(X).unsqueeze(0)
             outputs = out_flat.reshape(L, J)
 
             H = compute_H_matrix(IR)[0].to(dev)
 
-            loss = alpha*lf.L_1_reg(outputs, flat_y, H, bright_indices) + (1-alpha)* lf.L_2_reg(outputs, H, dark_indices) + beta*lf.L_3_reg(outputs, L) +  gamma*lf.L_4_reg(outputs, dev)
+            loss = alpha*lf.L_1_reg(outputs, y, H, bright_indices) + (1-alpha)* lf.L_2_reg(outputs, H, dark_indices) + beta*lf.L_3_reg(outputs, L) +  gamma*lf.L_4_reg(outputs, dev)
             loss.backward()
             optimizer.step()
 
