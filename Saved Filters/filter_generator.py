@@ -16,8 +16,7 @@ model_names = ("regression", "classification", "interpolation")
 #---Load data and split into test and traning data---
 data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
 X_test = data_test[0]
-filters_test = data_test[1] #I tvivl om dette er korrekt!!!!!!!!!!!!! # Jord siger at det er det :)
-filters_train = data_train[1]
+filters_test = data_test[1] #I tvivl om dette er korrekt!!!!!!!!!!!!!
 
 def load_model(a):
     model_name = model_names[a]  # vælg model her
@@ -38,7 +37,7 @@ def load_model(a):
     model.eval()
     return model, output_file
 
-def generate_filters(a, X_test=X_test, Y_test=filters_test, Y_train=filters_train):
+def generate_filters(a, X_test=X_test, Y_test=filters_test):
     model, output_file = load_model(a) # Choose model here (0-2)
     all_outputs = []
 
@@ -46,8 +45,7 @@ def generate_filters(a, X_test=X_test, Y_test=filters_test, Y_train=filters_trai
         with torch.no_grad():
             output = model(configuration.unsqueeze(0).float())
             if a == 1:
-                _, prediction = torch.max(output, 1)
-                output = Y_train[prediction]
+                output = 5
             if a == 2:
                 output = torch.matmul(Y_test.T.float(), output.T.float()).T
 
@@ -122,6 +120,7 @@ def test_model_efficiency(a, X_test, device='cpu'):
     #print(f"\n=== Evaluating Model {a} ({model_names[a]}) ===")
     #test_model_efficiency(a, [filters_test[:size] for size in [200]], device=device)
 
-#generate_filters(0)  # vælg model her (0-2)
-generate_filters(1)
-#generate_filters(2)
+# vælg model her (0-2)
+#generate_filters(0)  # regression
+#generate_filters(1)  # classification
+#generate_filters(2)  # interpolation
