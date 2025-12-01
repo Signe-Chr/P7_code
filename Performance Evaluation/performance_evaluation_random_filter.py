@@ -143,12 +143,13 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, bright_zone_mics_in
     d_B_list = []
     rir_m = rir[bright_zone_mics_index] 
     max_len = ref.shape[-1] + rir_m.shape[-1] - 1
-    mic_pressure = torch.zeros(max_len, device=rir.device)
+    mic_pressure = torch.zeros((1, max_len), device=rir.device)
 
-    for s in range(rir_m.shape[0]):
-        conv_result = F.conv1d(ref.unsqueeze(0), rir_m[s].unsqueeze(0).unsqueeze(0))
-        conv_result = conv_result.squeeze()  
-        conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[0]))
+    pad = len(rir_m[:,0].T)-len(wav_input) if len(wav_input) < len(rir_m[:,0].T) else 0
+    for s in range(rir_m.shape[1]):
+        conv_result = F.conv1d(ref.unsqueeze(0).unsqueeze(0), rir_m[:,s].unsqueeze(0), padding=pad)
+        conv_result = conv_result.squeeze(0)
+        conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[-1]))
         mic_pressure += conv_result
 
     d_B_list.append(mic_pressure) 
