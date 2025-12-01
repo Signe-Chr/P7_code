@@ -15,8 +15,8 @@ model_names = ("regression", "classification", "interpolation")
 
 #---Load data and split into test and traning data---
 data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
+X_test = data_test[0]
 filters_test = data_test[1] #I tvivl om dette er korrekt!!!!!!!!!!!!!
-print(filters_test)
 
 def load_model(a):
     model_name = model_names[a]  # vælg model her
@@ -37,7 +37,7 @@ def load_model(a):
     model.eval()
     return model, output_file
 
-def generate_filters(a, X_test=data_test, Y_test=filters_test):
+def generate_filters(a, X_test=X_test, Y_test=filters_test):
     model, output_file = load_model(a) # Choose model here (0-2)
     all_outputs = []
 
@@ -54,7 +54,7 @@ def generate_filters(a, X_test=data_test, Y_test=filters_test):
     torch.save(all_outputs, output_file)
     print(f"All outputs saved in '{output_file}'")
 
-def test_model_efficiency(a, X_tests, device='cpu'):
+def test_model_efficiency(a, X_test, device='cpu'):
     """
     Evaluates computational efficiency of a model on:
     - Inference time (avg per sample)
@@ -114,10 +114,10 @@ def test_model_efficiency(a, X_tests, device='cpu'):
         "scaling_data": times
     }
 
-for a in range(3):
-    print(f"\n=== Evaluating Model {a} ({model_names[a]}) ===")
-    test_model_efficiency(a, [filters_test[:size] for size in [200]], device=device)
+#for a in range(3):
+    #print(f"\n=== Evaluating Model {a} ({model_names[a]}) ===")
+    #test_model_efficiency(a, [filters_test[:size] for size in [200]], device=device)
 
 #generate_filters(0)  # vælg model her (0-2)
-#generate_filters(1)
+generate_filters(1)
 #generate_filters(2)
