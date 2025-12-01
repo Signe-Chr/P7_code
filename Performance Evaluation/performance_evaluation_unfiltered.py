@@ -8,9 +8,10 @@ from scipy.io import wavfile
 from pesq import pesq
 from Test_train_split import load_test_train_data
 from pystoi import stoi
+from tqdm import tqdm
 
 
-S
+
 #---Load data and split into test and traning data---
 def load_data():
     data_test, data_train = load_test_train_data()
@@ -130,44 +131,38 @@ def compute_pesq_unfiltered(
     return mean_pesq_B,mean_pesq_D
 
 #---Compute NSDP---
-def compute_nSDP(p_C: torch.Tensor, x_input: torch.Tensor,
-                 bright_zone_mics_index: list[int],
-                 dark_zone_mics_index: list[int]):
-    """
-    Computes normalized Signal Distortion Power (NSDP) for bright and dark zones.
-    Bright zone compares against target signal.
-    Dark zone compares against zero (silence target).
-    """
-    #ref = wav_input.squeeze().detach().cpu().numpy().astype(np.float32)
-    ref = x_input
+def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, bright_zone_mics_index, rir: torch.Tensor):
+    p_B = p_C[bright_zone_mics_index]
+    ref = wav_input.float()
 
-    def compute_zone_nSDP(mic_indices, target_type="bright"):
-        NSDP_list = []
-        for m in mic_indices:
-            deg = p_C[m, :].detach().cpu().numpy().astype(np.float32)
-            min_len = min(len(ref), len(deg))
-            s_est = deg[:min_len]
-            
-            if target_type == "bright":
-                s_target = ref[:min_len]
-            else:  # dark zone -> silence target
-                s_target = np.zeros_like(s_est)
-            
-            numerator = np.sum((s_target - s_est)**2)
-            denominator = np.sum(s_target**2) if target_type == "bright" else np.sum(s_est**2)
-            
-            # For dark zone, compare distortion power to its own signal power
-            if denominator == 0:
-                NSDP_val = 1e10
-            else:
-                NSDP_val = 10 * np.log10(numerator / denominator)
-            NSDP_list.append(NSDP_val)
-        return np.mean(NSDP_list)
+    d_B_list = []
+    rir_m = rir[bright_zone_mics_index] 
+    max_len = ref.shape[-1] + rir_m.shape[-1] - 1
+    mic_pressure = torch.zeros((1, max_len), device=rir.device)
+
+    pad = len(rir_m[:,0].T)-len(wav_input) if len(wav_input) < len(rir_m[:,0].T) else 0
+    for s in range(rir_m.shape[1]):
+        conv_result = F.conv1d(ref.unsqueeze(0).unsqueeze(0), rir_m[:,s].unsqueeze(0), padding=pad)
+        conv_result = conv_result.squeeze(0)
+        conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[-1]))
+        mic_pressure += conv_result
+
+    d_B_list.append(mic_pressure) 
+
+    d_B_tensor = torch.stack(d_B_list) 
+    min_len = min(d_B_tensor.shape[1], p_B.shape[1])
+    d_B_tensor = d_B_tensor[:, :min_len]
+    p_B = p_B[:, :min_len]
     
-    mean_B = compute_zone_nSDP(bright_zone_mics_index, "bright")
-    mean_D = compute_zone_nSDP(dark_zone_mics_index, "dark")
-    
-    return mean_B, mean_D
+    rms_ref = torch.sqrt(torch.mean(ref ** 2))
+    rms_pB = torch.sqrt(torch.mean(p_B ** 2))
+    ref = ref * (rms_pB / rms_ref)
+
+    numerator = torch.sum((d_B_tensor - p_B) ** 2, dim=1)
+    denominator = torch.sum(d_B_tensor ** 2, dim=1)
+    nSDP = 10 * torch.log10(numerator / denominator)
+
+    return torch.mean(nSDP)
 
 #---Compute STOI---
 def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
@@ -208,16 +203,13 @@ def attenuation(rir, raw_wav, filtered,zone):
 
 #---Compute average performance metrics across testset---
 def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index, dark_zone_mics_index):
-    pesq_B = []
-    pesq_D = []
     AC = []
     NSDR_B = []
-    NSDR_D = []
     STOI_B = []
     STOI_D = []
     attenuation_list = []
-    for i in range(RIR_test.shape[0]):
-        print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
+    for i in tqdm(range(RIR_test.shape[0])):
+        #print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
         rirs = RIR_test[i]
         BZ_idx = bright_zone_mics_index
         DZ_idx = dark_zone_mics_index
@@ -225,14 +217,11 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index, dar
         # Compute pressures
         p_C = compute_pressure_with_input(rirs, wav_input)
 
-        # Compute PESQ
-        #mean_pesq_B, mean_pesq_D = compute_pesq_unfiltered(p_C, wav_input, BZ_idx, DZ_idx)
-
         # Compute AC
         AC_i = float(acoustic_contrast(p_C, BZ_idx, DZ_idx))
         
         # Compute NSDR
-        mean_NSDR_B,mean_NSDR_D=compute_nSDP(p_C,wav_input,BZ_idx,DZ_idx)
+        mean_NSDR_B = compute_nSDP(p_C, wav_input, BZ_idx, rirs)
         
         #Compute STOI
         mean_STOI_B,mean_STOI_D=compute_STOI(p_C, wav_input, BZ_idx, DZ_idx)
@@ -240,24 +229,14 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index, dar
         #Compute attentuation in dark zone
         atten = attenuation(rirs, wav_input, p_C[dark_zone_mics_index], dark_zone_mics_index)
         
-
-        #pesq_B.append(mean_pesq_B)
-        #pesq_D.append(mean_pesq_D)
         AC.append(AC_i)
         NSDR_B.append(mean_NSDR_B)
-        NSDR_D.append(mean_NSDR_D)
         STOI_B.append(mean_STOI_B)
         STOI_D.append(mean_STOI_D)
         attenuation_list.append(atten)
 
-
-    
-
     AC = np.array(AC)
-    #pesq_B = np.array(pesq_B)
-    #pesq_D = np.array(pesq_D)
     NSDR_B = np.array(NSDR_B)
-    NSDR_D = np.array(NSDR_D)
     STOI_B = np.array(STOI_B)
     STOI_D = np.array(STOI_D)
     attenuation_arr = np.array(attenuation_list)
@@ -265,29 +244,15 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index, dar
     print(f"std stoi (bz) {np.sqrt(np.var(STOI_B))}")
     print(f"std stoi (dz) {np.sqrt(np.var(STOI_D))}")
 
-    #print(f"pesq std (bz) {np.sqrt(np.var(pesq_B))}" )
-    #print(f"pesq std (dz) {np.sqrt(np.var(pesq_D))}" )
-
     avg_ac = np.mean(AC)
     print(f"std ac {np.sqrt(np.var(AC))}")
     min_ac = np.min(AC)
     max_ac = np.max(AC)
 
-    #avg_pesq_B = np.mean(pesq_B)
-    #min_pesq_B = np.min(pesq_B)
-    #max_pesq_B = np.max(pesq_B)
-
-    #avg_pesq_D = np.mean(pesq_D)
-    #min_pesq_D = np.min(pesq_D)
-    #max_pesq_D = np.max(pesq_D)
     
     avg_NSDR_B = np.mean(NSDR_B)
     min_NSDR_B = np.min(NSDR_B)
     max_NSDR_B = np.max(NSDR_B)
-    
-    avg_NSDR_D = np.mean(NSDR_D)
-    min_NSDR_D = np.min(NSDR_D)
-    max_NSDR_D = np.max(NSDR_D)
     
     avg_STOI_B = np.mean(STOI_B)
     min_STOI_B = np.min(STOI_B)
@@ -300,18 +265,15 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index, dar
     avg_atten=np.mean(attenuation_arr)
     print(f'Average AC over {RIRs_test.shape[0]} data points:{avg_ac}, minimum AC: {min_ac}, maximum AC: {max_ac}')
     print('Bright Zone:')
-    #print(f'Average PESQ over {RIRs_test.shape[0]} data points: {avg_pesq_B}, minimum PESQ:{min_pesq_B}, maximum pesq:{max_pesq_B}')
     print(f'Average NSDR over {RIRs_test.shape[0]} data points: {avg_NSDR_B}, minimum NSDR:{min_NSDR_B}, maximum NSDR:{max_NSDR_B}')
     print(f'Average STOI over {RIRs_test.shape[0]} data points: {avg_STOI_B}, minimum STOI:{min_STOI_B}, maximum STOI:{max_STOI_B}')
     print('Dark Zone:')
-    #print(f'Average PESQ over {RIRs_test.shape[0]} data points: {avg_pesq_D}, minimum PESQ:{min_pesq_D}, maximum pesq:{max_pesq_D}')
-    print(f'Average NSDR over {RIRs_test.shape[0]} data points: {avg_NSDR_D}, minimum NSDR:{min_NSDR_D}, maximum NSDR:{max_NSDR_D}')
     print(f'Average STOI over {RIRs_test.shape[0]} data points: {avg_STOI_D}, minimum STOI:{min_STOI_D}, maximum STOI:{max_STOI_D}')
     print(f'Average attenuation over {RIRs_test.shape[0]} data points: {avg_atten}')
     
     #plot_performance_metrics(AC, pesq_B, pesq_D, NSDR_B, NSDR_D, STOI_B, STOI_D)
 
-    return avg_ac, min_ac, max_ac, avg_NSDR_B, min_NSDR_B, max_NSDR_B, avg_NSDR_D, min_NSDR_D, max_NSDR_D, avg_STOI_B, min_STOI_B, max_STOI_B, avg_STOI_D, min_STOI_D, max_STOI_D,avg_atten#, avg_pesq_B, min_pesq_B, max_pesq_B, avg_pesq_D, min_pesq_D, max_pesq_D
+    return avg_ac, min_ac, max_ac, avg_NSDR_B, min_NSDR_B, max_NSDR_B, avg_STOI_B, min_STOI_B, max_STOI_B, avg_STOI_D, min_STOI_D, max_STOI_D,avg_atten#, avg_pesq_B, min_pesq_B, max_pesq_B, avg_pesq_D, min_pesq_D, max_pesq_D
 
 def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D):
     """
