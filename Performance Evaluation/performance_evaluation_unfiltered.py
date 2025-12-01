@@ -224,15 +224,15 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index, dar
         mean_NSDR_B = compute_nSDP(p_C, wav_input, BZ_idx, rirs)
         
         #Compute STOI
-        mean_STOI_B,mean_STOI_D=compute_STOI(p_C, wav_input, BZ_idx, DZ_idx)
+        #mean_STOI_B,mean_STOI_D=compute_STOI(p_C, wav_input, BZ_idx, DZ_idx)
         
         #Compute attentuation in dark zone
         atten = attenuation(rirs, wav_input, p_C[dark_zone_mics_index], dark_zone_mics_index)
         
         AC.append(AC_i)
         NSDR_B.append(mean_NSDR_B)
-        STOI_B.append(mean_STOI_B)
-        STOI_D.append(mean_STOI_D)
+        #STOI_B.append(mean_STOI_B)
+        #STOI_D.append(mean_STOI_D)
         attenuation_list.append(atten)
 
     AC = np.array(AC)
@@ -241,8 +241,8 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index, dar
     STOI_D = np.array(STOI_D)
     attenuation_arr = np.array(attenuation_list)
 
-    print(f"std stoi (bz) {np.sqrt(np.var(STOI_B))}")
-    print(f"std stoi (dz) {np.sqrt(np.var(STOI_D))}")
+    #print(f"std stoi (bz) {np.sqrt(np.var(STOI_B))}")
+    #print(f"std stoi (dz) {np.sqrt(np.var(STOI_D))}")
 
     avg_ac = np.mean(AC)
     print(f"std ac {np.sqrt(np.var(AC))}")
@@ -254,26 +254,22 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index, dar
     min_NSDR_B = np.min(NSDR_B)
     max_NSDR_B = np.max(NSDR_B)
     
-    avg_STOI_B = np.mean(STOI_B)
-    min_STOI_B = np.min(STOI_B)
-    max_STOI_B = np.max(STOI_B)
+    #avg_STOI_B = np.mean(STOI_B)
+    #min_STOI_B = np.min(STOI_B)
+    #max_STOI_B = np.max(STOI_B)
     
-    avg_STOI_D = np.mean(STOI_D)
-    min_STOI_D = np.min(STOI_D)
-    max_STOI_D = np.max(STOI_D)
+    #avg_STOI_D = np.mean(STOI_D)
+    #min_STOI_D = np.min(STOI_D)
+    #max_STOI_D = np.max(STOI_D)
     
     avg_atten=np.mean(attenuation_arr)
     print(f'Average AC over {RIRs_test.shape[0]} data points:{avg_ac}, minimum AC: {min_ac}, maximum AC: {max_ac}')
-    print('Bright Zone:')
-    print(f'Average NSDR over {RIRs_test.shape[0]} data points: {avg_NSDR_B}, minimum NSDR:{min_NSDR_B}, maximum NSDR:{max_NSDR_B}')
-    print(f'Average STOI over {RIRs_test.shape[0]} data points: {avg_STOI_B}, minimum STOI:{min_STOI_B}, maximum STOI:{max_STOI_B}')
-    print('Dark Zone:')
-    print(f'Average STOI over {RIRs_test.shape[0]} data points: {avg_STOI_D}, minimum STOI:{min_STOI_D}, maximum STOI:{max_STOI_D}')
-    print(f'Average attenuation over {RIRs_test.shape[0]} data points: {avg_atten}')
+    print(f'Average NSDR in BZ over {RIRs_test.shape[0]} data points: {avg_NSDR_B}, minimum NSDR:{min_NSDR_B}, maximum NSDR:{max_NSDR_B}')
+    print(f'Average attenuation in DZ over {RIRs_test.shape[0]} data points: {avg_atten}')
     
     #plot_performance_metrics(AC, pesq_B, pesq_D, NSDR_B, NSDR_D, STOI_B, STOI_D)
 
-    return avg_ac, min_ac, max_ac, avg_NSDR_B, min_NSDR_B, max_NSDR_B, avg_STOI_B, min_STOI_B, max_STOI_B, avg_STOI_D, min_STOI_D, max_STOI_D,avg_atten#, avg_pesq_B, min_pesq_B, max_pesq_B, avg_pesq_D, min_pesq_D, max_pesq_D
+    return avg_ac, min_ac, max_ac, avg_NSDR_B, min_NSDR_B, max_NSDR_B, avg_atten  #,avg_STOI_B, min_STOI_B, max_STOI_B, avg_STOI_D, min_STOI_D, max_STOI_D#, avg_pesq_B, min_pesq_B, max_pesq_B, avg_pesq_D, min_pesq_D, max_pesq_D
 
 def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D):
     """
@@ -314,5 +310,4 @@ def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D)
 if __name__=='__main__':
     x_input = torch.tensor([1]+[0]*511)
     n_srcs_test, n_srcs_train, RIRs_test, RIRs_train, dark_zone_mics_index, bright_zone_mics_index = load_data()
-    print(x_input)
     average_performance_metrics(RIRs_test, x_input, bright_zone_mics_index, dark_zone_mics_index)
