@@ -47,12 +47,8 @@ if p==1:
             X_train = X_train.to(torch.float32)
             X_test  = X_test.to(torch.float32)
             
-            
-            
-            
             RIRs_train=data_train[5]
             RIRs_test=data_test[5]
-
 
             filters_train= data_train[1][0:50]
             filters_test=data_test[1][0:50]
@@ -89,13 +85,13 @@ if p==1:
                 unique_filters_train = np.asarray(unique_filters_train)  # confirm numpy array
                 unique_filters_test  = np.asarray(unique_filters_test)
 
-                true_filters_train = torch.tensor(unique_filters_train[filters_train.numpy()], dtype=torch.float32)  # (batch, n_srcs, filter_len)
+                true_filters_train = torch.tensor(unique_filters_train[filters_train.numpy()], dtype=torch.float32)  # (batch, n_srcs*filter_len)
                 true_filters_test  = torch.tensor(unique_filters_test[filters_test.numpy()], dtype=torch.float32)
 
-                pred_filters_train = torch.tensor(unique_filters_train[pred_classes_train.numpy()], dtype=torch.float32)  # (batch, n_srcs, filter_len)
+                pred_filters_train = torch.tensor(unique_filters_train[pred_classes_train.numpy()], dtype=torch.float32)  # (batch, n_srcs*filter_len)
                 pred_filters_test  = torch.tensor(unique_filters_test[pred_classes_test.numpy()], dtype=torch.float32)
                 
-                true_filters_train = true_filters_train.reshape(-1, n_srcs, filter_len)   # -> (batch, 3, 1024)
+                true_filters_train = true_filters_train.reshape(-1, n_srcs, filter_len)   # -> (batch, n_srcs, filter_len)
                 true_filters_test  = true_filters_test.reshape(-1, n_srcs, filter_len)
 
                 pred_filters_train = pred_filters_train.reshape(-1, n_srcs, filter_len)
@@ -105,8 +101,6 @@ if p==1:
                 filters_loss_test  = []
 
                 for i in range(len(pred_filters_train)):
-                    n_srcs = 3
-                    filter_len = 1024
                     feat_size = n_srcs * filter_len
 
                     pred_sample = pred_filters_train[i]   # (n_srcs, filter_len)
@@ -150,8 +144,8 @@ if p==1:
                     filters_loss_test.append( 0.25 * (L1_test  + L2_test  + L3_test  + L4_test))
 
                 # Average across samples
-                train_err = torch.stack([t.flatten() for t in filters_loss_train]).mean().item()
-                test_err  = torch.stack([t.flatten() for t in filters_loss_test]).mean().item()
+                train_err = torch.stack(filters_loss_train).mean().item()
+                test_err  = torch.stack(filters_loss_test).mean().item()
 
                 fold_train_err.append(train_err)
                 fold_test_err.append(test_err)
