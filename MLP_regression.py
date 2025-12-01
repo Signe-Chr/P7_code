@@ -57,11 +57,16 @@ def train(data, wav, epochs, model, dev):
     alpha=0.5
     beta=0.5
     gamma=0.5
+    # Unpack data
+    a1, a2, a3, a4, a5, a6, a7, a8 = data
+    # Repack data to make sure it has the lengths it's supposed to
+    data = [a1, a2, np.array([a3]).T, np.array([a4]).T, a5, a6, a7, a8]
     for epoch in range(epochs):
         model.train()
         total_loss = 0.0
 
-        for sample in data:   # <-- ét datapunkt ad gangen
+        # Use zip(*data) to be able to loop over singular datapoints
+        for sample in zip(*data):   # <-- ét datapunkt ad gangen
 
             # Pak datapunktet ud
             X = torch.tensor(sample[0], dtype=torch.float32).to(dev)
