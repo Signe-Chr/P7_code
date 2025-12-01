@@ -24,7 +24,11 @@ bright_zone_mics_index=[12]
 
 x_input = torch.zeros(1, 1, dtype=torch.float32)   # adjust as required
 x_input[0, 0] = 1.0
-            
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+print(device)
+
 if p==1:
     train_err_list=[]
     test_err_list=[]
@@ -33,14 +37,15 @@ if p==1:
         fold_test_err= []
         print(f"\n--- Testing architecture: Layer 1: {neuron}")
         for folds in range(num_folds):
+            print("folds", folds)
             data_test,data_train=load_test_train_data(random_seed=folds)
             data_test=data_test
             data_train=data_train
 
             X_train= data_train[0][0:50]
             X_test=data_test[0][0:50]
-            X_train = X_train.to(torch.float32)
-            X_test  = X_test.to(torch.float32)
+            X_train = X_train.to(torch.float32).to(device)
+            X_test  = X_test.to(torch.float32).to(device)
             output_size=50
             
             RIRs_train=data_train[5]
@@ -58,16 +63,17 @@ if p==1:
         
             optimizer = optim.Adam(model.parameters(), lr = 1e-3)
             for epoch in range(1, 41):
-                total=loss=0
+                print("epoch", epoch)
+                total_loss=0
                 total=0
                 for i in range(len(X_train)):
-                    X=X_train[i].unsqueeze(0) 
-                    filter=filters_train[i].unsqueeze(0) 
+                    X=X_train[i].unsqueeze(0).to(device)
+                    filter=filters_train[i].unsqueeze(0).to(torch.float).to(device)
                     rir=RIRs_train[i]
                     optimizer.zero_grad()
-                    coeff=model(X)
-                    outputs = torch.matmul(filters_train.T.float() , coeff.T.float()).T
-                    H=compute_H_matrix(rir)
+                    coeff=model(X).to(device)
+                    outputs = torch.matmul(filters_train.T.float() , coeff.T.float()).T.to(torch.float).to(device)
+                    H=compute_H_matrix(rir)[0].to(device)
                     loss = 1/4*(MSE(outputs, filter) + Cosine_similarity(outputs, filter) + MSEP(outputs.reshape(3,1024), filter.reshape(3,1024), rir, x_input, bright_zone_mics_index, dark_zone_mics_index)[0] + AC_loss(outputs.reshape(3,1024), filter.reshape(3,1024), H, bright_zone_mics_index, dark_zone_mics_index))
                     loss.backward()
                     optimizer.step()
