@@ -9,13 +9,13 @@ def load_test_train_data(test_size=0.25, random_seed=42):
     full_data = os.listdir(data_dir)
 
     # Perform train/test split with fixed random seed
-    train_files, test_files = train_test_split(
+    files_train, files_test = train_test_split(
         full_data, test_size=test_size, random_state=random_seed, shuffle=True
     )
 
     # Create dataset instances
-    temp_var_train = CustomDataset(data_dir, train_files)
-    temp_var_test = CustomDataset(data_dir, test_files)
+    temp_var_train = CustomDataset(data_dir, files_train)
+    temp_var_test = CustomDataset(data_dir, files_test)
 
     train_loader = DataLoader(temp_var_train, batch_size=len(temp_var_train), shuffle=False)
     test_loader = DataLoader(temp_var_test, batch_size=len(temp_var_test), shuffle=False)
