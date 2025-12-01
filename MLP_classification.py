@@ -40,9 +40,10 @@ def train_epoch(model, data, criterion, optimizer, device):
     RIRs_train = data[5]
     indeces_train = data[6] #Loads the indeces for every filter in the dictionary
 
-    loop = tqdm(data, disable=not sys.stdout.isatty())
-    for data in loop:
-        X, y = data[0].to(device).float(), data[6].to(device)
+
+    #loop = tqdm(data, disable=not sys.stdout.isatty())
+    for index in indeces_train:
+        X, y = X_train[index], index
 
         optimizer.zero_grad()
         outputs = model(X)                     # shape: (batch, num_classes)
