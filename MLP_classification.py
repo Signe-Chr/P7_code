@@ -21,7 +21,7 @@ def train_epoch(model, data, criterion, optimizer, device):
 
 
     #loop = tqdm(data, disable=not sys.stdout.isatty())
-    for index in tqdm(indeces_train):
+    for index in indeces_train:
         X, y = X_train[index].to(torch.float32), index.unsqueeze(0)
 
         optimizer.zero_grad()
@@ -56,7 +56,7 @@ def main():
     if os.path.exists("MLP_classification.pth"):
         model.load_state_dict(torch.load("MLP_classification.pth"))
     # Training loop
-    for epoch in range(1,51):
+    for epoch in tqdm(range(1,51)):
         model, train_loss, train_acc = train_epoch(model, data_train, criterion, optimizer, device)
         print(f"Epoch {epoch:02d} | Loss: {train_loss:.4f} | Acc: {train_acc:.2f}%")
 
