@@ -97,6 +97,7 @@ def train(data, wav, epochs, model, dev):
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
 
     X_test, X_train = load_test_train_data(test_size=0.25, random_seed=42)
     x_input = torch.tensor([1])
@@ -113,5 +114,5 @@ if __name__ == "__main__":
     elif os.path.exists("MLP_regression.pth"):
         model.load_state_dict(torch.load("MLP_regression.pth"))
         print("Succesfully loaded a previously trained model")
-    model = train(X_train, x_input.to(device), epochs=15, dev=device, model=model)
+    model = train(X_train, x_input.to(device), epochs=40, dev=device, model=model)
     torch.save(model.state_dict(), f"MLP_regression.pth")
