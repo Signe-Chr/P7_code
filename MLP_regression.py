@@ -70,7 +70,7 @@ def train(data, wav, epochs, model, dev):
 
             # Pak datapunktet ud
             X = torch.tensor(sample[0], dtype=torch.float32).to(dev)
-            flat_y = torch.tensor(sample[1], dtype=torch.float32).to(dev)
+            flat_y = torch.tensor(sample[1], dtype=torch.float32).to(dev).unsqueeze(0)
             IR = sample[5]    # eller sample[2], afhængigt af strukturen
 
             # Reshape kun hvis størrelsen matcher
@@ -81,21 +81,23 @@ def train(data, wav, epochs, model, dev):
 
             optimizer.zero_grad()
 
-            out_flat = model(X)
+            out_flat = model(X).unsqueeze(0)
             outputs = out_flat.reshape(L, J)
 
             H = compute_H_matrix(IR)[0].to(dev)
 
-            loss = alpha*lf.L_1_reg(outputs, flat_y, H, bright_indices) + (1-alpha)* lf.L_2_reg(outputs, H, dark_indices) + beta*lf.L_3_reg(outputs, L) +  gamma*lf.L_4_reg(outputs, dev)
+            loss = alpha*lf.L_1_reg(outputs, y, H, bright_indices) + (1-alpha)* lf.L_2_reg(outputs, H, dark_indices) + beta*lf.L_3_reg(outputs, L) +  gamma*lf.L_4_reg(outputs, dev)
             loss.backward()
             optimizer.step()
 
             total_loss += loss.item()
 
         print(f"Epoch {epoch+1}: loss = {total_loss/len(data):.4f}")
+    return model
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
 
     X_test, X_train = load_test_train_data(test_size=0.25, random_seed=42)
     x_input = torch.tensor([1])
@@ -112,5 +114,5 @@ if __name__ == "__main__":
     elif os.path.exists("MLP_regression.pth"):
         model.load_state_dict(torch.load("MLP_regression.pth"))
         print("Succesfully loaded a previously trained model")
-    model = train(X_train, x_input.to(device), epochs=15, dev=device, model=model)
+    model = train(X_train, x_input.to(device), epochs=40, dev=device, model=model)
     torch.save(model.state_dict(), f"MLP_regression.pth")

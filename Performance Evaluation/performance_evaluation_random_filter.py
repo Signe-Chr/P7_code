@@ -151,11 +151,11 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, bright_zone_mics_in
         conv_result = conv_result.squeeze(0)
         conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[-1]))
         mic_pressure += conv_result
-
+    mic_pressure[mic_pressure==0] += 1e-12
     d_B_list.append(mic_pressure) 
 
     d_B_tensor = torch.stack(d_B_list) 
-    min_len = min(d_B_tensor.shape[1], p_B.shape[1])
+    min_len = min(d_B_tensor.shape[-1], p_B.shape[1])
     d_B_tensor = d_B_tensor[:, :min_len]
     p_B = p_B[:, :min_len]
     
@@ -310,8 +310,8 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
     
     # Compute statistics
     results = {
-        "Total Loss":(np.sqrt(np.var(tot_loss_list)),np.mean(tot_loss_list), np.min(tot_loss_list),   np.max(tot_loss_list)),
-        "Individual Losses" : (individual_losses_arr.mean(axis=0), individual_losses_arr.min(axis=0), individual_losses_arr.max(axis=0)),
+        "Total Loss":(np.sqrt(np.var(tot_loss_list)).item(),np.mean(tot_loss_list).item(), np.min(tot_loss_list).item(),   np.max(tot_loss_list).item()),
+        "Individual Losses" : (individual_losses_arr.mean(axis=0).item(), individual_losses_arr.min(axis=0).item(), individual_losses_arr.max(axis=0).item()),
     }
 
     print(f"Total loss Bright Zone (std, mean, min, max):{results['Total Loss']}")

@@ -255,7 +255,6 @@ def L_3_reg(q_pred, L, g_max=1):
 
         # squared norm
         total_loss += torch.sum(excess**2)
-    print("det virker")
 
     return total_loss / (N * L)
 
