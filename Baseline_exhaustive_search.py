@@ -67,7 +67,6 @@ def Extensive_search(
                 + lambda_ac * ac_loss
                 + lambda_msep * msep_loss
             )
-            
             if combined.item() < min_loss:
                 min_loss = combined.item()
                 best_idx = j
@@ -216,7 +215,6 @@ if __name__ == "__main__":
     x_input = torch.tensor([1])
     IR_train = data_train[5]
     
-    print(IR_train)
     Extensive_search(
         filters_test=filters_test, 
         dictionary=filters_train, 
