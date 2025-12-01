@@ -9,6 +9,7 @@ from pesq import pesq
 from Test_train_split import load_test_train_data
 from pystoi import stoi
 from tqdm import tqdm
+from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
 
 
 
@@ -201,13 +202,21 @@ def attenuation(rir, raw_wav, filtered,zone):
     e_filt = torch.sum(filtered**2)
     return 10 * np.log10(e_raw/e_filt)
 
+def loss_functions(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_idx):
+    mse_loss = MSE(predicted_filter, true_filter)
+    cosine_loss = Cosine_similarity(predicted_filter.reshape(1, L*J), true_filter.reshape(1, L*J))
+    msep_loss_B, _ = MSEP(predicted_filter, true_filter, rir_test, wav_input, B_idx, D_idx)
+    MSPE_loss = msep_loss_B
+    H, _ = compute_H_matrix(rir_test)
+    AC_los = AC_loss(predicted_filter, true_filter, H, B_idx, D_idx)
+    return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_los), [mse_loss, cosine_loss, MSPE_loss, AC_los]
+
 #---Compute average performance metrics across testset---
 def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index, dark_zone_mics_index):
-    AC = []
-    NSDR_B = []
-    STOI_B = []
-    STOI_D = []
+    AC_list = []
+    NSDP_B_list= []
     attenuation_list = []
+    attenuation_list_bz = []
     for i in tqdm(range(RIR_test.shape[0])):
         #print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
         rirs = RIR_test[i]
@@ -221,98 +230,36 @@ def average_performance_metrics(RIR_test, wav_input, bright_zone_mics_index, dar
         AC_i = float(acoustic_contrast(p_C, BZ_idx, DZ_idx))
         
         # Compute NSDR
-        mean_NSDR_B = compute_nSDP(p_C, wav_input, BZ_idx, rirs)
-        
-        #Compute STOI
-        mean_STOI_B,mean_STOI_D=compute_STOI(p_C, wav_input, BZ_idx, DZ_idx)
+        mean_NSDP_B = compute_nSDP(p_C, wav_input, bright_zone_mics_index, rirs)
         
         #Compute attentuation in dark zone
         atten = attenuation(rirs, wav_input, p_C[dark_zone_mics_index], dark_zone_mics_index)
+        atten_bz=attenuation(rirs, wav_input, p_C[bright_zone_mics_index], bright_zone_mics_index)
         
-        AC.append(AC_i)
-        NSDR_B.append(mean_NSDR_B)
-        STOI_B.append(mean_STOI_B)
-        STOI_D.append(mean_STOI_D)
+        
+        AC_list.append(AC_i)
+        NSDP_B_list.append(mean_NSDP_B)
         attenuation_list.append(atten)
+        attenuation_list_bz.append(atten_bz)
 
-    AC = np.array(AC)
-    NSDR_B = np.array(NSDR_B)
-    STOI_B = np.array(STOI_B)
-    STOI_D = np.array(STOI_D)
+    AC_list = np.array(AC_list)
     attenuation_arr = np.array(attenuation_list)
+    attenuation_arr_bz = np.array(attenuation_list_bz)
 
-    print(f"std stoi (bz) {np.sqrt(np.var(STOI_B))}")
-    print(f"std stoi (dz) {np.sqrt(np.var(STOI_D))}")
-
-    avg_ac = np.mean(AC)
-    print(f"std ac {np.sqrt(np.var(AC))}")
-    min_ac = np.min(AC)
-    max_ac = np.max(AC)
-
-    
-    avg_NSDR_B = np.mean(NSDR_B)
-    min_NSDR_B = np.min(NSDR_B)
-    max_NSDR_B = np.max(NSDR_B)
-    
-    avg_STOI_B = np.mean(STOI_B)
-    min_STOI_B = np.min(STOI_B)
-    max_STOI_B = np.max(STOI_B)
-    
-    avg_STOI_D = np.mean(STOI_D)
-    min_STOI_D = np.min(STOI_D)
-    max_STOI_D = np.max(STOI_D)
-    
-    avg_atten=np.mean(attenuation_arr)
-    print(f'Average AC over {RIRs_test.shape[0]} data points:{avg_ac}, minimum AC: {min_ac}, maximum AC: {max_ac}')
-    print('Bright Zone:')
-    print(f'Average NSDR over {RIRs_test.shape[0]} data points: {avg_NSDR_B}, minimum NSDR:{min_NSDR_B}, maximum NSDR:{max_NSDR_B}')
-    print(f'Average STOI over {RIRs_test.shape[0]} data points: {avg_STOI_B}, minimum STOI:{min_STOI_B}, maximum STOI:{max_STOI_B}')
-    print('Dark Zone:')
-    print(f'Average STOI over {RIRs_test.shape[0]} data points: {avg_STOI_D}, minimum STOI:{min_STOI_D}, maximum STOI:{max_STOI_D}')
-    print(f'Average attenuation over {RIRs_test.shape[0]} data points: {avg_atten}')
-    
-    #plot_performance_metrics(AC, pesq_B, pesq_D, NSDR_B, NSDR_D, STOI_B, STOI_D)
-
-    return avg_ac, min_ac, max_ac, avg_NSDR_B, min_NSDR_B, max_NSDR_B, avg_STOI_B, min_STOI_B, max_STOI_B, avg_STOI_D, min_STOI_D, max_STOI_D,avg_atten#, avg_pesq_B, min_pesq_B, max_pesq_B, avg_pesq_D, min_pesq_D, max_pesq_D
-
-def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDR_B, NSDR_D, STOI_B, STOI_D):
-    """
-    Creates boxplots for AC, PESQ, nSDR, and STOI for bright and dark zones.
-    
-    Parameters:
-        AC: np.array of acoustic contrast values
-        PESQ_B, PESQ_D: np.array of PESQ scores
-        NSDR_B, NSDR_D: np.array of nSDR scores
-        STOI_B, STOI_D: np.array of STOI scores
-    """
-
-    metrics = {
-        "AC (dB)": [AC],
-        "PESQ": [PESQ_B, PESQ_D],
-        "nSDR (dB)": [NSDR_B, NSDR_D],
-        "STOI": [STOI_B, STOI_D]
+    # Compute statistics
+    results = {
+        "AC": (np.sqrt(np.var(AC_list)) ,np.mean(AC_list) ,np.min(AC_list), np.max(AC_list)),
+        "NSDP_B": (np.sqrt(np.var(NSDP_B_list)) ,np.mean(NSDP_B_list), np.min(NSDP_B_list), np.max(NSDP_B_list)),
+        "Attenuation_DZ": (np.sqrt(np.var(attenuation_arr)),np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr)),
+        "Attenuation_BZ": (np.sqrt(np.var(attenuation_arr_bz)),np.mean(attenuation_arr_bz), np.min(attenuation_arr_bz), np.max(attenuation_arr_bz))
     }
-    
-    zone_labels = {
-        "AC (dB)": ["All zones"],
-        "PESQ": ["Bright", "Dark"],
-        "nSDR (dB)": ["Bright", "Dark"],
-        "STOI": ["Bright", "Dark"]
-    }
-    
-    plt.figure(figsize=(12, 10))
-    
-    for i, (metric_name, data) in enumerate(metrics.items(), 1):
-        plt.subplot(2, 2, i)
-        plt.boxplot(data, labels=zone_labels[metric_name])
-        plt.title(metric_name)
-        plt.grid(axis='y', linestyle='--', alpha=0.7)
-    
-    plt.tight_layout()
-    plt.show()
+    print(f"AC (std, mean, min, max): {results['AC']}")
+    print(f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}")
+    print(f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation_DZ']}")
+    print(f"Attenuation Bright Zone (std, mean, min, max):{results['Attenuation_BZ']}")
+
 
 if __name__=='__main__':
     x_input = torch.tensor([1]+[0]*511)
     n_srcs_test, n_srcs_train, RIRs_test, RIRs_train, dark_zone_mics_index, bright_zone_mics_index = load_data()
-    print(x_input)
     average_performance_metrics(RIRs_test, x_input, bright_zone_mics_index, dark_zone_mics_index)
