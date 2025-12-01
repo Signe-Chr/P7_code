@@ -10,7 +10,7 @@ from tqdm import tqdm
 import Loss_functions as lf
 from Test_train_split import load_test_train_data
 
-def train(data, wav, epochs, model, dev):
+def train2(data, wav, epochs, model, dev):
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     dark_indices = [0,1,2,3,4,5,6,7,8,9,10,11]
@@ -48,13 +48,54 @@ def train(data, wav, epochs, model, dev):
             torch.save(model.state_dict(), f"MLP_regression_checkpoint.pth")
     return model
 
+def train(data, wav, epochs, model, dev):
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+    dark_indices = [0,1,2,3,4,5,6,7,8,9,10,11]
+    bright_indices = [12]
+
+    alpha=0.5
+    beta=0.5
+    gamma=0.5
+    for epoch in range(epochs):
+        model.train()
+        total_loss = 0.0
+
+        for sample in data:   # <-- ét datapunkt ad gangen
+
+            # Pak datapunktet ud
+            X = torch.tensor(sample[0], dtype=torch.float32).to(dev)
+            flat_y = torch.tensor(sample[1], dtype=torch.float32).to(dev)
+            IR = sample[5]    # eller sample[2], afhængigt af strukturen
+
+            # Reshape kun hvis størrelsen matcher
+            if flat_y.numel() != L*J:
+                raise ValueError(f"y-size = {flat_y.numel()}, expected {L*J}")
+
+            y = flat_y.reshape(L, J)
+
+            optimizer.zero_grad()
+
+            out_flat = model(X)
+            outputs = out_flat.reshape(L, J)
+
+            H = compute_H_matrix(IR)[0].to(dev)
+
+            loss = alpha*lf.L_1_reg(outputs, flat_y, H, bright_indices) + (1-alpha)* lf.L_2_reg(outputs, H, dark_indices) + beta*lf.L_3_reg(outputs, L) +  gamma*lf.L_4_reg(outputs, dev)
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+
+        print(f"Epoch {epoch+1}: loss = {total_loss/len(data):.4f}")
+
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     X_test, X_train = load_test_train_data(test_size=0.25, random_seed=42)
     x_input = torch.tensor([1])
     p_features = len(X_train[0][0])    # Load the first data point and then find the length of the X matrix
-    out_features = len(X_train[0][1])  # Length of the flattened filter coeffecients
+    out_features = len(X_train[1][0])  # Length of the flattened filter coeffecients
     compute_cpus = cpu_count()-1
     torch.set_num_threads(compute_cpus)
     #train_loader = DataLoader(X_train, batch_size=1, shuffle=True, num_workers=1)
