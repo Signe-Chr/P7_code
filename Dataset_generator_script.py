@@ -3,11 +3,11 @@ os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 import numpy as np
-import scipy.io.wavfile as wavfile
 import pyroomacoustics as pra
 import multiprocessing as mp
 from VAST_filter_coefficients import design_vast_filter
 from tqdm import tqdm
+from Test_train_split import load_test_train_data, x_input_kronecker, load_wav_file
 
 
 def sources_mics(R, Center, M_D):
@@ -20,9 +20,7 @@ def sources_mics(R, Center, M_D):
                                    R * np.sin(angle) + Center[1],
                                    Center[2]])
         dir_vec = np.array([-np.cos(angle), -np.sin(angle), 0])
-        direction_list.append(pra.directivities.HyperCardioid(
-            dir_vec / np.linalg.norm(dir_vec)
-        ))
+        direction_list.append(pra.directivities.HyperCardioid(dir_vec / np.linalg.norm(dir_vec)))
         dark_zone_mics_index.append(i)
     
     mic_positions_list.append([Center[0], Center[1]-0.1, Center[2]])
@@ -96,10 +94,7 @@ RT60s = np.linspace(0.3, 0.9, 4)
 user_rotations = [0, np.pi/2, np.pi, np.pi*3/2]
 tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
 M_D = 12
-'''wav_path = "relaxing-guitar-loop-v5-245859.wav"
-fs_wav, wav = wavfile.read(wav_path)
-x_input = wav[5*44100:7*44100] / (np.max(np.abs(wav)) + 1e-12)'''
-x_input = np.array([1])
+x_input = x_input_kronecker
 N = len(x_input)
 if __name__ == "__main__":
     out_q_path = "ACC_filter_archive"

@@ -42,8 +42,6 @@ def load_data_and_model(chosen_model):
     
     return n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, model
 
-
-
 def compute_pressure_with_input(rir: torch.Tensor, filter_q: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
     n_mics, n_srcs, n_rir_samples = rir.shape
     filter_len = filter_q.shape[1]
