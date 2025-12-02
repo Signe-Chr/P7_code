@@ -44,6 +44,7 @@ def toeplitz(x, n, K, J):
     return X
 
 
+
 def R_c(x, rir):
     K = max(np.shape(rir))
     #mathcal_X = np.kron(toeplitz(x,0, K, J), np.eye(L))
@@ -55,26 +56,34 @@ def R_c(x, rir):
             h_m += list(rir[m][l])
         h.append(h_m)
     h = np.array(h).T
+    zero_countnt = 0
 
     for n in range(N):
         print(n/N)
         H_B_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,bright_index])
+        print(np.shape(H_B_n))
         #print("toe", toeplitz(x, n, K, J))
         #print(H_B_n)
         temp = np.matmul(H_B_n, H_B_n.T)
+        if not np.all(temp==0):
+            zero_countnt +=1
         if n == 0:
             R_B = np.zeros_like(temp)
         R_B += temp
-    R_B = 1/(len(bright_index)*N) * R_B
+    R_B = 1/(len(bright_index)*zero_countnt) * R_B
+
+    zero_countnt = 0
 
     for n in range(N):
         print(n/N)
         H_D_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,dark_index])
         temp = np.matmul(H_D_n, H_D_n.T)
+        if not np.all(temp==0):
+            zero_countnt +=1
         if n == 0:
             R_D = np.zeros_like(temp)
         R_D += temp
-    R_D = 1/(len(dark_index)*N) * R_D
+    R_D = 1/(len(dark_index)*zero_countnt) * R_D
     #print(R_D, R_D)
 
     return R_B, R_D
