@@ -39,22 +39,22 @@ if p == 1:
         print(f"\n--- Testing architecture: Layer 1: {neuron}")
 
         for folds in range(num_folds):
-            print("folds", folds)
+            print("folds", folds+1)
 
             # Reload data for each fold
             data_test, data_train = load_test_train_data(random_seed=folds)
 
             # Prepare training and test sets
-            X_train = torch.tensor(data_train[0][0:50], dtype=torch.float32).to(device)
-            X_test = torch.tensor(data_test[0][0:50], dtype=torch.float32).to(device)
+            X_train = data_train[0][:50].to(device).to(torch.float32)
+            X_test = data_test[0][:50].to(device).to(torch.float32)
 
-            filters_train = torch.tensor(data_train[1][0:50], dtype=torch.float32).to(device)
-            filters_test = torch.tensor(data_test[1][0:50], dtype=torch.float32).to(device)
+            filters_train = data_train[1][:50].to(device).to(torch.float32)
+            filters_test = data_test[1][:50].to(device).to(torch.float32)
 
-            RIRs_train = data_train[5]
-            RIRs_test = data_test[5]
+            RIRs_train = data_train[5][:50]
+            RIRs_test = data_test[5][:50]
 
-            output_size = 50
+            output_size = len(X_train)
 
             # Define model and move to device
             model = torch.nn.Sequential(
@@ -66,7 +66,7 @@ if p == 1:
             optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
             # Training loop
-            for epoch in range(1, 2):
+            for epoch in range(1, 41):
                 print("epoch", epoch)
                 total_loss = 0
                 total = 0
@@ -83,15 +83,19 @@ if p == 1:
                     optimizer.zero_grad()
 
                     coeff = model(X)  # Already on device
-                    outputs = torch.matmul(filters_train.T, coeff.T).T.to(device)
+                    outputs = torch.matmul(coeff, filters_train).to(device)
+
+                    # 2D versions
+                    filter_2d = filter.reshape(3, 1024)
+                    outputs_2d = outputs.reshape(3, 1024)
 
                     H = compute_H_matrix(rir)[0].to(device)
 
                     loss = 0.25 * (
                         MSE(outputs, filter) +
                         Cosine_similarity(outputs, filter) +
-                        MSEP(outputs.reshape(3, 1024), filter.reshape(3, 1024), rir, x_input, bright_zone_mics_index, dark_zone_mics_index)[0] +
-                        AC_loss(outputs.reshape(3, 1024), filter.reshape(3, 1024), H, bright_zone_mics_index, dark_zone_mics_index)
+                        MSEP(outputs_2d, filter_2d, rir, x_input, bright_zone_mics_index, dark_zone_mics_index)[0] +
+                        AC_loss(outputs_2d, filter_2d, H, bright_zone_mics_index, dark_zone_mics_index)
                     )
 
                     loss.backward()
@@ -110,18 +114,22 @@ if p == 1:
                 filters_loss_test = []
 
                 for i in range(len(filters_train)):
-                    #print(np.shape(model(X_train)))
-                    pred_filter_train = torch.matmul(filters_train.T, model(X_train[i]).T)
-                    print(np.shape(pred_filter_train))
+                    filter_train = filters_train[i].unsqueeze(0)
+                    filter_test = filters_test[i].unsqueeze(0)
 
-                    pred_filter_test = torch.matmul(filters_train.T, model(X_test[i]).T)
-                    #print(np.shape(pred_filter_train), np.shape(filters_train))
+                    pred_filter_train = torch.matmul(model(X_train[i]), filters_train).unsqueeze(0)
+                    pred_filter_test = torch.matmul(model(X_test[i]), filters_train).unsqueeze(0)
 
-                    L1_train = MSE(filters_train[i], pred_filter_train)
-                    L1_test = MSE(filters_test[i], pred_filter_test)
+                    filter_train_2d = filter_train.reshape(3, 1024)
+                    filter_test_2d = filter_test.reshape(3, 1024)
+                    pred_filter_train_2d = pred_filter_train.reshape(3, 1024)
+                    pred_filter_test_2d = pred_filter_test.reshape(3, 1024)
 
-                    L2_train = Cosine_similarity(filters_train[i], pred_filter_train)
-                    L2_test = Cosine_similarity(filters_test[i], pred_filter_test)
+                    L1_train = MSE(pred_filter_train, filter_train)
+                    L1_test = MSE(pred_filter_test, filter_test)
+
+                    L2_train = Cosine_similarity(pred_filter_train, filter_train)
+                    L2_test = Cosine_similarity(pred_filter_test, filter_test)
 
                     rirs_train_i = RIRs_train[i]
                     rirs_test_i = RIRs_test[i]
@@ -134,23 +142,26 @@ if p == 1:
                     rirs_train_i = rirs_train_i.to(device)
                     rirs_test_i = rirs_test_i.to(device)
 
-                    msep_B_train, msep_D_train = MSEP(filters_train, pred_filter_train, rirs_train_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
-                    msep_B_test, msep_D_test = MSEP(filters_test, pred_filter_test, rirs_test_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
+                    msep_B_train, msep_D_train = MSEP(pred_filter_train_2d, filter_train_2d, rirs_train_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
+                    msep_B_test, msep_D_test = MSEP(pred_filter_test_2d, filter_test_2d, rirs_test_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
 
                     L3_train = msep_B_train
                     L3_test = msep_B_test
 
-                    L4_train = AC_loss(pred_filter_train, filters_train, compute_H_matrix(rirs_train_i)[0].to(device), bright_zone_mics_index, dark_zone_mics_index)
-                    L4_test = AC_loss(pred_filter_test, filters_test, compute_H_matrix(rirs_test_i)[0].to(device), bright_zone_mics_index, dark_zone_mics_index)
+                    H_B_train = compute_H_matrix(rirs_train_i)[0].to(device)
+                    H_B_test = compute_H_matrix(rirs_test_i)[0].to(device)
+
+                    L4_train = AC_loss(pred_filter_train_2d, filter_train_2d, H_B_train, bright_zone_mics_index, dark_zone_mics_index)
+                    L4_test = AC_loss(pred_filter_test_2d, filter_test_2d, H_B_test, bright_zone_mics_index, dark_zone_mics_index)
 
                     filters_loss_train.append(0.25 * (L1_train + L2_train + L3_train + L4_train))
                     filters_loss_test.append(0.25 * (L1_test + L2_test + L3_test + L4_test))
 
-                train_err = torch.stack([t.flatten() for t in filters_loss_train]).mean().item()
-                test_err = torch.stack([t.flatten() for t in filters_loss_test]).mean().item()
+            train_err = torch.stack(filters_loss_train).mean().item()
+            test_err = torch.stack(filters_loss_test).mean().item()
 
-                fold_train_err.append(train_err)
-                fold_test_err.append(test_err)
+            fold_train_err.append(train_err)
+            fold_test_err.append(test_err)
 
             print(f"Neuron: {neuron}, Fold {folds+1} -- Train error: {train_err:.4f}, Test error: {test_err:.4f}")
 
@@ -162,3 +173,172 @@ if p == 1:
 
     for neuronss, train, test in zip(neurons, train_err_list, test_err_list):
         print(f"Average over 5 folds: (Neurons, Train error, Test error): ({neuronss}, {train:.20f}, {test:.20f})")
+
+if p == 2:
+    neurons1 = [128, 256, 512]
+    neurons2 = [128, 256, 512]
+
+    test_err_grid = np.zeros((len(neurons1), len(neurons2)))
+    train_err_grid = np.zeros((len(neurons1), len(neurons2)))
+
+    for i, neuron1 in enumerate(neurons1):
+        for j, neuron2 in enumerate(neurons2):
+
+            print(f"\n--- Testing architecture: Layer 1: {neuron1}, Layer 2: {neuron2} ---")
+
+
+            train_mse_folds = []
+            test_mse_folds = []
+
+            for fold in range(num_folds):
+
+                print(f" Fold {fold+1}/{num_folds}")
+
+                # Reload data for each fold
+                data_test, data_train = load_test_train_data(random_seed=folds)
+
+                # Prepare training and test sets
+                X_train = data_train[0][:50].to(device).to(torch.float32)
+                X_test = data_test[0][:50].to(device).to(torch.float32)
+
+                filters_train = data_train[1][:50].to(device).to(torch.float32)
+                filters_test = data_test[1][:50].to(device).to(torch.float32)
+
+                RIRs_train = data_train[5][:50]
+                RIRs_test = data_test[5][:50]
+
+                output_size = len(X_train)
+
+                # --------------------
+                # Build 2-hidden-layer model
+                # --------------------
+                model = torch.nn.Sequential(
+                    torch.nn.Linear(input_size, neuron1),
+                    torch.nn.ReLU(),
+                    torch.nn.Linear(neuron1, neuron2),
+                    torch.nn.ReLU(),
+                    torch.nn.Linear(neuron2, output_size)
+                )
+                
+                optimizer = optim.Adam(model.parameters(), lr = 1e-3)
+                # --------------------
+                # Train model
+                # --------------------
+                for epoch in range(1, 41):
+                    total_loss = 0
+                    total = 0
+                    for k in range(len(X_train)):
+                        optimizer.zero_grad()
+                        coeff = model(X_train[k]).unsqueeze(0)
+                        outputs = torch.matmul(coeff, filters_train).to(device)
+                        filter = filters_train[k].unsqueeze(0).to(device)
+                        rir = RIRs_train[k]
+                        if not isinstance(rir, torch.Tensor):
+                            rir = torch.tensor(rir, dtype=torch.float32)
+                        rir = rir.to(device)
+
+                        # 2D versions
+                        filter_2d = filter.reshape(3, 1024)
+                        outputs_2d = outputs.reshape(3, 1024)
+
+                        H = compute_H_matrix(rir)[0].to(device)
+
+                        loss = 0.25 * (
+                            MSE(outputs, filter) +
+                            Cosine_similarity(outputs, filter) +
+                            MSEP(outputs_2d, filter_2d, rir, x_input, bright_zone_mics_index, dark_zone_mics_index)[0] +
+                            AC_loss(outputs_2d, filter_2d, H, bright_zone_mics_index, dark_zone_mics_index)
+                        )
+
+                        loss.backward()
+                        optimizer.step()
+
+                        total_loss += loss.item() * X.size(0)
+                        total += X.size(0)
+                avg_loss = total_loss / total
+                print("\n Training complete!")
+                # --------------------
+                # EVALUATION inside folds-loop  (your bug fix!)
+                # --------------------
+                model.eval()
+                with torch.no_grad():
+                    filters_loss_train = []
+                    filters_loss_test = []
+
+                    for k in range(len(filters_train)):
+                        filter_train = filters_train[k].unsqueeze(0)
+                        filter_test = filters_test[k].unsqueeze(0)
+
+                        pred_filter_train = torch.matmul(model(X_train[k]), filters_train).unsqueeze(0)
+                        pred_filter_test = torch.matmul(model(X_test[k]), filters_train).unsqueeze(0)
+
+                        filter_train_2d = filter_train.reshape(3, 1024)
+                        filter_test_2d = filter_test.reshape(3, 1024)
+                        pred_filter_train_2d = pred_filter_train.reshape(3, 1024)
+                        pred_filter_test_2d = pred_filter_test.reshape(3, 1024)
+
+                        L1_train = MSE(pred_filter_train, filter_train)
+                        L1_test = MSE(pred_filter_test, filter_test)
+
+                        L2_train = Cosine_similarity(pred_filter_train, filter_train)
+                        L2_test = Cosine_similarity(pred_filter_test, filter_test)
+
+                        rirs_train_i = RIRs_train[k]
+                        rirs_test_i = RIRs_test[k]
+
+                        if not isinstance(rirs_train_i, torch.Tensor):
+                            rirs_train_i = torch.tensor(rirs_train_i, dtype=torch.float32)
+                        if not isinstance(rirs_test_i, torch.Tensor):
+                            rirs_test_i = torch.tensor(rirs_test_i, dtype=torch.float32)
+
+                        rirs_train_i = rirs_train_i.to(device)
+                        rirs_test_i = rirs_test_i.to(device)
+
+                        msep_B_train, msep_D_train = MSEP(pred_filter_train_2d, filter_train_2d, rirs_train_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
+                        msep_B_test, msep_D_test = MSEP(pred_filter_test_2d, filter_test_2d, rirs_test_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
+
+                        L3_train = msep_B_train
+                        L3_test = msep_B_test
+
+                        H_B_train = compute_H_matrix(rirs_train_i)[0].to(device)
+                        H_B_test = compute_H_matrix(rirs_test_i)[0].to(device)
+
+                        L4_train = AC_loss(pred_filter_train_2d, filter_train_2d, H_B_train, bright_zone_mics_index, dark_zone_mics_index)
+                        L4_test = AC_loss(pred_filter_test_2d, filter_test_2d, H_B_test, bright_zone_mics_index, dark_zone_mics_index)
+
+                        filters_loss_train.append(0.25 * (L1_train + L2_train + L3_train + L4_train))
+                        filters_loss_test.append(0.25 * (L1_test + L2_test + L3_test + L4_test))
+
+                    # Fold errors
+                    train_mse_folds.append(torch.stack(filters_loss_train).mean().item())
+                    test_mse_folds.append(torch.stack(filters_loss_test).mean().item())
+
+            # ----------- END OF FOLDS LOOP -----------
+
+            # Store average fold errors into heatmap grids
+            train_err_grid[i, j] = np.mean(train_mse_folds)
+            test_err_grid[i, j]  = np.mean(test_mse_folds)
+
+    # -------------------------------------------------
+    # PLOT HEATMAPS
+    # -------------------------------------------------
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    def plot_mse_grid(ax, mse_grid, title):
+        im = ax.imshow(mse_grid, origin='lower', cmap='viridis')
+        for x in range(mse_grid.shape[0]):
+            for y in range(mse_grid.shape[1]):
+                ax.text(y, x, f"{mse_grid[x, y]:.4f}", ha='center', va='center', color='w')
+        ax.set_xticks(np.arange(len(neurons2)))
+        ax.set_xticklabels(neurons2)
+        ax.set_yticks(np.arange(len(neurons1)))
+        ax.set_yticklabels(neurons1)
+        ax.set_xlabel("Neurons in 2nd layer")
+        ax.set_ylabel("Neurons in 1st layer")
+        ax.set_title(title)
+        fig.colorbar(im, ax=ax)
+
+    plot_mse_grid(axes[0], train_err_grid, "Train error")
+    plot_mse_grid(axes[1], test_err_grid, "Test error")
+    plt.tight_layout()
+    plt.show()

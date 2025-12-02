@@ -9,41 +9,12 @@ import Loss_functions as lf
 from Test_train_split import load_test_train_data
 
 def train2(data, wav, epochs, model, dev):
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-
-    dark_indices = [0,1,2,3,4,5,6,7,8,9,10,11]
-    bright_indices = [12]
-
-    alpha=0.5
-    beta=0.5
-    gamma=0.5
     for epoch in range(epochs):
-        model.train()
-        total_loss = 0.0
-        
-
         loop = tqdm(data, desc=f"Epoch {epoch+1}/{epochs}", disable=not sys.stdout.isatty())
         for batch in loop:
             batch_X, flat_batch_y = batch[0].to(dev, dtype=torch.float32), batch[1].to(dev, dtype=torch.float32)
             batch_y = flat_batch_y.reshape(L, J)
             batch_IR = batch[5][0]
-            #bright_batch = batch[2][0]
-            #dark_batch = batch[3][0]
-
-            optimizer.zero_grad()
-            flat_outputs = model(batch_X)
-            outputs = flat_outputs.reshape(L, J)
-            H = compute_H_matrix(batch_IR)[0].to(dev)
-            
-            #L_3_reg(q_pred, freqs, L,g_max=1):
-            loss = alpha*lf.L_1_reg(outputs, batch_y, H, bright_indices) + (1-alpha)* lf.L_2_reg(outputs, H, dark_indices) + beta*lf.L_3_reg(outputs, L) +  gamma*lf.L_4_reg(outputs, dev)
-            #loss = MSE(outputs, batch_y) + Cosine_similarity(flat_outputs, flat_batch_y) + MSEP(outputs, batch_y, batch_IR, batch_IR, wav, bright_batch, dark_batch)[0] + AC_loss(outputs, batch_y, H, bright_batch, dark_batch)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-
-            loop.set_postfix(loss=f"{total_loss/(loop.n+1):.4f}")
-            torch.save(model.state_dict(), f"MLP_regression_checkpoint.pth")
     return model
 
 def train(data, wav, epochs, model, dev):
@@ -78,17 +49,21 @@ def train(data, wav, epochs, model, dev):
             y = flat_y.reshape(L, J)
 
             optimizer.zero_grad()
-
             out_flat = model(X).unsqueeze(0)
             outputs = out_flat.reshape(L, J)
-
+            #flat_outputs = model(batch_X)
+            #outputs = flat_outputs.reshape(L, J)
             H = compute_H_matrix(IR)[0].to(dev)
+        
 
+           
+            #loss = MSE(outputs, batch_y) + Cosine_similarity(flat_outputs, flat_batch_y) + MSEP(outputs, batch_y, batch_IR, batch_IR, wav, bright_batch, dark_batch)[0] + AC_loss(outputs, batch_y, H, bright_batch, dark_batch)
             loss = alpha*lf.L_1_reg(outputs, y, H, bright_indices) + (1-alpha)* lf.L_2_reg(outputs, H, dark_indices) + beta*lf.L_3_reg(outputs, L) +  gamma*lf.L_4_reg(outputs, dev)
             loss.backward()
             optimizer.step()
 
             total_loss += loss.item()
+            torch.save(model.state_dict(), f"MLP_regression_checkpoint.pth")
 
         print(f"Epoch {epoch+1}: loss = {total_loss/len(data):.4f}")
     return model
