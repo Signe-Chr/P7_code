@@ -1,7 +1,7 @@
 import os, sys, torch, time
-import numpy as np
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
+import numpy as np
 import Cross_validation_models as cvm
 from tqdm import tqdm
 from Test_train_split import load_test_train_data
@@ -18,6 +18,8 @@ data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
 X_test = data_test[0]
 filters_test = data_test[1]
 filters_train = data_train[1]
+
+
 
 def load_model(a):
     model_name = model_names[a]  # vælg model her
@@ -118,7 +120,9 @@ def test_model_efficiency(a, X_test, device='cpu'):
         "scaling_data": times
     }
 
+
+
 # vælg model her (0-2)
-#generate_filters(0)  # regression
-generate_filters(1)  # classification
+generate_filters(0)  # regression
+#generate_filters(1)  # classification
 #generate_filters(2)  # interpolation

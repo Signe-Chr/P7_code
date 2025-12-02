@@ -55,7 +55,7 @@ def main():
     x_input = torch.tensor([1])
 
     # Training loop
-    for epoch in range(40):
+    for epoch in range(1,51):
         print("Epoch:", epoch)
         train_loss = train_model(model_interpolation, data_train, optimizer, device, x_input) 
         print(f"Epoch {epoch:02d}: Loss={train_loss:.4f}")

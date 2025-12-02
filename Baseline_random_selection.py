@@ -1,5 +1,4 @@
 import torch
-from torch.utils.data import DataLoader
 from Test_train_split import load_test_train_data
 
 
@@ -22,7 +21,7 @@ torch.save({
     'random_indices': random_indices,
     'X_test': X_test
 }, "Saved Filters/random_selection_filters.pt")
-
+print("Saved filters")
 """
 Load data with
 data = torch.load("Saved Filters/random_selection_filters.pt")
