@@ -61,7 +61,6 @@ def R_c(x, rir):
     for n in range(N):
         print(n/N)
         H_B_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,bright_index])
-        print(np.shape(H_B_n))
         #print("toe", toeplitz(x, n, K, J))
         #print(H_B_n)
         temp = np.matmul(H_B_n, H_B_n.T)
@@ -93,9 +92,9 @@ def acc_coeffs(R):
     #print(eigenvecs[:, -1])
     return eigenvecs[:, -1].reshape(3, 1024)
 
-def load_save(x_input):
+def load_save(x_input, opd):
     for u, i in tqdm(enumerate(os.listdir("Data Archive"))):
-        if u == 0:
+        if u in opd:
             dict = load_ir(f"Data Archive/{i}")
             ir = dict["IR"]
             dict.update({"q_acc": acc_coeffs(R_c(x_input, ir))})
@@ -104,10 +103,15 @@ def load_save(x_input):
 
 
 if __name__ == "__main__":
+    opdeling = [i for i in range(432)]
+    op_1 = opdeling[0: 144]
+    op_2 = opdeling[144: 288]
+    op_3 = opdeling[288: 432]
     #load_save(load_wav_file())
-    load_save(x_inp)
+    load_save(x_inp, <____>)
+
     
-    file_path = "Data Archive/RIR_0_0_0_0_0.npy"
+    """file_path = "Data Archive/RIR_0_0_0_0_0.npy"
     #file_path = "Data Archive/RIR_0_0_0_0_1.npy"
 
     data = np.load(file_path, allow_pickle=True).item()
@@ -119,4 +123,4 @@ if __name__ == "__main__":
         for idx in non_zero_indices:
             print(f"Index {tuple(idx)}: {q_acc[tuple(idx)]}")
     else:
-        print("Key 'q_acc' not found in the loaded file.")
+        print("Key 'q_acc' not found in the loaded file.")"""
