@@ -1,99 +1,113 @@
-
 import numpy as np
-from scipy.linalg import eigh
+from scipy.linalg import toeplitz, eigh
 import os
+import time
+import RIR_generator as RG
 from tqdm import tqdm
-import RIR_generator as RG  # must provide x_input, J, N
+import os, torch, torchaudio
+from scipy.io import wavfile
+from Test_train_split import J, L, indeces_bright, indeces_dark
+from tqdm import tqdm
 
-dark_index  = [0,1,2,3,4,5,6,7,8,9,10,11]
+dark_index = [0,1,2,3,4,5,6,7,8,9,10,11]
 bright_index = [12]
 
-J = RG.J  # filter length
-# L will be read from IR shape; do not hard-code
-# N should be the number of time samples to average over (from RG)
-N = RG.N
+J = RG.J
+L = 3
+M = len(dark_index)+len(bright_index)
+
+x_inp = [1] + [0]*(J+512-2)
+
+def load_wav_file():
+    wav_path = "relaxing-guitar-loop-v5-245859.wav"
+    fs_wav, wav = wavfile.read(wav_path)
+    if wav.ndim > 1:
+        wav = np.mean(wav, axis=1)
+    wav = wav[int(5*fs_wav) : int(5.5*fs_wav)]
+    wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
+    #x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
+    #x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
+    return wav.astype(np.float32).flatten()
 
 def load_ir(file_path):
-    rir_dict = np.load(file_path, allow_pickle=True).item()
+    rir_dict = np.load(file_path, allow_pickle=True).item()  # Load dict from .npy
     return rir_dict
 
-def toeplitz_x(x, n, K, J):
-    """Zero-padded convolution matrix: X[k,j] = x[n - k - j]"""
-    X = np.zeros((K, J), dtype=float)
-    Lx = len(x)
+def toeplitz(x, n, K, J):
+    X = np.zeros((K, J))
+
     for k in range(K):
         for j in range(J):
-            idx = n - k - j
-            if 0 <= idx < Lx:
-                X[k, j] = x[idx]
+            index = n - k - j
+            if 0 <= index < len(x):
+                X[k, j] = x[index]
     return X
 
-def build_h(rir):
-    """
-    Build h ∈ R^{LK × M} with columns h_m = [h_{m1}^T, …, h_{mL}^T]^T
-    rir shape assumed (M, L, K).
-    """
-    M, L, K = rir.shape
-    h = np.zeros((L*K, M), dtype=float)
-    for m in range(M):
-        col = []
-        for l in range(L):
-            col.extend(rir[m, l, :].tolist())
-        h[:, m] = np.array(col)
-    return h  # shape (L*K, M)
 
 def R_c(x, rir):
-    """
-    Compute R_B, R_D as (1/N) * sum_n H_B[n] H_B[n]^T and similarly for dark.
-    """
-    M, L, K = rir.shape
-    h = build_h(rir)  # (L*K, M)
-
-    R_B = None
-    R_D = None
+    K = max(np.shape(rir))
+    #mathcal_X = np.kron(toeplitz(x,0, K, J), np.eye(L))
+    N = len(x)
+    h = []
+    for m in range(M):
+        h_m = []
+        for l in range(L):
+            h_m += list(rir[m][l])
+        h.append(h_m)
+    h = np.array(h).T
 
     for n in range(N):
-        Xn_small = toeplitz_x(x, n, K, J)             # (K × J)
-        Xn = np.kron(np.eye(L), Xn_small)             # (L*K × L*J)
-        Hn = Xn.T                                     # (L*J × L*K)
+        print(n/N)
+        H_B_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,bright_index])
+        #print("toe", toeplitz(x, n, K, J))
+        #print(H_B_n)
+        temp = np.matmul(H_B_n, H_B_n.T)
+        if n == 0:
+            R_B = np.zeros_like(temp)
+        R_B += temp
+    R_B = 1/(len(bright_index)*N) * R_B
 
-        H_B_n = Hn @ h[:, bright_index]               # (L*J × M_B)
-        H_D_n = Hn @ h[:, dark_index]                 # (L*J × M_D)
+    for n in range(N):
+        print(n/N)
+        H_D_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,dark_index])
+        temp = np.matmul(H_D_n, H_D_n.T)
+        if n == 0:
+            R_D = np.zeros_like(temp)
+        R_D += temp
+    R_D = 1/(len(dark_index)*N) * R_D
+    #print(R_D, R_D)
 
-        RB_n = H_B_n @ H_B_n.T                        # (L*J × L*J)
-        RD_n = H_D_n @ H_D_n.T                        # (L*J × L*J)
-
-        if R_B is None:
-            R_B = np.zeros_like(RB_n)
-            R_D = np.zeros_like(RD_n)
-
-        R_B += RB_n
-        R_D += RD_n
-
-    R_B /= N
-    R_D /= N
     return R_B, R_D
 
-def acc_coeffs(R_B, R_D):
-    # Regularize R_D as recommended in the paper
-    eps = 1e-6
-    R_D_reg = R_D + eps * np.eye(R_D.shape[0])
-    lam, U = eigh(R_B, R_D_reg)          # ascending order
-    u1 = U[:, -1]                         # dominant generalized eigenvector
-    return u1
+def acc_coeffs(R):
+    lambda_vals, eigenvecs = eigh(R[0], R[1]+1e-6*np.eye(len(R[1])))
+    #print(eigenvecs[:, -1])
+    return eigenvecs[:, -1].reshape(3, 1024)
 
-def load_save():
-    for name in tqdm(os.listdir("Data Archive")):
-        d = load_ir(f"Data Archive/{name}")
-        ir = d["IR"]                      # shape (M, L, K)
-        R_B, R_D = R_c(RG.x_input, ir)
-        q = acc_coeffs(R_B, R_D)          # length L*J
-        # optional normalization (Euclidean or dark-zone energy):
-        # q = q / np.linalg.norm(q)
-        M, L, K = ir.shape
-        d.update({"q_acc1": q.reshape(L, J)})
-        np.save(f"Data Archive/{name}", d, allow_pickle=True)
-        print(f"Saved filter {name}")
+def load_save(x_input):
+    for u, i in tqdm(enumerate(os.listdir("Data Archive"))):
+        if u == 0:
+            dict = load_ir(f"Data Archive/{i}")
+            ir = dict["IR"]
+            dict.update({"q_acc": acc_coeffs(R_c(x_input, ir))})
+            np.save(f"Data Archive/{i}", dict, allow_pickle=True)
+            print(f"Saved filter {i}")
+
 
 if __name__ == "__main__":
-    load_save()
+    #load_save(load_wav_file())
+    load_save(x_inp)
+    
+    file_path = "Data Archive/RIR_0_0_0_0_0.npy"
+    #file_path = "Data Archive/RIR_0_0_0_0_1.npy"
+
+    data = np.load(file_path, allow_pickle=True).item()
+
+    if "q_acc" in data:
+        q_acc = data["q_acc"]
+        print(f"Filter coefficients (shape {q_acc.shape}):")
+        non_zero_indices = np.argwhere(q_acc != 0)
+        for idx in non_zero_indices:
+            print(f"Index {tuple(idx)}: {q_acc[tuple(idx)]}")
+    else:
+        print("Key 'q_acc' not found in the loaded file.")
