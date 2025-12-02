@@ -67,8 +67,8 @@ def load_save():
         dict = load_ir(f"Data Archive/{i}")
         ir = dict["IR"]
         dict.update({"q_acc": acc_coeffs(R_c(RG.x_input, ir))})
-        #np.save(f"Data Archive/{i}", dict, allow_pickle=True)
-        #print(f"Saved filter {i}")
+        np.save(f"Data Archive/{i}", dict, allow_pickle=True)
+        print(f"Saved filter {i}")
 load_save()
 
 #dict, file = load_ir(r"Data Archive", 0)

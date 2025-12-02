@@ -5,7 +5,6 @@ import Loss_functions as LF
 import Dataset_class as dc
 from sklearn.neighbors import KDTree 
 from scipy.io import wavfile
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 from Test_train_split import load_test_train_data
 
@@ -30,12 +29,11 @@ def Extensive_search(
     N_test = max_filters
     chosen_indices = []
     times_per_test = []
-    per_filter_times = []
 
     # Loss weights
     lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 0.25, 0.25, 0.25, 0.25
     print("\nStarting Extensive Brute-Force Search with FULL COMPOSITE LOSS...")
-    for i in range(N_test):
+    for i in tqdm(range(N_test)):
 
         start_test = time.time()
 
@@ -195,19 +193,14 @@ def ANN_Search_and_Refine(
 
 # ---- 4. Execution ----
 if __name__ == "__main__":
-    # Dummy check for fcentres
-    #fcentres = torch.tensor([1000, 2000], device=device) # Example
-    
-
     # --- CONFIGURATION ---
     dark_zone_mics_index = [0,1,2,3,4,5,6,7,8,9,10,11]
     bright_zone_mics_index = [12]
     L = 3       # Loudspeaker (Sources)
     J = 1024    # Filter order
-    # fs_target (used in loss functions) is assumed to be available in dgs
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-    data_dir = "Data Archive"
+ 
 
     data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
     filters_test, filters_train = data_test[1], data_train[1]
@@ -224,15 +217,4 @@ if __name__ == "__main__":
         dark_zone_mics_index=dark_zone_mics_index,
         max_filters=max_filters 
     )
-    """
-    ANN_Search_and_Refine(
-        filters_test=y_test, 
-        dictionary=y_train, 
-        IR_train=IR_train, 
-        IR_test=IR_test, 
-        x_input=x_input,
-        k_neighbors=20,
-        max_filters=max_filters
-    )
-    """
 

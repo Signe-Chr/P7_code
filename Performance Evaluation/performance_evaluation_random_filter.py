@@ -5,11 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from scipy.io import wavfile
-from pesq import pesq
-from pystoi import stoi
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
-from Dataset_class import L, J
 from performance_evaluation_unfiltered import compute_pressure_with_input as cpwi
 from Test_train_split import load_test_train_data
 
@@ -103,6 +100,8 @@ def acoustic_contrast(p_C, bright_zone_mics_index, dark_zone_mics_index):
     return 10*torch.log10(AC)
 
 def loss_functions(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_idx):
+    L = 3
+    J = 1024
     mse_loss = MSE(predicted_filter, true_filter)
     cosine_loss = Cosine_similarity(predicted_filter.reshape(1, L*J), true_filter.reshape(1, L*J))
     msep_loss_B, _ = MSEP(predicted_filter, true_filter, rir_test, wav_input, B_idx, D_idx)
