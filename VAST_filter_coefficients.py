@@ -80,7 +80,8 @@ def setup_acoustic_scenario(sources,
     room.compute_rir()
 
     # RIRs are stored in room.rir: room.rir[mic_index][source_index]
-    IR = room.rir 
+    pre_IR = room.rir 
+    IR = prepare_rir_input(pre_IR, mic_positions.shape[1], len(sources_list), max_length=512)
 
     return IR, M_B, M_D
 
