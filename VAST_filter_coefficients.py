@@ -182,7 +182,7 @@ def prepare_rir_input(IR, n_mics, n_srcs, max_length=512):
 
 
 def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
-                        wav, rt60, direction_list, user_rotation, fs_target, J, N, 
+                        wav, rt60, direction_list, user_rotation, phone_tilt, fs_target, J, N, 
                         V, mu, room_dim, reg_eps, target_amplitude):
 
     #print("--- Starting VAST Time-Domain Filter Design ---")
@@ -203,7 +203,8 @@ def design_vast_filter(sources, mic_positions_list, bright_zone_mics_index, dark
         mic_positions_list=mic_positions_list, 
         bright_zone_mics_index=bright_zone_mics_index, 
         dark_zone_mics_index=dark_zone_mics_index,
-        fs_target=fs_target, room_dim=room_dim, rt60=rt60, mic_directions=direction_list, user_rotation=user_rotation
+        fs_target=fs_target, room_dim=room_dim, rt60=rt60, mic_directions=direction_list,
+        user_rotation=user_rotation, phone_tilt=phone_tilt
     )
 
     # --- Compute Covariance Matrices R_B and R_D ---
