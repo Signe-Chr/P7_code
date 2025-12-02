@@ -30,11 +30,15 @@ def toeplitz(x, n, K, J):
                 X[k, j] = x[index]
     return X
 
+
+#print(toeplitz([1], 0, 2, 2 ))
+#print(toeplitz_fast([1], 0, 2, 2 ))
+
 def R_c(x, rir):
     K = max(np.shape(rir))
-    #mathcal_X = np.kron(toeplitz(x,0, K, J), np.eye(L))
     h = []
     N = len(x)
+    print("Går i gang med m-loop")
     for m in range(M):
         h_m = []
         for l in range(L):
@@ -42,7 +46,8 @@ def R_c(x, rir):
         h.append(h_m)
     h = np.array(h).T
 
-    for n in range(N):
+    print("Går i gang med n-loop nr 1")
+    for n in tqdm(range(N)):
         H_B_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,indeces_bright])
         temp = np.matmul(H_B_n, H_B_n.T)
         if n == 0:
@@ -50,6 +55,7 @@ def R_c(x, rir):
         R_B += temp
     R_B = 1/(len(indeces_bright)*N) * R_B
 
+    print("Går i gang med n-loop nr 2")
     for n in range(N):
         H_D_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,indeces_dark])
         temp = np.matmul(H_D_n, H_D_n.T)
@@ -67,6 +73,7 @@ def acc_coeffs(R):
 def load_save(data_dir, save_dir, x_input):
     for i in tqdm(os.listdir(data_dir)):
         dict = load_ir(f"{data_dir}/{i}")
+        print(" Dict loaded")
         ir = dict["IR"]
         dict.update({"q_acc": acc_coeffs(R_c(x_input, ir))})
         np.save(f"{save_dir}/{i}", dict, allow_pickle=True)
