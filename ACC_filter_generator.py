@@ -27,7 +27,6 @@ def toeplitz(x, n, K, J):
                 X[k, j] = x[index]
     return X
 
-
 def R_c(x, rir):
     K = max(np.shape(rir))
     #mathcal_X = np.kron(toeplitz(x,0, K, J), np.eye(L))
@@ -57,6 +56,7 @@ def R_c(x, rir):
     R_D = 1/(len(dark_index)*N) * R_D
 
     return R_B, R_D
+
 
 def acc_coeffs(R):
     lambda_vals, eigenvecs = eigh(R[0], R[1]+1e-6*np.eye(len(R[1])))
