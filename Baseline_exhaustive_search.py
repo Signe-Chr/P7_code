@@ -100,23 +100,23 @@ if __name__ == "__main__":
     J = 1024    # Filter order
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
- 
+    
 
     data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
     filters_test, filters_train = data_test[1], data_train[1]
-    for i, f_test in enumerate(filters_test):
-        for j, f_train in enumerate(filters_train):
-            if torch.equal(f_test, f_train):
-                print(f"Test filter {i} is exactly equal to Train filter {j}")
-              
+    IR_test,IR_train =data_test[5], data_train[5]
+    for i, ir_test in enumerate(IR_test):
+        for j, ir_train in enumerate(IR_train):
+            if torch.equal(ir_test, ir_train):
+                print(f"Test IR {i} is exactly equal to Train IR {j}")
     tol = 1e-12
-    all_zero_test = (filters_test.abs() < tol).all()
-    all_zero_train = (filters_train.abs() < tol).all()
+    all_zero_test = (IR_test.abs() < tol).all()
+    all_zero_train = (IR_train.abs() < tol).all()
     print(all_zero_test, all_zero_train)
     
     for i in range(len(filters_train)):
         for k in range(len(filters_train[i])):
-            if filters_train[i][k]!=0:
+            if filters_train[i][k]!=0 and filters_train[i][k]!=1000:
                 print(f'THIS k IS NOT EQUAL TO ZERO:{k}, filter{i}, value{filters_train[i][k]}')
                 
             
