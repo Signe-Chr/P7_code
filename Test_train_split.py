@@ -5,6 +5,8 @@ from torch.utils.data import DataLoader
 
 L = 3
 J = 1024
+indeces_dark = [0,1,2,3,4,5,6,7,8,9,10,11]
+indeces_bright = [12]
 
 def load_test_train_data(test_size=0.25, random_seed=42):
     data_dir = "Data Archive"
