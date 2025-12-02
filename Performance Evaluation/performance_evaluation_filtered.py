@@ -128,9 +128,8 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, indeces_bright, rir
 
     numerator = torch.sum((d_B_tensor - p_B) ** 2, dim=1)
     denominator = torch.sum(d_B_tensor ** 2, dim=1)
-    nSDP = 10 * torch.log10(numerator / denominator)
 
-    return torch.mean(nSDP)
+    return numerator / denominator
 
 
 #--------------------------------------------------------------
@@ -189,7 +188,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     # Compute statistics
     results = {
         "AC": (10*np.log10((np.sqrt(np.var(AC_list)))), 10*np.log10(np.mean(AC_list)),  10*np.log10(np.min(AC_list)), 10*np.log10(np.max(AC_list))),
-        "NSDP_B": (np.sqrt(np.var(NSDP_B_list)).item(), np.mean(NSDP_B_list).item(), np.min(NSDP_B_list).item(), np.max(NSDP_B_list).item()),
+        "NSDP_B": (10*np.log10(np.sqrt(np.var(NSDP_B_list))).item(), 10*np.log10(np.mean(NSDP_B_list)).item(), 10*np.log10(np.min(NSDP_B_list)).item(), 10*np.log10(np.max(NSDP_B_list)).item()),
         "Attenuation_DZ": (np.sqrt(np.var(attenuation_arr)).item(), np.mean(attenuation_arr).item(), np.min(attenuation_arr).item(), np.max(attenuation_arr).item()),
         "Attenuation_BZ": (np.sqrt(np.var(attenuation_arr_bz)).item(), np.mean(attenuation_arr_bz).item(), np.min(attenuation_arr_bz).item(), np.max(attenuation_arr_bz).item())
     }
