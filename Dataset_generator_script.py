@@ -9,6 +9,11 @@ from VAST_filter_coefficients import design_vast_filter
 from tqdm import tqdm
 from Test_train_split import load_test_train_data, x_input_kronecker, load_wav_file
 
+def unit_vector_to_angles(v):
+    x, y, z = v
+    azimuth = np.arctan2(y, x)       # angle in XY-plane
+    colatitude = np.arccos(z)        # angle down from +Z axis
+    return azimuth, colatitude
 
 def sources_mics(R, Center, M_D):
     mic_positions_list = []
