@@ -104,9 +104,10 @@ def load_save(x_input, opd):
 
 if __name__ == "__main__":
     opdeling = [i for i in range(432)]
-    op_1 = opdeling[0: 144]
-    op_2 = opdeling[144: 288]
-    op_3 = opdeling[288: 432]
+    op_1 = opdeling[:108]
+    op_2 = opdeling[108: 216]
+    op_3 = opdeling[216: 324]
+    op_4 = opdeling[324:]
     #load_save(load_wav_file())
     load_save(x_inp, <____>)
 
