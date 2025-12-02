@@ -1,20 +1,12 @@
-import numpy as np
-from scipy.linalg import toeplitz, eigh
 import os
-import time
-import RIR_generator as RG
+import numpy as np
 from tqdm import tqdm
-import os, torch, torchaudio
 from scipy.io import wavfile
+from scipy.linalg import toeplitz, eigh
 from Test_train_split import J, L, indeces_bright, indeces_dark
-from tqdm import tqdm
 
-dark_index = [0,1,2,3,4,5,6,7,8,9,10,11]
-bright_index = [12]
 
-J = RG.J
-L = 3
-M = len(dark_index)+len(bright_index)
+M = len(indeces_dark)+len(indeces_bright)
 
 x_inp = [1] + [0]*(J+512-2)
 
@@ -43,11 +35,8 @@ def toeplitz(x, n, K, J):
                 X[k, j] = x[index]
     return X
 
-
-
 def R_c(x, rir):
     K = max(np.shape(rir))
-    #mathcal_X = np.kron(toeplitz(x,0, K, J), np.eye(L))
     N = len(x)
     h = []
     for m in range(M):
@@ -60,30 +49,60 @@ def R_c(x, rir):
 
     for n in range(N):
         print(n/N)
-        H_B_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,bright_index])
-        #print("toe", toeplitz(x, n, K, J))
-        #print(H_B_n)
+        H_B_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,indeces_bright])
+
         temp = np.matmul(H_B_n, H_B_n.T)
         if not np.all(temp==0):
             zero_countnt +=1
         if n == 0:
             R_B = np.zeros_like(temp)
         R_B += temp
-    R_B = 1/(len(bright_index)*zero_countnt) * R_B
+    R_B = 1/(len(indeces_bright)*zero_countnt) * R_B
 
     zero_countnt = 0
-
     for n in range(N):
         print(n/N)
-        H_D_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,dark_index])
+        H_D_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,indeces_dark])
         temp = np.matmul(H_D_n, H_D_n.T)
         if not np.all(temp==0):
             zero_countnt +=1
         if n == 0:
             R_D = np.zeros_like(temp)
         R_D += temp
-    R_D = 1/(len(dark_index)*zero_countnt) * R_D
+    R_D = 1/(len(indeces_dark)*zero_countnt) * R_D
     #print(R_D, R_D)
+
+    return R_B, R_D
+
+def R_c(x, rir):
+    K = max(np.shape(rir))
+    N = len(x)
+    h = []
+    for m in range(M):
+        h_m = []
+        for l in range(L):
+            h_m += list(rir[m][l])
+        h.append(h_m)
+    h = np.array(h).T
+    zero_countnt = 0
+
+    for n in range(N):
+        print(n/N)
+        toe = toeplitz(x, n, K, J)
+        H_B_n = np.matmul(np.kron(toe, np.eye(L)).T, h[:,indeces_bright])
+        H_D_n = np.matmul(np.kron(toe, np.eye(L)).T, h[:,indeces_dark])
+
+        temp_B = np.matmul(H_B_n, H_B_n.T)
+        temp_D = np.matmul(H_D_n, H_D_n.T)
+        if not np.all(temp_B==0):
+            zero_countnt +=1
+        if n == 0:
+            R_B = np.zeros_like(temp_B)
+            R_D = np.zeros_like(temp_D)
+        R_B += temp_B
+        R_D += temp_D
+    R_B = 1/(len(indeces_bright)*zero_countnt) * R_B
+    R_D = 1/(len(indeces_dark)*zero_countnt) * R_D
 
     return R_B, R_D
 
@@ -109,7 +128,7 @@ if __name__ == "__main__":
     op_3 = opdeling[216: 324]
     op_4 = opdeling[324:]
     #load_save(load_wav_file())
-    load_save(x_inp, <____>)
+    load_save(x_inp, op_4)
 
     
     """file_path = "Data Archive/RIR_0_0_0_0_0.npy"
