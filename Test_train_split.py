@@ -3,6 +3,8 @@ from sklearn.model_selection import train_test_split
 from Dataset_class import CustomDataset
 from torch.utils.data import DataLoader
 
+L = 3
+J = 1024
 
 def load_test_train_data(test_size=0.25, random_seed=42):
     data_dir = "Data Archive"

@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import numpy as np
 from scipy.io import wavfile
 from pesq import pesq
-from Test_train_split import load_test_train_data
+from Test_train_split import load_test_train_data, L, J
 from pystoi import stoi
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
