@@ -53,11 +53,11 @@ def Extensive_search(
             rir_j = IR_train[j].to(torch.double)
 
             # Compute losses
-            mse_loss = LF.MSE(tf, df)
-            cosine_loss = LF.Cosine_similarity(tf, df)
+            mse_loss = LF.MSE(df, tf)
+            cosine_loss = LF.Cosine_similarity(df, tf)
             H = LF.compute_H_matrix(rir_j)[0].to(device)
-            ac_loss = LF.AC_loss(tf2D, df2D, H, bright_zone_mics_index, dark_zone_mics_index)
-            msep_loss = LF.MSEP(tf2D, df2D, rir_j, x_input, bright_zone_mics_index, dark_zone_mics_index)[0]
+            ac_loss = LF.AC_loss(df2D, tf2D, H, bright_zone_mics_index, dark_zone_mics_index)
+            msep_loss = LF.MSEP(df2D, tf2D, rir_j, x_input, bright_zone_mics_index, dark_zone_mics_index)[0]
             
             combined = (
                 lamda_mse * mse_loss
@@ -104,10 +104,27 @@ if __name__ == "__main__":
 
     data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
     filters_test, filters_train = data_test[1], data_train[1]
+    for i, f_test in enumerate(filters_test):
+        for j, f_train in enumerate(filters_train):
+            if torch.equal(f_test, f_train):
+                print(f"Test filter {i} is exactly equal to Train filter {j}")
+              
+    tol = 1e-12
+    all_zero_test = (filters_test.abs() < tol).all()
+    all_zero_train = (filters_train.abs() < tol).all()
+    print(all_zero_test, all_zero_train)
+    
+    for i in range(len(filters_train)):
+        for k in range(len(filters_train[i])):
+            if filters_train[i][k]!=0:
+                print(f'THIS k IS NOT EQUAL TO ZERO:{k}, filter{i}, value{filters_train[i][k]}')
+                
+            
+
     max_filters = len(filters_test)
     x_input = torch.tensor([1])
     IR_train = data_train[5]
-    
+    exit()
     Extensive_search(
         filters_test=filters_test, 
         dictionary=filters_train, 

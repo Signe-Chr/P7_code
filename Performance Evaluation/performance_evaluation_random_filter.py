@@ -291,11 +291,11 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
     # Compute statistics
     results = {
         "Total Loss":(np.sqrt(np.var(tot_loss_list)).item(),np.mean(tot_loss_list).item(), np.min(tot_loss_list).item(),   np.max(tot_loss_list).item()),
-        "Individual Losses" : (individual_losses_arr.mean(axis=0), individual_losses_arr.min(axis=0), individual_losses_arr.max(axis=0)),
+        "Individual Losses" : (np.sqrt(individual_losses_arr.var(axis=0)),individual_losses_arr.mean(axis=0), individual_losses_arr.min(axis=0), individual_losses_arr.max(axis=0)),
     }
 
     print(f"Total loss Bright Zone (std, mean, min, max):{results['Total Loss']}")
-    print(f"Individual Losses (MSE, Cosine, MSEP, AC) (mean, min, max):{results['Individual Losses']}")
+    print(f"Individual Losses (MSE, Cosine, MSEP, AC) (std, mean, min, max):{results['Individual Losses']}")
 
     return results
 
@@ -310,7 +310,7 @@ chosen_model = "classification"
 
 dark_zone_mics_index, bright_zone_mics_index, n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, x_input, model = load_data_and_model(chosen_model)
 
-average_performance_metrics_with_filters(RIRs_test, model, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
-loss_function_evaluation(RIRs_test, model, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+average_performance_metrics_with_filters(RIRs_test,filters_test, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
+loss_function_evaluation(RIRs_test, filters_test, x_input, bright_zone_mics_index, dark_zone_mics_index, filters_test)
 
 
