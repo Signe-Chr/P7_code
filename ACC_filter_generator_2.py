@@ -48,7 +48,7 @@ def R_c(x, rir):
     zero_countnt = 0
 
     for n in range(N):
-        print(n/N)
+        #print(n/N)
         H_B_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,indeces_bright])
 
         temp = np.matmul(H_B_n, H_B_n.T)
@@ -61,7 +61,7 @@ def R_c(x, rir):
 
     zero_countnt = 0
     for n in range(N):
-        print(n/N)
+        #print(n/N)
         H_D_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,indeces_dark])
         temp = np.matmul(H_D_n, H_D_n.T)
         if not np.all(temp==0):
@@ -87,7 +87,7 @@ def R_c(x, rir):
     zero_countnt = 0
 
     for n in range(N):
-        print(n/N)
+        #print(n/N)
         toe = toeplitz(x, n, K, J)
         H_B_n = np.matmul(np.kron(toe, np.eye(L)).T, h[:,indeces_bright])
         H_D_n = np.matmul(np.kron(toe, np.eye(L)).T, h[:,indeces_dark])
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     op_3 = opdeling[216: 324]
     op_4 = opdeling[324:]
     #load_save(load_wav_file())
-    load_save(x_inp, op_4)
+    load_save(x_inp, op_1)
 
     
     """file_path = "Data Archive/RIR_0_0_0_0_0.npy"
