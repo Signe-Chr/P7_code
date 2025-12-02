@@ -81,12 +81,12 @@ def main(orientation_source_final, mic_positions_list, bright_zone_mics_index, d
     m = f"VAST_{r}_{i}_{ii}_{iii}_{iv}"  # room, spatial position, user orientation, phone tilt
     #print(m, datetime.datetime.now())
     
-    archive_q_matrix(
+    """archive_q_matrix(
         q, out_path, m, orientation_source_final,
         RT60, IR, mic_positions_list, room_dim,
         spatial_position, dark_mic_radius, user_rotation, tilt_rotation,
         bright_zone_mics_index, dark_zone_mics_index
-    )
+    )"""
     return
 
 J = 1024
@@ -144,7 +144,7 @@ if __name__ == "__main__":
                         args = (orientation_source_final, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index,
                             x_input, RT60, mic_directions, user_rotation, fs_target, J, N, V, mu, room_dim, reg_term, target_amplitude,
                             i, ii, iii, iv, r, out_q_path, spatial_position, dark_mic_radius, tilt_rotation)
-                        pool.apply_async(main, args=args, callback=lambda _:loop.update(1))
+                        pool.apply_async(main, args=args, callback=lambda _:loop.update(1), error_callback=lambda e:print(e))
     pool.close()
     pool.join()
     print(" Done creating total data!")
