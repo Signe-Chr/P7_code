@@ -114,7 +114,7 @@ def attenuation(rir, raw_wav, filtered, zone):
     raw_signal = cpwi(rir, raw_wav)[zone]
     e_raw = torch.sum(raw_signal**2)
     e_filt = torch.sum(filtered**2)
-    return 10 * np.log10(e_raw/e_filt)
+    return 10 * torch.log10(e_raw/e_filt)
 
 def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, bright_zone_mics_index, rir: torch.Tensor):
     p_B = p_C[bright_zone_mics_index]
@@ -205,10 +205,10 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
 
     # Compute statistics
     results = {
-        "AC": (np.sqrt(np.var(AC_list)) ,np.mean(AC_list) ,np.min(AC_list), np.max(AC_list)),
-        "NSDP_B": (np.sqrt(np.var(NSDP_B_list)) ,np.mean(NSDP_B_list), np.min(NSDP_B_list), np.max(NSDP_B_list)),
-        "Attenuation_DZ": (np.sqrt(np.var(attenuation_arr)),np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr)),
-        "Attenuation_BZ": (np.sqrt(np.var(attenuation_arr_bz)),np.mean(attenuation_arr_bz), np.min(attenuation_arr_bz), np.max(attenuation_arr_bz))
+        "AC": (np.sqrt(np.var(AC_list)), np.mean(AC_list), np.min(AC_list), np.max(AC_list)),
+        "NSDP_B": (np.sqrt(np.var(NSDP_B_list)).item(), np.mean(NSDP_B_list).item(), np.min(NSDP_B_list).item(), np.max(NSDP_B_list).item()),
+        "Attenuation_DZ": (np.sqrt(np.var(attenuation_arr)).item(), np.mean(attenuation_arr).item(), np.min(attenuation_arr).item(), np.max(attenuation_arr).item()),
+        "Attenuation_BZ": (np.sqrt(np.var(attenuation_arr_bz)).item(), np.mean(attenuation_arr_bz).item(), np.min(attenuation_arr_bz).item(), np.max(attenuation_arr_bz).item())
     }
     print(f"AC (std, mean, min, max): {results['AC']}")
     print(f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}")
@@ -306,7 +306,8 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, bright_zone_
 "regression"
 "classification"
 
-chosen_model = "classification"
+chosen_model = "regression"
+print(f"Du har valgt {chosen_model}.")
 
 dark_zone_mics_index, bright_zone_mics_index, n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, x_input, model = load_data_and_model(chosen_model)
 
