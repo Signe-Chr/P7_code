@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 from tqdm import tqdm
 from scipy.io import wavfile
@@ -35,7 +36,7 @@ def toeplitz(x, n, K, J):
                 X[k, j] = x[index]
     return X
 
-def R_c(x, rir):
+def R_c_(x, rir):
     K = max(np.shape(rir))
     N = len(x)
     h = []
@@ -86,15 +87,14 @@ def R_c(x, rir):
     h = np.array(h).T
     zero_countnt = 0
 
-    for n in tqdm(range(N)):
-        #print(n/N)
+    for n in range(N):
         toe = toeplitz(x, n, K, J)
         H_B_n = np.matmul(np.kron(toe, np.eye(L)).T, h[:,indeces_bright])
         H_D_n = np.matmul(np.kron(toe, np.eye(L)).T, h[:,indeces_dark])
 
         temp_B = np.matmul(H_B_n, H_B_n.T)
         temp_D = np.matmul(H_D_n, H_D_n.T)
-        if not np.all(temp_B==0):
+        if not np.all(toe==0):
             zero_countnt +=1
         if n == 0:
             R_B = np.zeros_like(temp_B)
@@ -112,23 +112,55 @@ def acc_coeffs(R):
     return eigenvecs[:, -1].reshape(3, 1024)
 
 def load_save(x_input, opd):
-    for u, i in tqdm(enumerate(os.listdir("Data Archive"))):
+    files = os.listdir("Data Archive")
+    files.sort()
+    print(files[:5])
+    times = []
+    os.makedirs("Data Archive NEW", exist_ok=True)
+    t = time.perf_counter()
+    for u, i in tqdm(enumerate(files)):
         if u in opd:
             dict = load_ir(f"Data Archive/{i}")
             ir = dict["IR"]
             dict.update({"q_acc": acc_coeffs(R_c(x_input, ir))})
-            np.save(f"Data Archive/{i}", dict, allow_pickle=True)
+            np.save(f"Data Archive NEW/{i}", dict, allow_pickle=True)
             print(f"Saved filter {i}")
+            t_new = time.perf_counter()
+            times.append(t_new-t)
+            t = t_new
+    print(f"Total runtime: {np.sum(times):.2f}s\nAverage runtime: {np.mean(times):.2f}")
 
 
 if __name__ == "__main__":
     opdeling = [i for i in range(432)]
-    op_1 = opdeling[:108]
-    op_2 = opdeling[108: 216]
-    op_3 = opdeling[216: 324]
-    op_4 = opdeling[324:]
+    op_1 = opdeling[:18]
+    op_2 = opdeling[18: 36]
+    op_3 = opdeling[36: 54]
+    op_4 = opdeling[54: 72]
+    op_5 = opdeling[72: 90]
+    op_6 = opdeling[90: 108]
+    op_7 = opdeling[108: 126]
+    op_8 = opdeling[126: 144]
+    op_9 = opdeling[144: 162]
+    op_10 = opdeling[162: 180]
+    op_11 = opdeling[180: 198]
+    op_12 = opdeling[198: 216]
+    op_13 = opdeling[216: 234]
+    op_14 = opdeling[234: 252]
+    op_15 = opdeling[252: 270]
+    op_16 = opdeling[270: 288]
+    op_17 = opdeling[288: 306]
+    op_18 = opdeling[306: 324]
+    op_19 = opdeling[324: 342]
+    op_20 = opdeling[342: 360]
+    op_21 = opdeling[360: 378]
+    op_22 = opdeling[378: 396]
+    op_23 = opdeling[396: 414]
+    op_24 = opdeling[414: ]
+    
+
     #load_save(load_wav_file())
-    load_save(x_inp, op_1)
+    load_save(x_inp, <___>)
 
     
     """file_path = "Data Archive/RIR_0_0_0_0_0.npy"
