@@ -86,7 +86,7 @@ def R_c(x, rir):
     h = np.array(h).T
     zero_countnt = 0
 
-    for n in range(N):
+    for n in tqdm(range(N)):
         #print(n/N)
         toe = toeplitz(x, n, K, J)
         H_B_n = np.matmul(np.kron(toe, np.eye(L)).T, h[:,indeces_bright])
