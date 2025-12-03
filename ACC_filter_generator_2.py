@@ -93,6 +93,7 @@ def acc_coeffs(R):
     return eigenvecs[:, -1].reshape(3, 1024)
 
 def load_save(x_input, opd):
+    
     for u, i in tqdm(enumerate(os.listdir("Data Archive"))):
         if u in opd:
             dict = load_ir(f"Data Archive/{i}")
@@ -109,7 +110,7 @@ if __name__ == "__main__":
     op_3 = opdeling[216: 324]
     op_4 = opdeling[324:]
     #load_save(load_wav_file())
-    load_save(x_inp, <____>)
+    load_save(x_inp, op_2)
 
     
     """file_path = "Data Archive/RIR_0_0_0_0_0.npy"
