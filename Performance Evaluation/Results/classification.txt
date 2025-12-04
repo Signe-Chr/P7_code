@@ -1,6 +1,7 @@
-AC (std, mean, min, max): (np.float64(14.394416826711272), np.float64(11.690779355135245), np.float64(-5.07358167909017), np.float64(20.728637423147752))
-NSDP Bright Zone (std, mean, min, max): (inf, 252.14324951171875, 0.0, 276.19937896728516)
-Attenuation Dark Zone (std, mean, min, max):(2.304102659225464, -30.581207275390625, -38.05881881713867, -28.400991439819336)
-Attenuation Bright Zone (std, mean, min, max):(2.488598346710205, -29.30272102355957, -35.833900451660156, -24.286170959472656)
-Total loss Bright Zone (std, mean, min, max):(25.69251251220703, 18.018539428710938, 1.2655452489852905, 150.36154174804688)
-Individual Losses (MSE, Cosine, MSEP, AC) (std, mean, min, max):(array([ 1.4006685 ,  0.08193077, 42.896366  , 61.842785  ], dtype=float32), array([ 3.4217432,  0.992862 , 25.137032 , 42.52251  ], dtype=float32), array([0.03529609, 0.01885796, 0.09836142, 2.8212447 ], dtype=float32), array([  9.50819  ,   1.0427042, 275.0957   , 319.24072  ], dtype=float32))
+AC (std, mean, min, max): (np.float64(13.684218186674254), np.float64(10.886514170784425), np.float64(-2.2123282441862173), np.float64(20.244430235374175))
+NSDP Bright Zone (std, mean, min, max): (inf, 253.1004524230957, 0.0, 273.6317443847656)
+Attenuation Dark Zone (std, mean, min, max):(1.7173959016799927, -32.89057540893555, -36.87612533569336, -30.076595306396484)
+Attenuation Bright Zone (std, mean, min, max):(1.838144063949585, -31.56886100769043, -34.783119201660156, -27.377044677734375)
+Total loss Bright Zone (std, mean, min, max):(122.9847412109375, 86.8066177368164, 9.429526329040527, 494.4440002441406)
+Individual Losses (MSE, Cosine, MSEP, AC) (std, mean, min, max):(array([1.3951173e+00, 6.5740333e-03, 3.8751633e+01, 8.5443993e+01],
+      dtype=float32), array([ 4.1544743,  0.9985696, 27.512148 , 54.141434 ], dtype=float32), array([2.2802348 , 0.96408343, 2.4187074 , 2.1241097 ], dtype=float32), array([  7.658769 ,   1.0123984, 181.8534   , 363.4341   ], dtype=float32))
