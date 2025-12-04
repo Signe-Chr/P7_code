@@ -201,40 +201,6 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
 
     return results
 
-def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDP_B, NSDP_D, STOI_B, STOI_D, total_loss):
-    """
-    Creates boxplots for AC, PESQ, NSDP, and STOI for bright and dark zones.
-    
-    Parameters:
-        AC: np.array of acoustic contrast values
-        PESQ_B, PESQ_D: np.array of PESQ scores
-        NSDP_B, NSDP_D: np.array of NSDP scores
-        STOI_B, STOI_D: np.array of STOI scores
-    """
-
-    metrics = {
-        "AC (dB)": [AC],
-        "nSDP (dB)": [NSDP_B, NSDP_D],
-        "Total Loss": [total_loss]
-    }
-    
-    zone_labels = {
-        "AC (dB)": ["All zones"],
-        "nSDP (dB)": ["Bright", "Dark"],
-        "Total Loss": ["All zones"]
-    }
-    
-    plt.figure(figsize=(12, 10))
-    
-    for i, (metric_name, data) in enumerate(metrics.items(), 1):
-        plt.subplot(3, 2, i)
-        plt.boxplot(data, labels=zone_labels[metric_name],whis=[0,100])
-        plt.title(metric_name)
-        plt.grid(axis='y', linestyle='--', alpha=0.7)
-    
-    plt.tight_layout()
-    plt.show()
-
 def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_bright_test, indeces_dark_test, true_filter):
     """
     Computes loss functions and attenuation for the entire test set using selected filters.

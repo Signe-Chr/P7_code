@@ -56,7 +56,7 @@ def main():
     if os.path.exists("MLP_classification.pth"):
         model.load_state_dict(torch.load("MLP_classification.pth"))
     # Training loop
-    for epoch in tqdm(range(1,51)):
+    for epoch in tqdm(range(1, 41)):
         model, train_loss, train_acc = train_epoch(model, data_train, criterion, optimizer, device)
         print(f"Epoch {epoch:02d} | Loss: {train_loss:.4f} | Acc: {train_acc:.2f}%")
 

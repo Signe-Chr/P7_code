@@ -8,7 +8,7 @@ from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE,compute_H_matri
 import matplotlib.pyplot as plt
 
 
-p=3
+p=2
 neurons = [128, 256, 512]
 
 layers = [1,2,3]
