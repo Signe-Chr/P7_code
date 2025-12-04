@@ -1,6 +1,5 @@
 import torch.nn as nn
 from Test_train_split import load_test_train_data
-import Cross_validation_models as cvm
 import torch.optim as optim
 import torch
 import numpy as np
@@ -24,9 +23,6 @@ input_size = len(data_train[0][0])
 output_size = 50
 dark_zone_mics_index=[0,1,2,3,4,5,6,7,8,9,10,11]
 bright_zone_mics_index=[12]
-models=cvm.cv_models(input_size,output_size)
-#for model in models:
- #   summary(model, input_size=(input_size,))
 
             
 if p==1:
@@ -528,5 +524,5 @@ if p == 3:
 
     plt.tight_layout(rect=[0,0,0.9,1])  # leave space for colorbars
     plt.savefig(f"Plots/CV_classification_3_layers.pdf")
-    plt.show()
+    #plt.show()
 
