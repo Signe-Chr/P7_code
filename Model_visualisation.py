@@ -7,11 +7,10 @@ from scipy.signal import lfilter, fftconvolve
 # Assuming the file 'Dataset_generator_script.py' exists and is imported correctly
 import Dataset_generator_script as dgs 
 import os
-from Dataset_generator_script import room_indices as ri
 from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
 import scipy.io.wavfile as wavfile
-
+from Test_train_split import load_test_train_data
 
 #load q
 baseline_filters = np.array(torch.load(r"C:\Users\marst\OneDrive\Skrivebord\UNI\S. 7\PROJEKT\P7\Saved Filters\baseline_filters.pt"))
@@ -21,30 +20,10 @@ random_selection_filters = np.array(torch.load(r"C:\Users\marst\OneDrive\Skriveb
 regression_filters = np.array(torch.load(r"C:\Users\marst\OneDrive\Skrivebord\UNI\S. 7\PROJEKT\P7\Saved Filters\regression_filters.pt"))
 
 
+
 #---Load data and split into test and traning data---
-data_dir="Signes_data"
-full_data = os.listdir(data_dir)
-data_points = []
-train_points = []
-test_points = []
-for data in full_data:
-    data_points.append(data)
-    i = int(data.split("_")[1])
-    if i not in ri[::4]:
-        train_points.append(data)
-    else:
-        test_points.append(data)
-        
-data_train=CustomDataset(data_dir,train_points)
-data_train_loader=DataLoader(data_train,batch_size=len(data_train), shuffle=False)
-data_test=CustomDataset(data_dir,test_points)
-data_test_loader=DataLoader(data_test,batch_size=len(data_test), shuffle=False)
 
-room_index = 1
-
-
-temp_var_train=[batch for batch in data_train_loader][0]
-temp_var_test=[batch for batch in data_test_loader][0]
+temp_var_test, temp_var_train = load_test_train_data()
 
 
 X_train=temp_var_train[0]
@@ -207,6 +186,7 @@ test_index = 0
 
 #print(len(regression_filters[2][0]))
 
-pressure_field_2d(list(X_test[test_index][6:]), srcs_pos_test[0], regression_filters[2][0], list(X_test[test_index][3:6]), fs=16000, grid_res=40, J=1024, r_zone=dgs.dark_mic_radius)
-#pressure_field_2d(list(X_test[test_index][6:]), srcs_pos_test[0], filters_test[0], list(X_test[test_index][3:6]), fs=16000, grid_res=40, J=1024, r_zone=dgs.dark_mic_radius)
+
+#pressure_field_2d(list(X_test[test_index][6:]), srcs_pos_test[0], regression_filters[2][0], list(X_test[test_index][3:6]), fs=16000, grid_res=40, J=1024, r_zone=dgs.dark_mic_radius)
+pressure_field_2d(list(X_test[test_index][6:]), srcs_pos_test[0], filters_test[0], list(X_test[test_index][3:6]), fs=16000, grid_res=40, J=1024, r_zone=dgs.dark_mic_radius)
 

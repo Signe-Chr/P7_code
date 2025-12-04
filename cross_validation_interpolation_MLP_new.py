@@ -13,7 +13,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Parameters
-p = 1
+p = 3
 neurons = [128, 256, 512]
 layers = [1, 2, 3]
 num_folds = 5
@@ -84,8 +84,8 @@ if p == 1:
                     outputs = torch.matmul(coeff, filters_train).to(device)
 
                     # 2D versions
-                    filter_2d = filter.reshape(3, 1024)
-                    outputs_2d = outputs.reshape(3, 1024)
+                    filter_2d = filter.reshape(3, 1024).to(device)
+                    outputs_2d = outputs.reshape(3, 1024).to(device)
 
                     H = compute_H_matrix(rir)[0].to(device)
 
@@ -188,7 +188,7 @@ if p == 2:
 
             for fold in range(num_folds):
                 # Reload data for each fold
-                data_test, data_train, data_val = load_test_train_data(random_seed=folds)
+                data_test, data_train = load_test_train_data()
 
                 # Prepare training and test sets
                 X_train = data_train[0][:50].to(device).to(torch.float32)
@@ -211,7 +211,7 @@ if p == 2:
                     torch.nn.Linear(neuron1, neuron2),
                     torch.nn.ReLU(),
                     torch.nn.Linear(neuron2, output_size)
-                )
+                ).to(device)
                 
                 optimizer = optim.Adam(model.parameters(), lr = 1e-3)
                 # --------------------
@@ -221,6 +221,7 @@ if p == 2:
                     total_loss = 0
                     total = 0
                     for k in range(len(X_train)):
+                        X = X_train[k].unsqueeze(0).to(device)
                         optimizer.zero_grad()
                         coeff = model(X_train[k]).unsqueeze(0)
                         outputs = torch.matmul(coeff, filters_train).to(device)
@@ -337,24 +338,24 @@ if p == 2:
     plt.show()
 
 if p == 3:
-    neurons1 = [128, 256, 512]
+    neurons1 = [128]# [128, 256, 512]
     neurons2 = [128, 256, 512]
     neurons3 = [128, 256, 512]
 
     test_err_grid = np.zeros((len(neurons1), len(neurons2), len(neurons3)))
     train_err_grid = np.zeros((len(neurons1), len(neurons2), len(neurons3)))
 
-    for u, neuron3 in enumerate(neurons3):
-        for i, neuron1 in enumerate(neurons1):
-            for j, neuron2 in enumerate(neurons2):
-                print(f"\n--- Testing architecture: Layer 1: {neuron1}, Layer 2: {neuron2} ---")
+    for u, neuron1 in enumerate(neurons1):
+        for i, neuron2 in enumerate(neurons2):
+            for j, neuron3 in enumerate(neurons3):
+                print(f"\n--- Testing architecture: Layer 1: {neuron1}, Layer 2: {neuron2}, Layer 3 {neuron3} ---")
 
                 train_mse_folds = []
                 test_mse_folds = []
 
                 for fold in range(num_folds):
                     # Reload data for each fold
-                    data_test, data_train, data_val = load_test_train_data(random_seed=folds)
+                    data_test, data_train = load_test_train_data()
 
                     # Prepare training and test sets
                     X_train = data_train[0][:50].to(device).to(torch.float32)
@@ -386,9 +387,11 @@ if p == 3:
                     # Train model
                     # --------------------
                     for epoch in range(1, 41):
+                        print(epoch)
                         total_loss = 0
                         total = 0
                         for k in range(len(X_train)):
+                            X = X_train[k].unsqueeze(0).to(device)
                             optimizer.zero_grad()
                             coeff = model(X_train[k]).unsqueeze(0)
                             outputs = torch.matmul(coeff, filters_train).to(device)
@@ -534,4 +537,4 @@ if p == 3:
     fig.colorbar(im_test, cax=cbar_ax_test, label='Test Loss')
 
     plt.tight_layout(rect=[0,0,0.9,1])  # leave space for colorbars
-    plt.show()
+    plt.savefig("bitchassbitch.pdf", dpi = 500)
