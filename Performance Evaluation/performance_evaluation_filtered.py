@@ -91,7 +91,7 @@ def loss_functions(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_
     MSPE_loss = msep_loss_B
     H, _ = compute_H_matrix(rir_test)
     AC_los = AC_loss(predicted_filter, true_filter, H, B_idx, D_idx)
-    return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_los), [mse_loss, cosine_loss, MSPE_loss, AC_los]
+    return (mse_loss+cosine_loss+MSPE_loss+AC_los), [mse_loss, cosine_loss, MSPE_loss, AC_los]
 
 def attenuation(rir, raw_wav, filtered, zone):
     raw_signal = cpwi(rir, raw_wav)[zone]
