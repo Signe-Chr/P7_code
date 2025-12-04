@@ -188,7 +188,7 @@ if p == 2:
 
             for fold in range(num_folds):
                 # Reload data for each fold
-                data_test, data_train = load_test_train_data(random_seed=folds)
+                data_test, data_train, data_val = load_test_train_data(random_seed=folds)
 
                 # Prepare training and test sets
                 X_train = data_train[0][:50].to(device).to(torch.float32)
@@ -354,7 +354,7 @@ if p == 3:
 
                 for fold in range(num_folds):
                     # Reload data for each fold
-                    data_test, data_train = load_test_train_data(random_seed=folds)
+                    data_test, data_train, data_val = load_test_train_data(random_seed=folds)
 
                     # Prepare training and test sets
                     X_train = data_train[0][:50].to(device).to(torch.float32)

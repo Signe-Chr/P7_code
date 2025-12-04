@@ -35,7 +35,7 @@ if p==1:
         fold_test_err= []
         print(f"\n--- Testing architecture: Layer 1: {neuron}")
         for folds in range(num_folds):
-            data_test,data_train=load_test_train_data(random_seed=folds)
+            data_test, data_train, data_val=load_test_train_data(random_seed=folds)
             data_test=data_test
             data_train=data_train
 
@@ -175,7 +175,7 @@ if p == 2:
                 print(f" Fold {fold+1}/{num_folds}")
 
                 # Reload data each fold
-                data_test, data_train = load_test_train_data(random_seed=fold)
+                data_test, data_train, data_val = load_test_train_data(random_seed=fold)
 
                 X_train = data_train[0][0:50].float()
                 X_test  = data_test[0][0:50].float()
@@ -348,7 +348,7 @@ if p == 3:
                 fold_test_err  = []
 
                 for fold in range(num_folds):
-                    data_test,data_train=load_test_train_data(random_seed=fold)
+                    data_test, data_train, data_val=load_test_train_data(random_seed=fold)
                     data_test=data_test
                     data_train=data_train
 

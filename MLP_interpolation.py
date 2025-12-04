@@ -46,7 +46,7 @@ def train_model(model, data, optimizer, device, wav):
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    data_test, data_train = load_test_train_data()
+    data_test, data_train, data_val = load_test_train_data()
     input_size = len(data_train[0][0])
     output_size = len(data_train[0]) # Assuming target is at index 1
 

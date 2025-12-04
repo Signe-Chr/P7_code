@@ -102,7 +102,7 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
     
 
-    data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
+    data_test, data_train, data_val = load_test_train_data(val_size=0.10, random_seed=42)
     filters_test, filters_train = data_test[1], data_train[1]
                 
     max_filters = len(filters_test)

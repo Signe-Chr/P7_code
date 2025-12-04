@@ -29,7 +29,7 @@ def load_data_and_model(chosen_model):
         model = torch.load("Saved Filters/interpolation_filters.pt")
 
     #---Load data and split into test and traning data---
-    data_test, data_train = load_test_train_data()
+    data_test, data_train, data_val = load_test_train_data()
 
     filters_test=data_test[1]
     filters_train=data_train[1]

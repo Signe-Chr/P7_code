@@ -6,7 +6,7 @@ from Dataset_class import L, J
 from multiprocessing import cpu_count
 from tqdm import tqdm
 import Loss_functions as lf
-from Test_train_split import load_test_train_data
+from Test_train_split import load_test_train_data, x_input_kronecker
 
 
 def train(data, wav, epochs, model, dev):
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     print(device)
 
     data_test, data_train, data_val = load_test_train_data()
-    x_input = torch.tensor([1])
+    x_input = x_input_kronecker
     p_features = len(data_train[0][0])    # Load the first data point and then find the length of the X matrix
     out_features = len(data_train[1][0])  # Length of the flattened filter coeffecients
     compute_cpus = cpu_count()-1
