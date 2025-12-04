@@ -8,7 +8,7 @@ from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE,compute_H_matri
 import matplotlib.pyplot as plt
 
 
-p=3
+p=1
 neurons = [128, 256, 512]
 
 layers = [1,2,3]
@@ -17,7 +17,7 @@ num_folds=5
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
-data_test, data_train, data_vail = load_test_train_data()
+data_test, data_train, data_val = load_test_train_data()
 
 
 input_size = len(data_train[0][0])

@@ -185,7 +185,7 @@ def AC_loss(q_pred, q_true, H, bright_indices, dark_indices):
         f_high = freq*fd
         k_low = int(torch.ceil(f_low/delta_f))
         k_high = int(torch.ceil(f_high/delta_f))
-        AC_loss_temp = torch.tensor(0,dtype=torch.float32)
+        AC_loss_temp = torch.tensor(0,dtype=torch.float32).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
         for k in range(k_low, k_high):
             AC_des = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g_true[:,k], M_B, M_D)
             AC_sim = AC_tilde(H[bright_indices][:,:,k], H[dark_indices][:,:,k], g[:,k], M_B, M_D)
