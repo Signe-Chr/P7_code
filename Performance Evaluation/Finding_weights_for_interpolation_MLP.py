@@ -75,15 +75,18 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
         
     return np.array(mse),np.array(cosine), np.array(MSEP),np.array(AC)
 
-chosen_model = "interpolation"
+chosen_model = "baseline"
 x_input = x_input_kronecker
 n_srcs_val, n_srcs_train, filters_val, filters_train, RIRs_val, RIRs_train, model_filters = load_data_and_model(chosen_model)
 mse,cosine, MSEP,AC=loss_function_evaluation(RIRs_val, model_filters, x_input, indeces_bright, indeces_dark, filters_val)
 list_index=[i for i in range(29)]
-plt.scatter(list_index,mse,label='mse')
-plt.scatter(list_index,cosine,label='Cosine similairty')
-plt.scatter(list_index,MSEP, label='MSEP')
-plt.scatter(list_index,AC,label='AC loss')
+plt.scatter(list_index,mse,label=r'$\mathcal{L}_1$')
+plt.scatter(list_index,cosine,label=r'$\mathcal{L}_2$')
+plt.scatter(list_index,MSEP, label=r'$\mathcal{L}_3$')
+plt.scatter(list_index,AC,label=r'$\mathcal{L}_4$')
+plt.xlabel('Filter index')
+plt.ylabel('Loss function value')
+plt.grid()
 plt.legend()
 plt.show()
 
