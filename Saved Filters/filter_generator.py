@@ -16,6 +16,7 @@ model_names = ("regression", "classification", "interpolation")
 #---Load data and split into test and traning data---
 data_test, data_train, data_val = load_test_train_data()
 X_test = data_test[0]
+X_train = data_train[0]
 X_val=data_val[0]
 filters_test = data_test[1]
 filters_train = data_train[1]
@@ -124,5 +125,5 @@ def test_model_efficiency(a, X_test, filters_test=filters_test, device='cpu'):
 
 # vælg model her (0-2)
 #generate_filters(0)  # regression
-generate_filters(1)  # classification
+generate_filters(1, X_test=X_train, Y_test=filters_train)  # classification
 #generate_filters(2)  # interpolation
