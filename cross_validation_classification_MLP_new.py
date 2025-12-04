@@ -8,7 +8,7 @@ from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE,compute_H_matri
 import matplotlib.pyplot as plt
 
 
-p=1
+p=2
 neurons = [128, 256, 512]
 
 layers = [1,2,3]
@@ -16,6 +16,7 @@ layers = [1,2,3]
 num_folds=5
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(device)
 data_test, data_train, data_vail = load_test_train_data()
 
 
@@ -329,7 +330,7 @@ if p == 2:
     plot_mse_grid(axes[0], train_err_grid, "Train error")
     plot_mse_grid(axes[1], test_err_grid, "Test error")
     plt.tight_layout()
-    plt.savefig(f"CV_classification_2_layers.pdf")
+    plt.savefig(f"Plots/CV_classification_2_layers.pdf")
     plt.show()
 
 if p == 3:
@@ -514,6 +515,6 @@ if p == 3:
     fig.colorbar(im_test, cax=cbar_ax_test, label='Test Loss')
 
     plt.tight_layout(rect=[0,0,0.9,1])  # leave space for colorbars
-    plt.savefig(f"CV_classification_3_layers.pdf")
+    plt.savefig(f"Plots/CV_classification_3_layers.pdf")
     plt.show()
 
