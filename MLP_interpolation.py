@@ -6,7 +6,7 @@ import Loss_functions as LF
 import Cross_validation_models as cvm
 import Dataset_class as dc
 from tqdm import tqdm
-from Test_train_split import load_test_train_data
+from Test_train_split import load_test_train_data, x_input_kronecker
 
 # ---- 1. Training function ----
 def train_model(model, data, optimizer, device, wav): 
@@ -30,8 +30,9 @@ def train_model(model, data, optimizer, device, wav):
         coefficients = model(X)
         outputs = torch.matmul(filters_train.T.float() , coefficients.T.float()).T.unsqueeze(0)
 
+        lambda_1,lambda_2,lambda_3,lambda_4=1/2.970,1/1.032,1/11.495,1/24.648
         H = LF.compute_H_matrix(rir, fs=16000, n_fft=None)[0].to(device)
-        loss = 1/4 * (LF.MSE(outputs, y) + LF.Cosine_similarity(outputs, y) + LF.MSEP(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, wav, B_idx, D_idx)[0] + LF.AC_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), H, B_idx, D_idx))
+        loss = lambda_1*LF.MSE(outputs, y) + lambda_2* LF.Cosine_similarity(outputs, y) + lambda_3* LF.MSEP(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, wav, B_idx, D_idx)[0] + lambda_4* LF.AC_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), H, B_idx, D_idx)
         #print(LF.MSE(outputs, y), LF.Cosine_similarity(outputs, y), LF.MSEP(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, wav, B_idx, D_idx)[0], LF.AC_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), H, B_idx, D_idx))
         loss.backward()
         optimizer.step()
@@ -46,13 +47,13 @@ def train_model(model, data, optimizer, device, wav):
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    data_test, data_train = load_test_train_data()
+    data_test, data_train, data_val = load_test_train_data()
     input_size = len(data_train[0][0])
     output_size = len(data_train[0]) # Assuming target is at index 1
 
     model_interpolation = cvm.FilterNet_interpolation(input_size, output_size).to(device)
     optimizer = optim.Adam(model_interpolation.parameters(), lr=1e-2)
-    x_input = torch.tensor([1])
+    x_input = x_input_kronecker
 
     # Training loop
     for epoch in range(1,51):

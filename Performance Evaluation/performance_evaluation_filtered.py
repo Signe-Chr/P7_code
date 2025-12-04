@@ -29,7 +29,7 @@ def load_data_and_model(chosen_model):
         model = torch.load("Saved Filters/interpolation_filters.pt")
 
     #---Load data and split into test and traning data---
-    data_test, data_train = load_test_train_data()
+    data_test, data_train, data_val = load_test_train_data()
 
     filters_test=data_test[1]
     filters_train=data_train[1]
@@ -91,7 +91,7 @@ def loss_functions(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_
     MSPE_loss = msep_loss_B
     H, _ = compute_H_matrix(rir_test)
     AC_los = AC_loss(predicted_filter, true_filter, H, B_idx, D_idx)
-    return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_los), [mse_loss, cosine_loss, MSPE_loss, AC_los]
+    return (mse_loss+cosine_loss+MSPE_loss+AC_los), [mse_loss, cosine_loss, MSPE_loss, AC_los]
 
 def attenuation(rir, raw_wav, filtered, zone):
     raw_signal = cpwi(rir, raw_wav)[zone]
@@ -135,7 +135,7 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, indeces_bright, rir
 #--------------------------------------------------------------
 # Main evaluation functions
 # -------------------------------------------------------------
-def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_input, indeces_bright_test, indeces_dark_test, true_filter):
+def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_input, indeces_bright_test, indeces_dark_test, true_filter, chosen_model):
     """
     Computes AC, PESQ, NSDP, and STOI for the entire test set using selected filters.
     
@@ -197,41 +197,9 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     print(f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation_DZ']}")
     print(f"Attenuation Bright Zone (std, mean, min, max):{results['Attenuation_BZ']}")
 
+    
+
     return results
-
-def plot_performance_metrics(AC, PESQ_B, PESQ_D, NSDP_B, NSDP_D, STOI_B, STOI_D, total_loss):
-    """
-    Creates boxplots for AC, PESQ, NSDP, and STOI for bright and dark zones.
-    
-    Parameters:
-        AC: np.array of acoustic contrast values
-        PESQ_B, PESQ_D: np.array of PESQ scores
-        NSDP_B, NSDP_D: np.array of NSDP scores
-        STOI_B, STOI_D: np.array of STOI scores
-    """
-
-    metrics = {
-        "AC (dB)": [AC],
-        "nSDP (dB)": [NSDP_B, NSDP_D],
-        "Total Loss": [total_loss]
-    }
-    
-    zone_labels = {
-        "AC (dB)": ["All zones"],
-        "nSDP (dB)": ["Bright", "Dark"],
-        "Total Loss": ["All zones"]
-    }
-    
-    plt.figure(figsize=(12, 10))
-    
-    for i, (metric_name, data) in enumerate(metrics.items(), 1):
-        plt.subplot(3, 2, i)
-        plt.boxplot(data, labels=zone_labels[metric_name],whis=[0,100])
-        plt.title(metric_name)
-        plt.grid(axis='y', linestyle='--', alpha=0.7)
-    
-    plt.tight_layout()
-    plt.show()
 
 def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_bright_test, indeces_dark_test, true_filter):
     """
@@ -288,13 +256,23 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "regression"
 "classification"
 
-chosen_model = "regression"
-print(f"Du har valgt {chosen_model}.")
+chosen_model = "random"
+print(f"Du har valgt {chosen_model} til evaluering.")
 
 x_input = x_input_kronecker
 n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, model = load_data_and_model(chosen_model)
 
-average_performance_metrics_with_filters(RIRs_test, filters_test, x_input, indeces_bright, indeces_dark, filters_test)
-loss_function_evaluation(RIRs_test, filters_test, x_input, indeces_bright, indeces_dark, filters_test)
+results = average_performance_metrics_with_filters(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test, chosen_model)
+loss = loss_function_evaluation(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test)
+#results.append(loss)
 
+gemt = [f"AC (std, mean, min, max): {results['AC']}\n",
+            f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}\n", 
+            f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation_DZ']}\n",
+            f"Attenuation Bright Zone (std, mean, min, max):{results['Attenuation_BZ']}\n",
+            f"Total loss Bright Zone (std, mean, min, max):{loss['Total Loss']}\n",
+            f"Individual Losses (MSE, Cosine, MSEP, AC) (std, mean, min, max):{loss['Individual Losses']}"]
 
+with open(f"Performance Evaluation/Results/{chosen_model}.txt", "w") as file:
+    for string in gemt:
+        file.writelines(string)

@@ -7,7 +7,8 @@ import numpy as np
 from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE,compute_H_matrix
 import matplotlib.pyplot as plt
 
-p=3
+
+p=2
 neurons = [128, 256, 512]
 
 layers = [1,2,3]
@@ -15,7 +16,8 @@ layers = [1,2,3]
 num_folds=5
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-data_test,data_train=load_test_train_data()
+print(device)
+data_test, data_train, data_vail = load_test_train_data()
 
 
 input_size = len(data_train[0][0])
@@ -35,7 +37,7 @@ if p==1:
         fold_test_err= []
         print(f"\n--- Testing architecture: Layer 1: {neuron}")
         for folds in range(num_folds):
-            data_test,data_train=load_test_train_data(random_seed=folds)
+            data_test, data_train, data_val=load_test_train_data(random_seed=folds)
             data_test=data_test
             data_train=data_train
 
@@ -137,8 +139,8 @@ if p==1:
                     L4_train = AC_loss(pred_sample, true_sample, compute_H_matrix(rirs_train_i)[0], bright_zone_mics_index, dark_zone_mics_index)
                     L4_test  = AC_loss(pred_sample_test, true_sample_test, compute_H_matrix(rirs_test_i)[0], bright_zone_mics_index, dark_zone_mics_index)
 
-                    filters_loss_train.append(0.25 * (L1_train + L2_train + L3_train + L4_train))
-                    filters_loss_test.append( 0.25 * (L1_test  + L2_test  + L3_test  + L4_test))
+                    filters_loss_train.append( (L1_train + L2_train + L3_train + L4_train))
+                    filters_loss_test.append( (L1_test  + L2_test  + L3_test  + L4_test))
 
                 # Average across samples
                 train_err = torch.stack(filters_loss_train).mean().item()
@@ -175,7 +177,7 @@ if p == 2:
                 print(f" Fold {fold+1}/{num_folds}")
 
                 # Reload data each fold
-                data_test, data_train = load_test_train_data(random_seed=fold)
+                data_test, data_train, data_val = load_test_train_data(random_seed=fold)
 
                 X_train = data_train[0][0:50].float()
                 X_test  = data_test[0][0:50].float()
@@ -293,8 +295,8 @@ if p == 2:
                         L4_train = AC_loss(pred_sample, true_sample, H_train, bright_zone_mics_index, dark_zone_mics_index)
                         L4_test  = AC_loss(pred_sample_test, true_sample_test, H_test, bright_zone_mics_index, dark_zone_mics_index)
 
-                        filters_loss_train.append(0.25*(L1_train+L2_train+L3_train+L4_train))
-                        filters_loss_test.append(0.25*(L1_test+L2_test+L3_test+L4_test))
+                        filters_loss_train.append((L1_train+L2_train+L3_train+L4_train))
+                        filters_loss_test.append((L1_test+L2_test+L3_test+L4_test))
 
                     # Fold errors
                     train_mse_folds.append(torch.stack(filters_loss_train).mean().item())
@@ -328,6 +330,7 @@ if p == 2:
     plot_mse_grid(axes[0], train_err_grid, "Train error")
     plot_mse_grid(axes[1], test_err_grid, "Test error")
     plt.tight_layout()
+    plt.savefig(f"Plots/CV_classification_2_layers.pdf")
     plt.show()
 
 if p == 3:
@@ -348,7 +351,7 @@ if p == 3:
                 fold_test_err  = []
 
                 for fold in range(num_folds):
-                    data_test,data_train=load_test_train_data(random_seed=fold)
+                    data_test, data_train, data_val=load_test_train_data(random_seed=fold)
                     data_test=data_test
                     data_train=data_train
 
@@ -450,8 +453,8 @@ if p == 3:
                                                compute_H_matrix(rirs_test_i)[0],
                                                bright_zone_mics_index, dark_zone_mics_index)
 
-                            filters_loss_train.append(0.25*(L1_train + L2_train + L3_train + L4_train))
-                            filters_loss_test.append(0.25*(L1_test + L2_test + L3_test + L4_test))
+                            filters_loss_train.append((L1_train + L2_train + L3_train + L4_train))
+                            filters_loss_test.append((L1_test + L2_test + L3_test + L4_test))
 
                         # Average across samples
                         fold_train_err.append(torch.stack([t.flatten() for t in filters_loss_train]).mean().item())
@@ -512,4 +515,6 @@ if p == 3:
     fig.colorbar(im_test, cax=cbar_ax_test, label='Test Loss')
 
     plt.tight_layout(rect=[0,0,0.9,1])  # leave space for colorbars
+    plt.savefig(f"Plots/CV_classification_3_layers.pdf")
     plt.show()
+

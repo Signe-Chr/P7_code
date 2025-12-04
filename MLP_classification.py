@@ -45,7 +45,7 @@ def train_epoch(model, data, criterion, optimizer, device):
 def main():
     # Device setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    data_test, data_train = load_test_train_data()
+    data_test, data_train, data_val = load_test_train_data()
     input_size = len(data_train[0][0])
     output_size = len(data_train[0])
 
@@ -56,7 +56,7 @@ def main():
     if os.path.exists("MLP_classification.pth"):
         model.load_state_dict(torch.load("MLP_classification.pth"))
     # Training loop
-    for epoch in tqdm(range(1,51)):
+    for epoch in tqdm(range(1, 41)):
         model, train_loss, train_acc = train_epoch(model, data_train, criterion, optimizer, device)
         print(f"Epoch {epoch:02d} | Loss: {train_loss:.4f} | Acc: {train_acc:.2f}%")
 

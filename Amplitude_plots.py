@@ -2,23 +2,18 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import scipy.io.wavfile as wavfile
+from Test_train_split import load_test_train_data
 
-# === Load data ===
-wav_path = "relaxing-guitar-loop-v5-245859.wav"
-fs_wav, wav = wavfile.read(wav_path)
-wav = wav[5*44100:7*44100]
+J=1024
+x_inp = [1] + [0]*(J+512-2)
+data_test, data_train, data_val = load_test_train_data()
+
+q_filters=data_test[1][0]
 
 
-dict_ = np.load(
-    r"C:\Users\marst\OneDrive\Skrivebord\UNI\S. 7\PROJEKT\P7\Signes_data\VAST_0_0_0_0_0.npy",
-    allow_pickle=True
-).item()
-
-bright_zone_IR = np.array(dict_['IR'][12])
-
-dark_zone_IR = np.array(dict_['IR'][4])
-q_filters = dict_['q_matrix']
-
+RIRs_test=data_test[5][0]
+bright_zone_IR=RIRs_test[12]
+dark_zone_IR=RIRs_test[4]
 
 # === Load filters ===
 filters_random = torch.load("Saved Filters/random_selection_filters.pt")['selected_filters'][0].reshape(3, 1024)
@@ -32,7 +27,7 @@ def resulting_amp_bright(q):
     y_tot = 0
     for i in range(3):
         y_temp = np.convolve(q[i], bright_zone_IR[i])
-        y = np.convolve(y_temp, wav)
+        y = np.convolve(y_temp, x_inp)
         y_tot += y
     return y_tot
 
@@ -54,7 +49,7 @@ def resulting_amp_dark(q):
     y_tot = 0
     for i in range(3):
         y_temp = np.convolve(q[i], dark_zone_IR[i])
-        y = np.convolve(y_temp, wav)
+        y = np.convolve(y_temp, x_inp)
         y_tot += y
     return y_tot
 
@@ -72,11 +67,11 @@ filter_sets = {
 font = 10
 
 bright_signal = resulting_amp_bright(q_filters)[:88200]
-bright_original_signal = resulting_amp_original_bright(wav)[:88200]
+bright_original_signal = resulting_amp_original_bright(x_inp)[:88200]
 
 norm = max(abs(bright_original_signal))
 
-dark_original_signal = resulting_amp_original_dark(wav)[:88200]
+dark_original_signal = resulting_amp_original_dark(x_inp)[:88200]
 dark_signal = resulting_amp_dark(q_filters)[:88200]
 
 # normalize for fair comparison (optional)
@@ -86,7 +81,7 @@ dark_original_signal = dark_original_signal / norm
 dark_signal = dark_signal / norm
 
 # make time vector (samples to seconds)
-t = np.arange(len(bright_signal)) / fs_wav
+t = np.arange(len(bright_signal)) / 16000
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True, sharey=True)
 plt.rcParams.update({"font.size": 17})
@@ -98,6 +93,7 @@ ax1.plot(t, bright_original_signal, label='Unfiltered',
          color='limegreen', alpha=0.25, linewidth=1.2)
 ax1.plot(t, bright_signal, label='VAST',
          color='orange', alpha=0.55, linewidth=1.2)
+ax1.set_xlim(0,0.028)
 
 ax1.set_ylabel("Normalised Amplitude", fontsize=20)
 ax1.set_title("Bright Zone Signals", fontsize=25)
@@ -115,6 +111,7 @@ ax2.plot(t, dark_original_signal, label='Unfiltered',
 ax2.plot(t, dark_signal, label='VAST',
          color='blue', alpha=0.55, linewidth=1.2)
 
+ax2.set_xlim(0,0.028)
 ax2.set_xlabel("Time [s]", fontsize=20)
 ax2.set_ylabel("Normalised Amplitude", fontsize=20)
 ax2.set_title("Dark Zone Signals", fontsize=25)
@@ -130,7 +127,7 @@ ax2.legend(loc="upper right")
 # ax1.set_ylim(-1.1, 1.1)
 
 plt.tight_layout()
-plt.savefig("Vast_fig_brightdark_subplots.pdf", dpi=500)
+plt.savefig("ACC_fig_brightdark_subplots.pdf", dpi=500)
 plt.show()
 
 print("Subplot figure saved.")

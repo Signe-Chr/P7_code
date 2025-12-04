@@ -31,7 +31,7 @@ def Extensive_search(
     times_per_test = []
 
     # Loss weights
-    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 0.25, 0.25, 0.25, 0.25
+    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 1/3.729, 1/1.000, 1/18.390, 1/17.181
     print("\nStarting Extensive Brute-Force Search with FULL COMPOSITE LOSS...")
     for i in tqdm(range(N_test)):
 
@@ -102,29 +102,13 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
     
 
-    data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
+    data_test, data_train, data_val = load_test_train_data(val_size=0.10, random_seed=42)
     filters_test, filters_train = data_test[1], data_train[1]
-    IR_test,IR_train =data_test[5], data_train[5]
-    for i, ir_test in enumerate(IR_test):
-        for j, ir_train in enumerate(IR_train):
-            if torch.equal(ir_test, ir_train):
-                print(f"Test IR {i} is exactly equal to Train IR {j}")
-    tol = 1e-12
-    all_zero_test = (IR_test.abs() < tol).all()
-    all_zero_train = (IR_train.abs() < tol).all()
-    print(all_zero_test, all_zero_train)
-    
-    for i in range(len(filters_train)):
-        for k in range(len(filters_train[i])):
-            if filters_train[i][k]!=0 and filters_train[i][k]!=1000:
-                print(f'THIS k IS NOT EQUAL TO ZERO:{k}, filter{i}, value{filters_train[i][k]}')
                 
-            
-
     max_filters = len(filters_test)
     x_input = torch.tensor([1])
     IR_train = data_train[5]
-    exit()
+    
     Extensive_search(
         filters_test=filters_test, 
         dictionary=filters_train, 

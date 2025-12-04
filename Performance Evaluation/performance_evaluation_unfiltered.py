@@ -15,7 +15,7 @@ from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matr
 
 #---Load data test and train data---
 def load_data():
-    data_test, data_train = load_test_train_data()
+    data_test, data_train, data_val = load_test_train_data()
     RIRs_train=data_train[5]
     RIRs_test=data_test[5]
 
