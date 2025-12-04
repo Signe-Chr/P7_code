@@ -1,4 +1,4 @@
-import os, sys, torch
+import os, torch
 import numpy as np
 import Cross_validation_models as cvm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
@@ -8,14 +8,6 @@ from tqdm import tqdm
 import Loss_functions as lf
 from Test_train_split import load_test_train_data
 
-def train2(data, wav, epochs, model, dev):
-    for epoch in range(epochs):
-        loop = tqdm(data, desc=f"Epoch {epoch+1}/{epochs}", disable=not sys.stdout.isatty())
-        for batch in loop:
-            batch_X, flat_batch_y = batch[0].to(dev, dtype=torch.float32), batch[1].to(dev, dtype=torch.float32)
-            batch_y = flat_batch_y.reshape(L, J)
-            batch_IR = batch[5][0]
-    return model
 
 def train(data, wav, epochs, model, dev):
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -30,7 +22,7 @@ def train(data, wav, epochs, model, dev):
     a1, a2, a3, a4, a5, a6, a7, a8 = data
     # Repack data to make sure it has the lengths it's supposed to
     data = [a1, a2, np.array([a3]).T, np.array([a4]).T, a5, a6, a7, a8]
-    for epoch in range(epochs):
+    for epoch in tqdm(range(epochs)):
         model.train()
         total_loss = 0.0
 
@@ -72,14 +64,12 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
 
-    X_test, X_train = load_test_train_data(test_size=0.25, random_seed=42)
+    data_test, data_train, data_val = load_test_train_data()
     x_input = torch.tensor([1])
-    p_features = len(X_train[0][0])    # Load the first data point and then find the length of the X matrix
-    out_features = len(X_train[1][0])  # Length of the flattened filter coeffecients
+    p_features = len(data_train[0][0])    # Load the first data point and then find the length of the X matrix
+    out_features = len(data_train[1][0])  # Length of the flattened filter coeffecients
     compute_cpus = cpu_count()-1
     torch.set_num_threads(compute_cpus)
-    #train_loader = DataLoader(X_train, batch_size=1, shuffle=True, num_workers=1)
-    #wav = dgs.wav / np.max(np.abs(dgs.wav))
     model = cvm.FilterNet_regression(p_features, out_features).to(device)
     if os.path.exists("MLP_regression_checkpoint.pth"):
         model.load_state_dict(torch.load("MLP_regression_checkpoint.pth"))
@@ -87,5 +77,5 @@ if __name__ == "__main__":
     elif os.path.exists("MLP_regression.pth"):
         model.load_state_dict(torch.load("MLP_regression.pth"))
         print("Succesfully loaded a previously trained model")
-    model = train(X_train, x_input.to(device), epochs=40, dev=device, model=model)
+    model = train(data_train, x_input.to(device), epochs=40, dev=device, model=model)
     torch.save(model.state_dict(), f"MLP_regression.pth")
