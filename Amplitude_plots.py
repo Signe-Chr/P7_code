@@ -6,7 +6,7 @@ from Test_train_split import load_test_train_data
 
 J=1024
 x_inp = [1] + [0]*(J+512-2)
-data_test, data_train = load_test_train_data()
+data_test, data_train, data_val = load_test_train_data()
 
 q_filters=data_test[1][0]
 
