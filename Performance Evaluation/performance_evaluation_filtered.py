@@ -290,7 +290,7 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "regression"
 "classification"
 
-chosen_model = "classification"
+chosen_model = "random"
 print(f"Du har valgt {chosen_model} til evaluering.")
 
 x_input = x_input_kronecker
