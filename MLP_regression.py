@@ -22,16 +22,19 @@ def train(data, wav, epochs, model, dev):
     a1, a2, a3, a4, a5, a6, a7, a8 = data
     # Repack data to make sure it has the lengths it's supposed to
     data = [a1, a2, np.array([a3]).T, np.array([a4]).T, a5, a6, a7, a8]
-    for epoch in tqdm(range(epochs)):
+    data = list(zip(*data))
+    data_len = len(data)
+    for epoch in range(epochs):
         model.train()
         total_loss = 0.0
 
         # Use zip(*data) to be able to loop over singular datapoints
-        for sample in zip(*data):   # <-- ét datapunkt ad gangen
+        loop = tqdm(data, desc=f"Epoch {epoch+1}/{epochs}")
+        for sample in loop:   # <-- ét datapunkt ad gangen
 
             # Pak datapunktet ud
-            X = torch.tensor(sample[0], dtype=torch.float32).to(dev)
-            flat_y = torch.tensor(sample[1], dtype=torch.float32).to(dev).unsqueeze(0)
+            X = sample[0].to(dev).to(torch.float32)
+            flat_y = sample[1].to(dev).to(torch.float32).unsqueeze(0)
             IR = sample[5]    # eller sample[2], afhængigt af strukturen
 
             # Reshape kun hvis størrelsen matcher
@@ -46,8 +49,6 @@ def train(data, wav, epochs, model, dev):
             #flat_outputs = model(batch_X)
             #outputs = flat_outputs.reshape(L, J)
             H = compute_H_matrix(IR)[0].to(dev)
-        
-
            
             #loss = MSE(outputs, batch_y) + Cosine_similarity(flat_outputs, flat_batch_y) + MSEP(outputs, batch_y, batch_IR, batch_IR, wav, bright_batch, dark_batch)[0] + AC_loss(outputs, batch_y, H, bright_batch, dark_batch)
             loss = alpha*lf.L_1_reg(outputs, y, H, bright_indices) + (1-alpha)* lf.L_2_reg(outputs, H, dark_indices) + beta*lf.L_3_reg(outputs, L) +  gamma*lf.L_4_reg(outputs, dev)
@@ -55,9 +56,9 @@ def train(data, wav, epochs, model, dev):
             optimizer.step()
 
             total_loss += loss.item()
-            torch.save(model.state_dict(), f"MLP_regression_checkpoint.pth")
-
-        print(f"Epoch {epoch+1}: loss = {total_loss/len(data):.4f}")
+            loop.set_postfix_str(f"loss ={total_loss/(loop.n+1):6.2f}")
+        torch.save(model.state_dict(), f"MLP_regression_checkpoint.pth")
+        #print(f"Epoch {epoch+1}: loss = {total_loss/data_len:.4f}")
     return model
 
 if __name__ == "__main__":
