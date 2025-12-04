@@ -14,29 +14,29 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model_names = ("regression", "classification", "interpolation")
 
 #---Load data and split into test and traning data---
-data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
+data_test, data_train, data_val = load_test_train_data()
 X_test = data_test[0]
+X_val=data_val[0]
 filters_test = data_test[1]
 filters_train = data_train[1]
-
-
+filters_val = data_val[1]
 
 def load_model(a):
     model_name = model_names[a]  # vælg model her
     input_size = 9
     output_file = os.path.join(save_dir, f"{model_name}_filters.pt")
     if model_name == "regression":
-        output_size = 3072
+        output_size = filters_train.shape[1]
         model = cvm.FilterNet_regression(input_size, output_size).to(device)
         model.load_state_dict(torch.load("MLP_regression.pth", map_location=device))
     elif model_name == "classification":
-        output_size = 324 
+        output_size = filters_train.shape[0] 
         model = cvm.FilterNet_classification(input_size, output_size).to(device)
         model.load_state_dict(torch.load("MLP_classification.pth", map_location=device))
     elif model_name == "interpolation":
-        output_size = 324
+        output_size = filters_train.shape[0]
         model = cvm.FilterNet_interpolation(input_size, output_size).to(device)
-        model.load_state_dict(torch.load("MLP_interpolation.pth", map_location=device))
+        model.load_state_dict(torch.load("MLP_interpolation_without_weights.pth", map_location=device))
     model.eval()
     return model, output_file
 
@@ -51,7 +51,7 @@ def generate_filters(a, X_test=X_test, Y_test = filters_test, Y_train = filters_
                 output = _, prediction = torch.max(output, 1)
                 output = Y_train[prediction]
             if a == 2:
-                output = torch.matmul(Y_test.T.float(), output.T.float()).T
+                output = torch.matmul(Y_train.T.float(), output.T.float()).T
 
         # Gem output i dict
         all_outputs.append(output.cpu())
@@ -60,7 +60,7 @@ def generate_filters(a, X_test=X_test, Y_test = filters_test, Y_train = filters_
     torch.save(all_outputs, output_file)
     print(f"All outputs saved in '{output_file}'")
 
-def test_model_efficiency(a, X_test, device='cpu'):
+def test_model_efficiency(a, X_test, filters_test=filters_test, device='cpu'):
     """
     Evaluates computational efficiency of a model on:
     - Inference time (avg per sample)
@@ -123,6 +123,6 @@ def test_model_efficiency(a, X_test, device='cpu'):
 
 
 # vælg model her (0-2)
-generate_filters(0)  # regression
+#generate_filters(0)  # regression
 #generate_filters(1)  # classification
-#generate_filters(2)  # interpolation
+generate_filters(2)  # interpolation
