@@ -8,7 +8,7 @@ from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE,compute_H_matri
 import matplotlib.pyplot as plt
 
 
-p=2
+p=3
 neurons = [128, 256, 512]
 
 layers = [1,2,3]
@@ -317,15 +317,19 @@ if p == 2:
         im = ax.imshow(mse_grid, origin='lower', cmap='viridis')
         for x in range(mse_grid.shape[0]):
             for y in range(mse_grid.shape[1]):
-                ax.text(y, x, f"{mse_grid[x, y]:.4f}", ha='center', va='center', color='w')
+                ax.text(y, x, f"{mse_grid[x, y]:.2f}", ha='center', va='center', color='w',fontsize=15)
         ax.set_xticks(np.arange(len(neurons2)))
         ax.set_xticklabels(neurons2)
         ax.set_yticks(np.arange(len(neurons1)))
         ax.set_yticklabels(neurons1)
-        ax.set_xlabel("Neurons in 2nd layer")
-        ax.set_ylabel("Neurons in 1st layer")
+        ax.set_xlabel("Neurons in Layer 1", fontsize=12)
+        ax.set_ylabel("Neurons in Layer 2", fontsize=12)
+        ax.tick_params(axis='x',labelsize=12)
+        ax.tick_params(axis='y',labelsize=12)
         ax.set_title(title)
-        fig.colorbar(im, ax=ax)
+        cbar = fig.colorbar(im, ax=ax)
+        cbar.set_label(title, fontsize=12)      # change label font size
+        cbar.ax.tick_params(labelsize=12) 
 
     plot_mse_grid(axes[0], train_err_grid, "Train error")
     plot_mse_grid(axes[1], test_err_grid, "Test error")
@@ -480,39 +484,47 @@ if p == 3:
         # --- Plot Train Loss ---
         ax_train = axes[0, k]
         im_train = ax_train.imshow(train_slice, origin='lower', cmap='viridis', vmin=vmin_train, vmax=vmax_train)
-        for x in range(len(neurons1)):
-            for y in range(len(neurons2)):
-                ax_train.text(y, x, f"{train_slice[x, y]:.4f}", ha='center', va='center', color='w', fontsize=8)
-        ax_train.set_xticks(range(len(neurons2)))
-        ax_train.set_xticklabels(neurons2)
-        ax_train.set_yticks(range(len(neurons1)))
-        ax_train.set_yticklabels(neurons1)
-        ax_train.set_xlabel("Neurons in Layer 2")
-        ax_train.set_ylabel("Neurons in Layer 1")
+        for x in range(len(neurons2)):
+            for y in range(len(neurons1)):
+                ax_train.text(y, x, f"{train_slice[x, y]:.2f}", ha='center', va='center', color='w', fontsize=15)
+        ax_train.set_xticks(range(len(neurons1)))
+        ax_train.set_xticklabels(neurons1)
+        ax_train.set_yticks(range(len(neurons2)))
+        ax_train.set_yticklabels(neurons2)
+        ax_train.set_xlabel("Neurons in Layer 1", fontsize=12)
+        ax_train.set_ylabel("Neurons in Layer 2", fontsize=12)
         ax_train.set_title(f"Train Loss, L3={neuron3}")
+        ax_train.tick_params(axis='x',labelsize=12)
+        ax_train.tick_params(axis='y',labelsize=12)
 
         # --- Plot Test Loss ---
         ax_test = axes[1, k]
         im_test = ax_test.imshow(test_slice, origin='lower', cmap='viridis', vmin=vmin_test, vmax=vmax_test)
-        for x in range(len(neurons1)):
-            for y in range(len(neurons2)):
-                ax_test.text(y, x, f"{test_slice[x, y]:.4f}", ha='center', va='center', color='w', fontsize=8)
-        ax_test.set_xticks(range(len(neurons2)))
-        ax_test.set_xticklabels(neurons2)
-        ax_test.set_yticks(range(len(neurons1)))
-        ax_test.set_yticklabels(neurons1)
-        ax_test.set_xlabel("Neurons in Layer 2")
-        ax_test.set_ylabel("Neurons in Layer 1")
+        for x in range(len(neurons2)):
+            for y in range(len(neurons1)):
+                ax_test.text(y, x, f"{test_slice[x, y]:.2f}", ha='center', va='center', color='w', fontsize=15)
+        ax_test.set_xticks(range(len(neurons1)))
+        ax_test.set_xticklabels(neurons1)
+        ax_test.set_yticks(range(len(neurons2)))
+        ax_test.set_yticklabels(neurons2)
+        ax_test.set_xlabel("Neurons in Layer 1", fontsize=12)
+        ax_test.set_ylabel("Neurons in Layer 2", fontsize=12)
         ax_test.set_title(f"Test Loss, L3={neuron3}")
+        ax_test.tick_params(axis='x',labelsize=12)
+        ax_test.tick_params(axis='y',labelsize=12)
 
     # --- Add shared colorbars ---
     # Train colorbar
-    cbar_ax_train = fig.add_axes([0.92, 0.55, 0.02, 0.35])  # [left, bottom, width, height]
-    fig.colorbar(im_train, cax=cbar_ax_train, label='Train Loss')
+    # Train colorbar
+    cbar_ax_train = fig.add_axes([0.92, 0.55, 0.02, 0.35])
+    cbar_train = fig.colorbar(im_train, cax=cbar_ax_train)
+    cbar_train.set_label('Train Loss', fontsize=12)   # <-- change font size here
 
     # Test colorbar
     cbar_ax_test = fig.add_axes([0.92, 0.1, 0.02, 0.35])
-    fig.colorbar(im_test, cax=cbar_ax_test, label='Test Loss')
+    cbar_test = fig.colorbar(im_test, cax=cbar_ax_test)
+    cbar_test.set_label('Test Loss', fontsize=12)     # <-- and here
+
 
     plt.tight_layout(rect=[0,0,0.9,1])  # leave space for colorbars
     plt.savefig(f"Plots/CV_classification_3_layers.pdf")
