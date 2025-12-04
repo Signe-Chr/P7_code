@@ -290,7 +290,7 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "regression"
 "classification"
 
-chosen_model = "regression"
+chosen_model = "random"
 print(f"Du har valgt {chosen_model} til evaluering.")
 
 x_input = x_input_kronecker
@@ -298,14 +298,14 @@ n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, m
 
 results = average_performance_metrics_with_filters(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test, chosen_model)
 loss = loss_function_evaluation(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test)
-results.append(loss)
+#results.append(loss)
 
 gemt = [f"AC (std, mean, min, max): {results['AC']}\n",
             f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}\n", 
             f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation_DZ']}\n",
             f"Attenuation Bright Zone (std, mean, min, max):{results['Attenuation_BZ']}\n",
-            f"Total loss Bright Zone (std, mean, min, max):{results['Total Loss']}\n",
-            f"Individual Losses (MSE, Cosine, MSEP, AC) (std, mean, min, max):{results['Individual Losses']}"]
+            f"Total loss Bright Zone (std, mean, min, max):{loss['Total Loss']}\n",
+            f"Individual Losses (MSE, Cosine, MSEP, AC) (std, mean, min, max):{loss['Individual Losses']}"]
 
 with open(f"Performance Evaluation/Results/{chosen_model}.txt", "w") as file:
     for string in gemt:
