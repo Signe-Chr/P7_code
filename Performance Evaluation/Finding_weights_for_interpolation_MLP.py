@@ -8,7 +8,7 @@ from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
 from performance_evaluation_unfiltered import compute_pressure_with_input as cpwi
 from Test_train_split import load_test_train_data, load_wav_file, L, J, x_input_kronecker, indeces_bright, indeces_dark
-import tqdm
+
 def load_data_and_model(chosen_model):
     if chosen_model == "interpolation":
         model = torch.load("Saved Filters/interpolation_filters.pt")
@@ -65,7 +65,7 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
         true_filters=true_filters_flat.reshape(n_srcs,filter_len)
 
         # Compute metrics    
-        mse_loss, cosine_loss, MSPE_loss, AC_los = loss_functions(true_filters, filters, rirs, wav_input, indeces_bright_test, indeces_dark_test)
+        mse_loss, cosine_loss, MSPE_loss, AC_loss = loss_functions(true_filters, filters, rirs, wav_input, indeces_bright_test, indeces_dark_test)
         
         # Append results
         mse.append(mse_loss)
@@ -80,10 +80,10 @@ x_input = x_input_kronecker
 n_srcs_val, n_srcs_train, filters_val, filters_train, RIRs_val, RIRs_train, model_filters = load_data_and_model(chosen_model)
 mse,cosine, MSEP,AC=loss_function_evaluation(RIRs_val, model_filters, x_input, indeces_bright, indeces_dark, filters_val)
 
-plt.plot(mse,label='mse')
-plt.plot(cosine,label='Cosine similairty')
-plt.plot(MSEP, label='MSEP')
-plt.plot(AC,label='AC loss')
+plt.scatter(mse,label='mse')
+plt.scatter(cosine,label='Cosine similairty')
+plt.scatter(MSEP, label='MSEP')
+plt.scatter(AC,label='AC loss')
 plt.legend()
 plt.show()
 
@@ -97,5 +97,5 @@ median_cosine=np.median(cosine)
 median_msep=np.median(MSEP)
 median_AC=np.median(AC)
 
-print(f'Means: MSE: {mean_mse}, Cosine similairty: {mean_cosine}, MSEP: {mean_msep}, AC:{mean_AC}')
-print(f'Medians: MSE: {median_mse}, Cosine similairty: {median_cosine}, MSEP: {median_msep}, AC:{median_AC}')
+print(f'Means: MSE: {mean_mse:.3f}, Cosine similairty: {mean_cosine:.3f}, MSEP: {mean_msep:.3f}, AC:{mean_AC:.3f}')
+print(f'Medians: MSE: {median_mse:.3f}, Cosine similairty: {median_cosine:.3f}, MSEP: {median_msep:.3f}, AC:{median_AC:.3f}')
