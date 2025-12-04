@@ -135,7 +135,7 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, indeces_bright, rir
 #--------------------------------------------------------------
 # Main evaluation functions
 # -------------------------------------------------------------
-def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_input, indeces_bright_test, indeces_dark_test, true_filter):
+def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_input, indeces_bright_test, indeces_dark_test, true_filter, chosen_model):
     """
     Computes AC, PESQ, NSDP, and STOI for the entire test set using selected filters.
     
@@ -196,6 +196,8 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     print(f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}")
     print(f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation_DZ']}")
     print(f"Attenuation Bright Zone (std, mean, min, max):{results['Attenuation_BZ']}")
+
+    
 
     return results
 
@@ -289,12 +291,22 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "classification"
 
 chosen_model = "regression"
-print(f"Du har valgt {chosen_model}.")
+print(f"Du har valgt {chosen_model} til evaluering.")
 
 x_input = x_input_kronecker
 n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, model = load_data_and_model(chosen_model)
 
-average_performance_metrics_with_filters(RIRs_test, filters_test, x_input, indeces_bright, indeces_dark, filters_test)
-loss_function_evaluation(RIRs_test, filters_test, x_input, indeces_bright, indeces_dark, filters_test)
+results = average_performance_metrics_with_filters(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test, chosen_model)
+loss = loss_function_evaluation(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test)
+results.append(loss)
 
+gemt = [f"AC (std, mean, min, max): {results['AC']}\n",
+            f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}\n", 
+            f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation_DZ']}\n",
+            f"Attenuation Bright Zone (std, mean, min, max):{results['Attenuation_BZ']}\n",
+            f"Total loss Bright Zone (std, mean, min, max):{results['Total Loss']}\n",
+            f"Individual Losses (MSE, Cosine, MSEP, AC) (std, mean, min, max):{results['Individual Losses']}"]
 
+with open(f"Performance Evaluation/Results/{chosen_model}.txt", "w") as file:
+    for string in gemt:
+        file.writelines(string)
