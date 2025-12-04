@@ -273,11 +273,11 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
     # Compute statistics
     results = {
         "Total Loss":(np.sqrt(np.var(tot_loss_list)).item(),np.mean(tot_loss_list).item(), np.min(tot_loss_list).item(),   np.max(tot_loss_list).item()),
-        "Individual Losses" : (individual_losses_arr.mean(axis=0), individual_losses_arr.min(axis=0), individual_losses_arr.max(axis=0)),
+        "Individual Losses" : (np.sqrt(individual_losses_arr.var(axis=0)),individual_losses_arr.mean(axis=0), individual_losses_arr.min(axis=0), individual_losses_arr.max(axis=0)),
     }
 
     print(f"Total loss Bright Zone (std, mean, min, max):{results['Total Loss']}")
-    print(f"Individual Losses (MSE, Cosine, MSEP, AC) (mean, min, max):{results['Individual Losses']}")
+    print(f"Individual Losses (MSE, Cosine, MSEP, AC) (std, mean, min, max):{results['Individual Losses']}")
 
     return results
 

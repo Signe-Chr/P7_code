@@ -36,44 +36,6 @@ def toeplitz(x, n, K, J):
                 X[k, j] = x[index]
     return X
 
-def R_c_(x, rir):
-    K = max(np.shape(rir))
-    N = len(x)
-    h = []
-    for m in range(M):
-        h_m = []
-        for l in range(L):
-            h_m += list(rir[m][l])
-        h.append(h_m)
-    h = np.array(h).T
-    zero_countnt = 0
-
-    for n in range(N):
-        #print(n/N)
-        H_B_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,indeces_bright])
-
-        temp = np.matmul(H_B_n, H_B_n.T)
-        if not np.all(temp==0):
-            zero_countnt +=1
-        if n == 0:
-            R_B = np.zeros_like(temp)
-        R_B += temp
-    R_B = 1/(len(indeces_bright)*zero_countnt) * R_B
-
-    zero_countnt = 0
-    for n in range(N):
-        #print(n/N)
-        H_D_n = np.matmul(np.kron(toeplitz(x, n, K, J), np.eye(L)).T, h[:,indeces_dark])
-        temp = np.matmul(H_D_n, H_D_n.T)
-        if not np.all(temp==0):
-            zero_countnt +=1
-        if n == 0:
-            R_D = np.zeros_like(temp)
-        R_D += temp
-    R_D = 1/(len(indeces_dark)*zero_countnt) * R_D
-    #print(R_D, R_D)
-
-    return R_B, R_D
 
 def R_c(x, rir):
     K = max(np.shape(rir))

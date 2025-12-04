@@ -53,11 +53,11 @@ def Extensive_search(
             rir_j = IR_train[j].to(torch.double)
 
             # Compute losses
-            mse_loss = LF.MSE(tf, df)
-            cosine_loss = LF.Cosine_similarity(tf, df)
+            mse_loss = LF.MSE(df, tf)
+            cosine_loss = LF.Cosine_similarity(df, tf)
             H = LF.compute_H_matrix(rir_j)[0].to(device)
-            ac_loss = LF.AC_loss(tf2D, df2D, H, bright_zone_mics_index, dark_zone_mics_index)
-            msep_loss = LF.MSEP(tf2D, df2D, rir_j, x_input, bright_zone_mics_index, dark_zone_mics_index)[0]
+            ac_loss = LF.AC_loss(df2D, tf2D, H, bright_zone_mics_index, dark_zone_mics_index)
+            msep_loss = LF.MSEP(df2D, tf2D, rir_j, x_input, bright_zone_mics_index, dark_zone_mics_index)[0]
             
             combined = (
                 lamda_mse * mse_loss
@@ -89,107 +89,7 @@ def Extensive_search(
     torch.save(filter_q, "Saved Filters/baseline_filters.pt")
     return chosen_indices, avg_time_per_test
 
-# ---- 3. K-20 ANN Search and Refinement (MODIFIED) ---
-def ANN_Search_and_Refine(
-    filters_test: torch.Tensor, dictionary: torch.Tensor, IR_train: torch.Tensor, IR_test: torch.Tensor, 
-    x_input: torch.Tensor, k_neighbors: int = 20, max_filters: int = None
-):  
-    print("\nStarting K-20 ANN Search and Refinement with FULL COMPOSITE LOSS...")    
-    # 1. Build the K-D Tree Index on the dictionary filters (y_train)
-    dictionary_np = dictionary.cpu().numpy()
-    filters_test_np = filters_test.cpu().numpy()
-    tree = KDTree(dictionary_np, leaf_size=30)
-    N_test = len(filters_test)
-    
-    # 2. Perform Approximate Search (Find indices of top K neighbors by Euclidean distance)
-    _, indices = tree.query(filters_test_np, k=k_neighbors) 
-    indices_tensor = torch.tensor(indices, device=dictionary.device)
-    
-    total_combined_loss = 0.0
-    best_indices = []
 
-    # Define the weights from the 'new' script (0.25 for each)
-    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 0.25, 0.25, 0.25, 0.25
-
-    # Timers for the first iteration (i=0)
-    mse_times, cosine_times, ac_times, msep_times = [], [], [], []
-
-    start_time = time.time()
-    # 3. Refinement Loop: Calculate complex 4-component loss only on k_neighbors
-    for i in range(N_test):
-        test_filter_i_flat = filters_test[i].unsqueeze(0) # [1, L*J]
-        test_filter_i_reshaped = test_filter_i_flat.reshape(L, J) # [L, J]
-        rir_test_i = IR_test[i] # [n_mics, L, n_samples]
-        
-        k_indices = indices_tensor[i] # Indices of top K candidates in the *dictionary*
-        k_dictionary = dictionary[k_indices] # [k_neighbors, L*J]
-        k_IR_train = IR_train[k_indices] # [k_neighbors, n_mics, L, n_samples]
-        
-        min_combined_loss = float('inf')
-        best_candidate_absolute_index = -1 
-
-        # Loop over top K candidates for composite loss calculation
-        for j in range(k_neighbors):
-            candidate_filter_j_flat = k_dictionary[j].unsqueeze(0) # [1, L*J]
-            candidate_filter_j_reshaped = candidate_filter_j_flat.reshape(L, J) # [L, J]
-            rir_train_j = k_IR_train[j] # [n_mics, L, n_samples]
-            
-            # --- 4-COMPONENT COMPOSITE LOSS CALCULATION ---
-            # 1. MSE Loss (Filter Coefficients)
-            t_start = time.time() if i == 0 else 0
-            mse_loss = LF.MSE(test_filter_i_flat, candidate_filter_j_flat)
-            if i == 0: mse_times.append(time.time() - t_start)
-
-            # 2. Cosine Similarity Loss (Filter Coefficients)
-            t_start = time.time() if i == 0 else 0
-            cosine_loss = LF.Cosine_similarity(test_filter_i_flat, candidate_filter_j_flat)
-            if i == 0: cosine_times.append(time.time() - t_start)
-            
-            # 3. AC Loss (Acoustic Contrast - requires input and train/test RIR)
-            t_start = time.time() if i == 0 else 0
-            H = LF.compute_H_matrix(rir_train_j)[0].to(device)
-            ac_loss = LF.AC_loss(test_filter_i_reshaped, candidate_filter_j_reshaped, H, bright_zone_mics_index, dark_zone_mics_index)
-            if i == 0: ac_times.append(time.time() - t_start)
-            
-            # 4. MSEP Loss (Mean Squared Pressure Error - requires input and train/test RIR)
-            t_start = time.time() if i == 0 else 0
-            msep_loss = LF.MSEP(test_filter_i_reshaped, candidate_filter_j_reshaped, rir_train_j, x_input, bright_zone_mics_index, dark_zone_mics_index)[0]
-            if i == 0: msep_times.append(time.time() - t_start)
-            
-            combined_loss = (lamda_mse * mse_loss) + (lambda_cosine * cosine_loss) + \
-                            (lambda_ac * ac_loss) + (lambda_msep * msep_loss)
-            
-            if combined_loss.item() < min_combined_loss:
-                min_combined_loss = combined_loss.item()
-                best_candidate_absolute_index = k_indices[j].item()
-        
-        total_combined_loss += min_combined_loss
-        best_indices.append(best_candidate_absolute_index)
-        print(f"Test Sample {i+1}/{N_test}: Chosen Dictionary Index: {best_candidate_absolute_index} (Min Loss: {min_combined_loss:.6f})")
-
-        # Print times and break after the first iteration
-        if i == 0:
-            print("\n--- TIMING RESULTS (First Test Sample, Averaged over K=20 Candidates) ---")
-            print(f"Average MSE Loss Time:   {np.mean(mse_times):.6f} s")
-            print(f"Average Cosine Loss Time: {np.mean(cosine_times):.6f} s")
-            print(f"Average AC Loss Time:     {np.mean(ac_times):.6f} s")
-            print(f"Average MSEP Loss Time:  {np.mean(msep_times):.6f} s")
-            print("---------------------------------------------------------------------------")
-            #break # Stop the outer loop after the first test sample
-            
-    # Since we break after the first iteration, N_test is effectively 1 for the results below.
-    baseline_loss = total_combined_loss / (i + 1)
-    filter_q = filters_train[best_indices].to(device)
-    end_time = time.time()
-    #avg_baseline_loss = baseline_loss.item()
-    #torch.save(filter_q, "Saved Filters/baseline_filters.pt")
-    print(f"\n--- ANN Baseline Results (K=20, Composite Loss) ---")
-    print(f"Total Test Samples Processed: {len(best_indices)}")
-    #print(f"Average Combined Loss (across all samples): {avg_baseline_loss:.6f}")
-    print(f"Average Search Time: {(end_time - start_time)/max_filters:.4f} seconds")
-    print(f"\nIndices of All Chosen Filters (from y_train):")
-    print(best_indices)
-    return baseline_loss, best_indices
 
 # ---- 4. Execution ----
 if __name__ == "__main__":
@@ -200,14 +100,31 @@ if __name__ == "__main__":
     J = 1024    # Filter order
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
- 
+    
 
     data_test, data_train = load_test_train_data(test_size=0.25, random_seed=42)
     filters_test, filters_train = data_test[1], data_train[1]
+    IR_test,IR_train =data_test[5], data_train[5]
+    for i, ir_test in enumerate(IR_test):
+        for j, ir_train in enumerate(IR_train):
+            if torch.equal(ir_test, ir_train):
+                print(f"Test IR {i} is exactly equal to Train IR {j}")
+    tol = 1e-12
+    all_zero_test = (IR_test.abs() < tol).all()
+    all_zero_train = (IR_train.abs() < tol).all()
+    print(all_zero_test, all_zero_train)
+    
+    for i in range(len(filters_train)):
+        for k in range(len(filters_train[i])):
+            if filters_train[i][k]!=0 and filters_train[i][k]!=1000:
+                print(f'THIS k IS NOT EQUAL TO ZERO:{k}, filter{i}, value{filters_train[i][k]}')
+                
+            
+
     max_filters = len(filters_test)
     x_input = torch.tensor([1])
     IR_train = data_train[5]
-    
+    exit()
     Extensive_search(
         filters_test=filters_test, 
         dictionary=filters_train, 
