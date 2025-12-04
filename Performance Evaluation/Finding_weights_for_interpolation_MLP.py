@@ -62,9 +62,29 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
         MSEP.append(MSPE_loss)
         AC.append(AC_loss)
         
-    return mse,cosine, MSEP,AC
+    return np.array(mse),np.array(cosine), np.array(MSEP),np.array(AC)
 
 chosen_model = "interpolation"
 x_input = x_input_kronecker
 n_srcs_val, n_srcs_train, filters_val, filters_train, RIRs_val, RIRs_train, model_filters = load_data_and_model(chosen_model)
 mse,cosine, MSEP,AC=loss_function_evaluation(RIRs_val, model_filters, x_input, indeces_bright, indeces_dark, filters_val)
+
+plt.plot(mse,label='mse')
+plt.plot(cosine,label='Cosine similairty')
+plt.plot(MSEP, label='MSEP')
+plt.plot(AC,label='AC loss')
+plt.legend()
+plt.show()
+
+mean_mse=np.mean(mse)
+mean_cosine=np.mean(cosine)
+mean_msep=np.mean(MSEP)
+mean_AC=np.mean(AC)
+
+median_mse=np.median(mse)
+median_cosine=np.median(cosine)
+median_msep=np.median(MSEP)
+median_AC=np.median(AC)
+
+print(f'Means: MSE: {mean_mse}, Cosine similairty: {mean_cosine}, MSEP: {mean_msep}, AC:{mean_AC}')
+print(f'Medians: MSE: {median_mse}, Cosine similairty: {median_cosine}, MSEP: {median_msep}, AC:{median_AC}')
