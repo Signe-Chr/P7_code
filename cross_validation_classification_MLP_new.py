@@ -139,8 +139,8 @@ if p==1:
                     L4_train = AC_loss(pred_sample, true_sample, compute_H_matrix(rirs_train_i)[0], bright_zone_mics_index, dark_zone_mics_index)
                     L4_test  = AC_loss(pred_sample_test, true_sample_test, compute_H_matrix(rirs_test_i)[0], bright_zone_mics_index, dark_zone_mics_index)
 
-                    filters_loss_train.append(0.25 * (L1_train + L2_train + L3_train + L4_train))
-                    filters_loss_test.append( 0.25 * (L1_test  + L2_test  + L3_test  + L4_test))
+                    filters_loss_train.append( (L1_train + L2_train + L3_train + L4_train))
+                    filters_loss_test.append( (L1_test  + L2_test  + L3_test  + L4_test))
 
                 # Average across samples
                 train_err = torch.stack(filters_loss_train).mean().item()
@@ -295,8 +295,8 @@ if p == 2:
                         L4_train = AC_loss(pred_sample, true_sample, H_train, bright_zone_mics_index, dark_zone_mics_index)
                         L4_test  = AC_loss(pred_sample_test, true_sample_test, H_test, bright_zone_mics_index, dark_zone_mics_index)
 
-                        filters_loss_train.append(0.25*(L1_train+L2_train+L3_train+L4_train))
-                        filters_loss_test.append(0.25*(L1_test+L2_test+L3_test+L4_test))
+                        filters_loss_train.append((L1_train+L2_train+L3_train+L4_train))
+                        filters_loss_test.append((L1_test+L2_test+L3_test+L4_test))
 
                     # Fold errors
                     train_mse_folds.append(torch.stack(filters_loss_train).mean().item())
@@ -453,8 +453,8 @@ if p == 3:
                                                compute_H_matrix(rirs_test_i)[0],
                                                bright_zone_mics_index, dark_zone_mics_index)
 
-                            filters_loss_train.append(0.25*(L1_train + L2_train + L3_train + L4_train))
-                            filters_loss_test.append(0.25*(L1_test + L2_test + L3_test + L4_test))
+                            filters_loss_train.append((L1_train + L2_train + L3_train + L4_train))
+                            filters_loss_test.append((L1_test + L2_test + L3_test + L4_test))
 
                         # Average across samples
                         fold_train_err.append(torch.stack([t.flatten() for t in filters_loss_train]).mean().item())
