@@ -114,7 +114,8 @@ def acc_coeffs(R):
 def load_save(x_input, opd):
     files = os.listdir("Data Archive")
     files.sort()
-    print(files[:5])
+    print(files[:])
+    print(opd)
     times = []
     os.makedirs("Data Archive NEW", exist_ok=True)
     t = time.perf_counter()
@@ -160,7 +161,7 @@ if __name__ == "__main__":
     
 
     #load_save(load_wav_file())
-    load_save(x_inp, <___>)
+    load_save(x_inp, op_10)
 
     
     """file_path = "Data Archive/RIR_0_0_0_0_0.npy"
