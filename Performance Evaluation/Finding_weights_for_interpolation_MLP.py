@@ -79,11 +79,11 @@ chosen_model = "interpolation"
 x_input = x_input_kronecker
 n_srcs_val, n_srcs_train, filters_val, filters_train, RIRs_val, RIRs_train, model_filters = load_data_and_model(chosen_model)
 mse,cosine, MSEP,AC=loss_function_evaluation(RIRs_val, model_filters, x_input, indeces_bright, indeces_dark, filters_val)
-
-plt.scatter(mse,label='mse')
-plt.scatter(cosine,label='Cosine similairty')
-plt.scatter(MSEP, label='MSEP')
-plt.scatter(AC,label='AC loss')
+list_index=[i for i in range(29)]
+plt.scatter(list_index,mse,label='mse')
+plt.scatter(list_index,cosine,label='Cosine similairty')
+plt.scatter(list_index,MSEP, label='MSEP')
+plt.scatter(list_index,AC,label='AC loss')
 plt.legend()
 plt.show()
 
