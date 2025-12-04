@@ -294,7 +294,7 @@ print(f"Du har valgt {chosen_model}.")
 x_input = x_input_kronecker
 n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, model = load_data_and_model(chosen_model)
 
-average_performance_metrics_with_filters(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test)
-loss_function_evaluation(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test)
+average_performance_metrics_with_filters(RIRs_test, filters_test, x_input, indeces_bright, indeces_dark, filters_test)
+loss_function_evaluation(RIRs_test, filters_test, x_input, indeces_bright, indeces_dark, filters_test)
 
 
