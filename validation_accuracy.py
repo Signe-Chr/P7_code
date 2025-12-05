@@ -44,8 +44,8 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, Y_train=fil
         for filter, configuration in zip(Y_test, X_test):
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
-                difference = output-filter
-                total_difference +=difference
+                difference = (output-filter).sum()
+                total_difference += sum(difference)
         print(f"The model has an average difference of {total_difference/len(X_test):.2f}%.")
 
     if model_name == "classification": # Test classification
@@ -70,5 +70,5 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, Y_train=fil
         print(f"The model has an accuracy of {count/len(X_test):.2f}%.")
 
 # vælg model her
-chosen_model = "interpolation"
+chosen_model = "regression"
 validate_filters(chosen_model, X_test=X_train, Y_test=filters_train)
