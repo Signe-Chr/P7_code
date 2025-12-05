@@ -150,42 +150,53 @@ splits_info = {
 colors_list = ['red', 'green', 'blue', 'orange', 'purple', 'brown']  # more than enough for categories
 
 # Create figure with 5 subplots
-fig = plt.figure(figsize=(40, 8), constrained_layout=True) 
+import os
 
-for i, (split_name, categories) in enumerate(splits_info.items(), 1):
-    ax = fig.add_subplot(3, 2, i, projection='3d')  # 3x2 grid, subplot i
+# Save to current directory
+save_dir = "./"  # current folder
+os.makedirs(save_dir, exist_ok=True)  # creates folder if it doesn't exist, safe to call even for "./"
+
+for split_name, categories in splits_info.items():
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
     
     for j, (cat_id, label) in enumerate(categories.items()):
         if cat_id in filters_pca[split_name]:
             data = filters_pca[split_name][cat_id]
             ax.scatter(
                 data[:,0], data[:,1], data[:,2],
-                s=20, depthshade=True, color=colors_list[j % len(colors_list)],
-                label=label
+                s=50, depthshade=True,
+                color=colors_list[j % len(colors_list)],
+                edgecolor='k',
+                label=label,
+                alpha=0.8
             )
     
-    ax.set_xlabel("PC1")
-    ax.set_ylabel("PC2")
-    ax.set_zlabel("PC3")
+    ax.set_xlabel("PC1", fontsize=14)
+    ax.set_ylabel("PC2", fontsize=14)
+    ax.set_zlabel("PC3", fontsize=14)
     ax.legend(fontsize=12)
-
-plt.tight_layout()
-plt.show()
-
+    ax.view_init(elev=25, azim=30)
+    ax.grid(True)
+    
+    # Save figure in the current folder
+    fig.savefig(f"pca_{split_name}_3d.pdf", bbox_inches='tight')
+    print(f'Figure saved!')
+    #plt.show()
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import os
 
 # Colormap for categories
 cmap = cm.get_cmap('tab10')
 
-# Create figure with 3 rows, 2 columns
-fig, axes = plt.subplots(3, 2, figsize=(20, 18), constrained_layout=True)
+# Save to current working directory
+save_dir = "./"
+os.makedirs(save_dir, exist_ok=True)
 
-# Flatten axes for easy iteration
-axes = axes.flatten()
-
-for i, (split_name, categories) in enumerate(splits_info.items()):
-    ax = axes[i]
+# Loop over splits to create separate figures
+for split_name, categories in splits_info.items():
+    fig, ax = plt.subplots(figsize=(10, 8))  # one figure per split
     
     for j, (cat_id, label) in enumerate(categories.items()):
         if cat_id in filters_pca[split_name]:
@@ -199,13 +210,13 @@ for i, (split_name, categories) in enumerate(splits_info.items()):
                 alpha=0.8
             )
     
-    ax.set_xlabel("PC1" )
-    ax.set_ylabel("PC2")
-    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1),fontsize=20)
+    ax.set_xlabel("PC1", fontsize=14)
+    ax.set_ylabel("PC2", fontsize=14)
+    ax.legend(fontsize=12)
     ax.grid(True)
-
-# Hide the 6th subplot (empty)
-axes[-1].axis('off')
-
-plt.show()
+    
+    # Save each figure individually
+    fig.savefig(os.path.join(save_dir, f"pca_{split_name}_2d.pdf"), bbox_inches='tight')
+    print(f'Figure saved!')
+    #plt.show()
 
