@@ -154,7 +154,7 @@ def average_performance_metrics(RIR_test, wav_input, indeces_bright, indeces_dar
 
     # Compute statistics
     results = {
-        "AC": (np.sqrt(np.var(10*torch.log10(AC_list))) ,10*torch.log10(np.mean(AC_list)) ,np.min(10*np.log10(AC_list)), np.max(10*np.log10(AC_list))),
+        "AC": (np.sqrt(np.var(10*np.log10(AC_list))) ,10*np.log10(np.mean(AC_list)) ,np.min(10*np.log10(AC_list)), np.max(10*np.log10(AC_list))),
         "NSDP_B": (np.sqrt(np.var(10*np.log10(NSDP_B_list))) ,10*np.log10(np.mean(NSDP_B_list)), np.min(10*np.log10(NSDP_B_list)), np.max(10*np.log10(NSDP_B_list))),
         "Attenuation_DZ": (np.sqrt(np.var(10*np.log10(attenuation_arr))),10*np.log10(np.mean(attenuation_arr)), np.min(10*np.log10(attenuation_arr)), np.max(10*np.log10(attenuation_arr))),
         "Attenuation_BZ": (np.sqrt(np.var(10*np.log10(attenuation_arr_bz))),10*np.log10(np.mean(attenuation_arr_bz)), np.min(10*np.log10(attenuation_arr_bz)), np.max(10*np.log10(attenuation_arr_bz)))
