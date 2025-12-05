@@ -124,6 +124,6 @@ def test_model_efficiency(a, X_test, filters_test=filters_test, device='cpu'):
 
 
 # vælg model her (0-2)
-#generate_filters(0)  # regression
-generate_filters(1, X_test=X_train, Y_test=filters_train)  # classification
+generate_filters(0)  # regression
+#generate_filters(1, X_test=X_train, Y_test=filters_train)  # classification
 #generate_filters(2)  # interpolation
