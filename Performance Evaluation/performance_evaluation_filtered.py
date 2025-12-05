@@ -105,33 +105,34 @@ def attenuation(rir, raw_wav, filtered, zone):
 
 def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, indeces_bright, rir: torch.Tensor):
     p_B = p_C[indeces_bright]
-    ref = wav_input.float()
+    #ref = wav_input.float()
     #ref = F.pad(wav_input.float(), (3, 0))
     
-    d_B_list = []
-    rir_m = rir[indeces_bright] 
-    max_len = ref.shape[-1] + rir_m.shape[-1] - 1
-    mic_pressure = torch.zeros((1, max_len), device=rir.device)
-    pad = len(rir_m[:,0].T)-1
-    for s in range(rir_m.shape[1]):
-        conv_result = F.conv1d(ref.unsqueeze(0).unsqueeze(0), rir_m[:,s].unsqueeze(0), padding=pad)
-        conv_result = conv_result.squeeze(0)
-        conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[-1]))
-        mic_pressure += conv_result
-    mic_pressure[mic_pressure==0] += 1e-12
-    d_B_list.append(mic_pressure)
+    #d_B_list = []
+    #rir_m = rir[indeces_bright] 
+    #max_len = ref.shape[-1] + rir_m.shape[-1] - 1
+    #mic_pressure = torch.zeros((1, max_len), device=rir.device)
+    #pad = len(rir_m[:,0].T)-1
+    #for s in range(rir_m.shape[1]):
+     #   conv_result = F.conv1d(ref.unsqueeze(0).unsqueeze(0), rir_m[:,s].unsqueeze(0), padding=pad)
+      #  conv_result = conv_result.squeeze(0)
+       # conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[-1]))
+       # mic_pressure += conv_result
+    #mic_pressure[mic_pressure==0] += 1e-12
+    #d_B_list.append(mic_pressure)
+    d_B=cpwi(rir,wav_input)[indeces_bright]
 
-    d_B_tensor = torch.stack(d_B_list).squeeze(0)
-    min_len = min(d_B_tensor.shape[-1], p_B.shape[1])
-    d_B_tensor = d_B_tensor[:, :min_len]
+    #d_B_tensor = torch.stack(d_B_list).squeeze(0)
+    min_len = min(d_B.shape[-1], p_B.shape[1])
+    d_B = d_B[:, :min_len]
     p_B = p_B[:, :min_len]
     
-    rms_d_B_tensor = torch.sqrt(torch.mean(d_B_tensor ** 2))
-    rms_pB = torch.sqrt(torch.mean(p_B ** 2))
-    d_B_tensor = d_B_tensor * (rms_pB / rms_d_B_tensor)
+    #rms_d_B_tensor = torch.sqrt(torch.mean(d_B_tensor ** 2))
+    #rms_pB = torch.sqrt(torch.mean(p_B ** 2))
+    #d_B_tensor = d_B_tensor * (rms_pB / rms_d_B_tensor)
 
-    numerator = torch.sum((d_B_tensor - p_B) ** 2)
-    denominator = torch.sum(d_B_tensor ** 2)
+    numerator = torch.sum((d_B - p_B) ** 2)
+    denominator = torch.sum(d_B ** 2)
 
     return numerator / denominator
 
