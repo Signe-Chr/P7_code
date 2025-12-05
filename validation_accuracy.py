@@ -35,7 +35,7 @@ def load_model(model_name):
     model.eval()
     return model
 
-def validate_filters(model_name, X_test=X_test, Y_test=filters_test, Y_train=filters_train):
+def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_train, Y_train=filters_train):
     model = load_model(model_name)
     count = 0
     difference_per_filter = 0
@@ -43,16 +43,28 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, Y_train=fil
 
 
     if model_name == "regression": # Test regression
+        print("Testing on test data")
         for filter, configuration in zip(Y_test, X_test):
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
                 difference = output-filter
                 difference_per_filter += (difference).sum()
                 difference_per_entry += (difference).mean()
-                print(difference_per_entry)
 
-        print(f"The model has an average difference per entry of {difference_per_entry/len(Y_test[0]):.8f}.")        
-        print(f"The model has an average difference per filter of {difference_per_filter/len(X_test):.4f}.")
+        print(f"Average difference per entry: {difference_per_entry/len(Y_test[0]):.8f}.")        
+        print(f"Average difference per filter: {difference_per_filter/len(X_test):.4f}.")
+        print("")
+        print("Testing on training data")
+        for filter, configuration in zip(Y_train, X_train):
+
+            with torch.no_grad():
+                output = model(configuration.unsqueeze(0).float())
+                difference = output-filter
+                difference_per_filter += (difference).sum()
+                difference_per_entry += (difference).mean()
+
+        print(f"Average difference per entry: {difference_per_entry/len(Y_train[0]):.8f}.")        
+        print(f"Average difference per filter: {difference_per_filter/len(X_train):.4f}.")
 
     if model_name == "classification": # Test classification
         for filter, configuration in zip(Y_test, X_test):
@@ -77,4 +89,4 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, Y_train=fil
 
 # vælg model her
 chosen_model = "regression"
-validate_filters(chosen_model, X_test=X_train, Y_test=filters_train)
+validate_filters(chosen_model)
