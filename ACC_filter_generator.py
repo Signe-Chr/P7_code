@@ -123,7 +123,7 @@ if __name__ == "__main__":
     
 
     #load_save(load_wav_file())
-    load_save(x_inp, op_10)
+    load_save(x_inp, op_16)
 
     
     """file_path = "Data Archive/RIR_0_0_0_0_0.npy"
