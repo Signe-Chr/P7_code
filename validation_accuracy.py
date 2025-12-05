@@ -49,9 +49,10 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, Y_train=fil
                 difference = output-filter
                 difference_per_filter += (difference).sum()
                 difference_per_entry += (difference).mean()
+                print(difference_per_entry)
 
-        print(f"The model has an average difference per entry of {difference_per_entry/len(Y_test):.2f}.")        
-        print(f"The model has an average difference per filter of {difference_per_filter/len(X_test):.2f}.")
+        print(f"The model has an average difference per entry of {difference_per_entry/len(Y_test[0]):.8f}.")        
+        print(f"The model has an average difference per filter of {difference_per_filter/len(X_test):.4f}.")
 
     if model_name == "classification": # Test classification
         for filter, configuration in zip(Y_test, X_test):
