@@ -7,12 +7,11 @@ from scipy.linalg import toeplitz, eigh
 from Test_train_split import J, L, indeces_bright, indeces_dark
 
 
-M = len(indeces_dark)+len(indeces_bright)
 
-x_inp = [1] + [0]*(J+512-2)
 
 def load_wav_file():
-    wav_path = "relaxing-guitar-loop-v5-245859.wav"
+    #wav_path = "relaxing-guitar-loop-v5-245859.wav"
+    wav_path = "president-is-moron-wav"
     fs_wav, wav = wavfile.read(wav_path)
     if wav.ndim > 1:
         wav = np.mean(wav, axis=1)
@@ -35,7 +34,6 @@ def toeplitz(x, n, K, J):
             if 0 <= index < len(x):
                 X[k, j] = x[index]
     return X
-
 
 def R_c(x, rir):
     K = max(np.shape(rir))
@@ -73,7 +71,7 @@ def acc_coeffs(R):
     #print(eigenvecs[:, -1])
     return eigenvecs[:, -1].reshape(3, 1024)
 
-def load_save(x_input, opd):
+def load_save2(x_input, opd):
     files = os.listdir("Data Archive")
     files.sort()
     print(files[:])
@@ -93,6 +91,32 @@ def load_save(x_input, opd):
             t = t_new
     print(f"Total runtime: {np.sum(times):.2f}s\nAverage runtime: {np.mean(times):.2f}")
 
+def load_save(x_input):
+    all_files = os.listdir("Data Archive")
+    all_files.sort()
+    start = input()
+    stop = input()
+    files = all_files[start:stop]
+    times = []
+    os.makedirs("Data Archive New", exist_ok=True)
+    t = time.perf_counter()
+    for file in tqdm(files):
+        #dict = load_ir(f"Data Archive/{i}")
+        name = file[]
+        dict = load_ir(f"Data Archive/{file[0]}")
+        ir = file["IR"]
+        file.update({"q_acc": acc_coeffs(R_c(x_input, ir))})
+        np.save(f"Data Archive NEW/{i}", dict, allow_pickle=True)
+        print(f"Saved filter {i}")
+        t_new = time.perf_counter()
+        times.append(t_new-t)
+        t = t_new
+    print(f"Total runtime: {np.sum(times):.2f}s\nAverage runtime: {np.mean(times):.2f}")
+
+M = len(indeces_dark)+len(indeces_bright)
+
+#x_inp = [1] + [0]*(J+512-2)
+x_inp = load_wav_file()
 
 if __name__ == "__main__":
     opdeling = [i for i in range(432)]
@@ -123,7 +147,8 @@ if __name__ == "__main__":
     
 
     #load_save(load_wav_file())
-    load_save(x_inp, op_10)
+    #load_save(x_inp, op_10)
+    load_save(x_inp)
 
     
     """file_path = "Data Archive/RIR_0_0_0_0_0.npy"
