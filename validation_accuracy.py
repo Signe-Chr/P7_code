@@ -38,15 +38,20 @@ def load_model(model_name):
 def validate_filters(model_name, X_test=X_test, Y_test=filters_test, Y_train=filters_train):
     model = load_model(model_name)
     count = 0
-    total_difference = 0
+    difference_per_filter = 0
+    difference_per_entry = 0
+
 
     if model_name == "regression": # Test regression
         for filter, configuration in zip(Y_test, X_test):
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
-                difference = (output-filter).sum()
-                total_difference += sum(difference)
-        print(f"The model has an average difference of {total_difference/len(X_test):.2f}%.")
+                difference = output-filter
+                difference_per_filter += (difference).sum()
+                difference_per_entry += (difference).mean()
+
+        print(f"The model has an average difference per entry of {difference_per_entry/len(Y_test):.2f}.")        
+        print(f"The model has an average difference per filter of {difference_per_filter/len(X_test):.2f}.")
 
     if model_name == "classification": # Test classification
         for filter, configuration in zip(Y_test, X_test):
@@ -57,7 +62,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, Y_train=fil
                 if torch.all(filter == output):
                     count += 1
         print(f"{count}/{len(X_test)} correct.")
-        print(f"The model has an accuracy of {count/len(X_test):.2f}%.")
+        print(f"The model has an accuracy of {count/len(X_test)*100:.2f}%.")
 
     elif model_name == "interpolation": # Test interpolation
         for filter, configuration in zip(Y_test, X_test):
@@ -67,7 +72,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, Y_train=fil
                 if torch.all(filter == output):
                     count += 1
         print(f"{count}/{len(X_test)} correct.")
-        print(f"The model has an accuracy of {count/len(X_test):.2f}%.")
+        print(f"The model has an accuracy of {count/len(X_test)*100:.2f}%.")
 
 # vælg model her
 chosen_model = "regression"
