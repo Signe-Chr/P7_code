@@ -42,24 +42,21 @@ def compute_pressure_with_input(rir: torch.Tensor, x_input: torch.Tensor) -> tor
     output_len = n_rir_samples + n_input_samples - 1
     
     # Zero pad input
-    x_input_padded = F.pad(x_input, (0, output_len - n_input_samples), 'constant', 0)
+    #x_input_padded = F.pad(x_input, (0, output_len - n_input_samples), 'constant', 0)
     p = torch.zeros((n_mics, output_len), device=rir.device)
 
     # FFT length (power of 2 for efficiency)
-    n_fft = 2 ** int(np.ceil(np.log2(output_len)))
-    X_fft = torch.fft.rfft(x_input_padded, n=n_fft).squeeze(0)
+    #n_fft = 2 ** int(np.ceil(np.log2(output_len)))
+    #X_fft = torch.fft.rfft(x_input_padded, n=n_fft).squeeze(0)
 
     # Loop through microphones and sources
     for m in range(n_mics):
         p_m = torch.zeros(output_len, device=rir.device)
         for s in range(n_srcs):
-            h = rir[m, s, :]  # [n_rir_samples]
-            h_padded = F.pad(h, (0, output_len - n_rir_samples), 'constant', 0)
-            H_fft = torch.fft.rfft(h_padded, n=n_fft)
+            # Combined filter impulse response: h_combined = RIR * filter_q (via standard convolution)
+            rir_m_s = rir[m, s, :].unsqueeze(0).unsqueeze(0).float()  # cast to float32
             
-            # Convolution via multiplication in frequency domain
-            P_fft = H_fft * X_fft
-            p_m_s = torch.fft.irfft(P_fft, n=n_fft)[:output_len]
+            p_m_s = F.conv1d(x_input.reshape((1, 1, n_input_samples)).float(), rir_m_s, padding=rir_m_s.shape[-1]-1).squeeze()
             p_m += p_m_s
 
         p[m, :] = p_m
