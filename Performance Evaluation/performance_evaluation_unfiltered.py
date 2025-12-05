@@ -164,8 +164,19 @@ def average_performance_metrics(RIR_test, wav_input, indeces_bright, indeces_dar
     print(f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation_DZ']}")
     print(f"Attenuation Bright Zone (std, mean, min, max):{results['Attenuation_BZ']}")
 
+    return results
+
 
 if __name__=='__main__':
     x_input = x_input_kronecker #load_wav_file()
     RIRs_test, RIRs_train, = load_data()
-    average_performance_metrics(RIRs_test, x_input, indeces_bright, indeces_dark)
+    results = average_performance_metrics(RIRs_test, x_input, indeces_bright, indeces_dark)
+    
+    gemt = [f"AC (std, mean, min, max): {results['AC']}\n",
+                f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}\n", 
+                f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation_DZ']}\n",
+                f"Attenuation Bright Zone (std, mean, min, max):{results['Attenuation_BZ']}\n"]
+
+    with open(f"Performance Evaluation/Results/unfiltered.txt", "w") as file:
+        for string in gemt:
+            file.writelines(string)
