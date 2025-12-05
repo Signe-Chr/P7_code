@@ -39,40 +39,50 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
     model = load_model(model_name)
 
     if model_name == "regression": # Test regression
+        """
         print("Testing on test data")
         difference_per_filter = 0
         difference_per_entry = 0
+        rmse_per_filter = []
         for filter, configuration in zip(Y_test, X_test):
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
                 difference = torch.abs(filter-output)
                 difference_per_filter += difference.sum()
                 difference_per_entry += difference.mean()
-
+                difference = (filter - output) ** 2
+                #mse_per_filter += difference.sum()
+                mse = torch.mean((filter - output.squeeze(0))**2)
+                rmse = torch.sqrt(mse)
+                rmse_per_filter.append(rmse.item())
+        avg_rmse = sum(rmse_per_filter) / len(rmse_per_filter)
         print(f"Average difference per entry: {difference_per_entry/len(X_test):.8f}.")        
         print(f"Average difference per filter: {difference_per_filter/len(X_test):.4f}.")
+        print(f"Average RMSE per filter: {avg_rmse:.6f}")
         print("")
+        """
+            
+        rmse_per_filter = []
 
-        difference_per_filter = 0
-        difference_per_entry = 0
-        print("Testing on training data")
-        rel_error = 0
-        for filter, configuration in zip(Y_train, X_train):
-
-            with torch.no_grad():
+        with torch.no_grad():
+            for filter_true, configuration in zip(Y_train, X_train):
                 output = model(configuration.unsqueeze(0).float())
-                difference = torch.abs(filter-output)
-                difference_per_filter += difference.sum()
-                difference_per_entry += difference.mean()
-                rel_error += torch.mean(torch.abs(filter - output) / torch.abs(filter))
+                mse = torch.mean((filter_true - output.squeeze(0))**2)
+                rmse = torch.sqrt(mse)
+                rmse_per_filter.append(rmse.item())
 
-        rel_error /= len(X_train)
-        print(f"Relative MAE: {rel_error * 100:.2f} %")
-                
+        # Convert to tensor
+        rmse_per_filter = torch.tensor(rmse_per_filter)
 
-        print(f"Average difference per entry: {difference_per_entry/len(X_train):.8f}.")        
-        print(f"Average difference per filter: {difference_per_filter/len(X_train):.4f}.")
-        print(f"{torch.mean(torch.abs(filters_train))}")
+        # Average RMSE across all filters
+        avg_rmse = rmse_per_filter.mean().item()
+
+        # Normalized RMSE (relative to mean absolute filter magnitude)
+        mean_filter_magnitude = torch.mean(torch.abs(Y_train))
+        nrmse = avg_rmse / mean_filter_magnitude
+
+        print(f"Average RMSE per filter: {avg_rmse:.6f}")
+        print(f"Normalized RMSE (relative to mean filter magnitude): {nrmse*100:.2f}%")
 
     if model_name == "classification": # Test classification
         print("Testing on test data")
@@ -140,4 +150,5 @@ def print_target_stats(Y_train, Y_test):
 #print_target_stats(filters_train, filters_test)
 a = torch.mean(torch.abs(X_train), dim=0)
 b =torch.std(X_train, dim=0)
-print(a,b)
+#print(a,b)
+validate_filters(chosen_model)
