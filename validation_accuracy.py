@@ -70,5 +70,5 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, Y_train=fil
         print(f"The model has an accuracy of {count/len(X_test):.2f}%.")
 
 # vælg model her
-chosen_model = "regression"
+chosen_model = "classification"
 validate_filters(chosen_model, X_test=X_train, Y_test=filters_train)
