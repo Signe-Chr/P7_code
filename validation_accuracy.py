@@ -51,7 +51,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
                 difference_per_filter += (difference).sum()
                 difference_per_entry += (difference).mean()
 
-        print(f"Average difference per entry: {difference_per_entry/len(Y_test[0]):.8f}.")        
+        print(f"Average difference per entry: {difference_per_entry/len(X_test):.8f}.")        
         print(f"Average difference per filter: {difference_per_filter/len(X_test):.4f}.")
         print("")
         print("Testing on training data")
@@ -63,7 +63,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
                 difference_per_filter += (difference).sum()
                 difference_per_entry += (difference).mean()
 
-        print(f"Average difference per entry: {difference_per_entry/len(Y_train[0]):.8f}.")        
+        print(f"Average difference per entry: {difference_per_entry/len(X_train):.8f}.")        
         print(f"Average difference per filter: {difference_per_filter/len(X_train):.4f}.")
 
     if model_name == "classification": # Test classification
