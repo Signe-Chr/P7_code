@@ -56,6 +56,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
         difference_per_filter = 0
         difference_per_entry = 0
         print("Testing on training data")
+        rel_error = 0
         for filter, configuration in zip(Y_train, X_train):
 
             with torch.no_grad():
@@ -63,9 +64,15 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
                 difference = torch.abs(filter-output)
                 difference_per_filter += difference.sum()
                 difference_per_entry += difference.mean()
+                rel_error += torch.mean(torch.abs(filter - output) / torch.abs(filter))
+
+        rel_error /= len(X_train)
+        print(f"Relative MAE: {rel_error * 100:.2f} %")
+                
 
         print(f"Average difference per entry: {difference_per_entry/len(X_train):.8f}.")        
         print(f"Average difference per filter: {difference_per_filter/len(X_train):.4f}.")
+        print(f"{torch.mean(torch.abs(filters_train))}")
 
     if model_name == "classification": # Test classification
         print("Testing on test data")
@@ -98,6 +105,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
         for filter, configuration in zip(Y_test, X_test):
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
+                print(output)
                 output = torch.matmul(output.float(), Y_train.float())
                 error += torch.mean((output - filter)**2)
         print(f"The model has an average error per filter of {error/len(X_test):.2f}.")
@@ -112,5 +120,24 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
         print(f"The model has an average error per filter of {error/len(X_train):.2f}.")
 
 # vælg model her
-chosen_model = "classification"
-validate_filters(chosen_model)
+chosen_model = "regression"
+#validate_filters(chosen_model)
+
+
+def print_target_stats(Y_train, Y_test):
+    print("Train target stats:")
+    print(" min", torch.min(Y_train).item(),
+          " max", torch.max(Y_train).item(),
+          " mean(abs)", torch.mean(torch.abs(Y_train)).item(),
+          " std", torch.std(Y_train).item())
+
+    print("\nTest target stats:")
+    print(" min", torch.min(Y_test).item(),
+          " max", torch.max(Y_test).item(),
+          " mean(abs)", torch.mean(torch.abs(Y_test)).item(),
+          " std", torch.std(Y_test).item())
+    
+#print_target_stats(filters_train, filters_test)
+a = torch.mean(torch.abs(X_train), dim=0)
+b =torch.std(X_train, dim=0)
+print(a,b)
