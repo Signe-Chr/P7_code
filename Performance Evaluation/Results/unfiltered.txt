@@ -1,0 +1,4 @@
+AC (std, mean, min, max): (np.float64(5.62073857855502), np.float64(12.059131499669682), np.float64(-0.8752123409524646), np.float64(20.981475143218567))
+NSDP Bright Zone (std, mean, min, max): (np.float32(0.04789163), np.float32(3.00425), np.float32(2.836536), np.float32(3.097012))
+Attenuation Dark Zone (std, mean, min, max):(np.float32(0.0), np.float32(0.0), np.float32(0.0), np.float32(0.0))
+Attenuation Bright Zone (std, mean, min, max):(np.float32(0.0), np.float32(0.0), np.float32(0.0), np.float32(0.0))
