@@ -167,7 +167,7 @@ for i, (split_name, categories) in enumerate(splits_info.items(), 1):
     ax.set_xlabel("PC1")
     ax.set_ylabel("PC2")
     ax.set_zlabel("PC3")
-    ax.legend()
+    ax.legend(fontsize=12)
 
 plt.tight_layout()
 plt.show()
@@ -199,9 +199,9 @@ for i, (split_name, categories) in enumerate(splits_info.items()):
                 alpha=0.8
             )
     
-    ax.set_xlabel("PC1")
+    ax.set_xlabel("PC1" )
     ax.set_ylabel("PC2")
-    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
+    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1),fontsize=20)
     ax.grid(True)
 
 # Hide the 6th subplot (empty)
