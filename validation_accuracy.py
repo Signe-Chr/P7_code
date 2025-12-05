@@ -79,7 +79,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
                     count += 1
         print(f"{count}/{len(X_test)} correct.")
         print(f"The model has an accuracy of {count/len(X_test)*100:.2f}%.")
-
+        print("")
         count = 0
         print("Testing on training data")
         for filter, configuration in zip(Y_train, X_train):
@@ -89,8 +89,8 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
                 output = Y_train[prediction]
                 if torch.allclose(filter, output, atol=1e-6):
                     count += 1
-        print(f"{count}/{len(X_test)} correct.")
-        print(f"The model has an accuracy of {count/len(X_test)*100:.2f}%.")
+        print(f"{count}/{len(X_train)} correct.")
+        print(f"The model has an accuracy of {count/len(X_train)*100:.2f}%.")
 
     elif model_name == "interpolation": # Test interpolation
         print("Testing on test data")
@@ -101,7 +101,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
                 output = torch.matmul(output.float(), Y_train.float())
                 error += torch.mean((output - filter)**2)
         print(f"The model has an average error per filter of {error/len(X_test):.2f}.")
-
+        print("")
         error = 0
         print("Testing on training data")
         for filter, configuration in zip(Y_train, X_train):
@@ -112,5 +112,5 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
         print(f"The model has an average error per filter of {error/len(X_train):.2f}.")
 
 # vælg model her
-chosen_model = "interpolation"
+chosen_model = "classification"
 validate_filters(chosen_model)
