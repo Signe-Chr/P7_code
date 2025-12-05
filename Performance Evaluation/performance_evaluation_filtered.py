@@ -257,14 +257,14 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "regression"
 "classification"
 
-chosen_model = "random"
+chosen_model = "regression"
 print(f"Du har valgt {chosen_model} til evaluering.")
 
 x_input = x_input_kronecker
 n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, model = load_data_and_model(chosen_model)
 
-results = average_performance_metrics_with_filters(RIRs_test, filters_test, x_input, indeces_bright, indeces_dark, filters_test, chosen_model)
-loss = loss_function_evaluation(RIRs_test, filters_test, x_input, indeces_bright, indeces_dark, filters_test)
+results = average_performance_metrics_with_filters(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test, chosen_model)
+loss = loss_function_evaluation(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test)
 #results.append(loss)
 
 gemt = [f"AC (std, mean, min, max): {results['AC']}\n",
