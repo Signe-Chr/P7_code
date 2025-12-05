@@ -45,9 +45,9 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
         for filter, configuration in zip(Y_test, X_test):
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
-                difference = filter-output
-                difference_per_filter += (difference).sum()
-                difference_per_entry += (difference).mean()
+                difference = torch.abs(filter-output)
+                difference_per_filter += difference.sum()
+                difference_per_entry += difference.mean()
 
         print(f"Average difference per entry: {difference_per_entry/len(X_test):.8f}.")        
         print(f"Average difference per filter: {difference_per_filter/len(X_test):.4f}.")
@@ -60,9 +60,9 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
 
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
-                difference = filter-output
-                difference_per_filter += (difference).sum()
-                difference_per_entry += (difference).mean()
+                difference = torch.abs(filter-output)
+                difference_per_filter += difference.sum()
+                difference_per_entry += difference.mean()
 
         print(f"Average difference per entry: {difference_per_entry/len(X_train):.8f}.")        
         print(f"Average difference per filter: {difference_per_filter/len(X_train):.4f}.")
@@ -74,8 +74,8 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
                 _, prediction = torch.max(output, 1)
-                output = Y_test[prediction]
-                if torch.all(filter == output):
+                output = Y_train[prediction]
+                if torch.allclose(filter, output, atol=1e-6):
                     count += 1
         print(f"{count}/{len(X_test)} correct.")
         print(f"The model has an accuracy of {count/len(X_test)*100:.2f}%.")
@@ -87,33 +87,30 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
                 output = model(configuration.unsqueeze(0).float())
                 _, prediction = torch.max(output, 1)
                 output = Y_train[prediction]
-                if torch.all(filter == output):
+                if torch.allclose(filter, output, atol=1e-6):
                     count += 1
         print(f"{count}/{len(X_test)} correct.")
         print(f"The model has an accuracy of {count/len(X_test)*100:.2f}%.")
 
     elif model_name == "interpolation": # Test interpolation
-        count = 0
+        print("Testing on test data")
+        error = 0
         for filter, configuration in zip(Y_test, X_test):
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
-                output = torch.matmul(output.float(), Y_test.float())
-                if torch.all(filter == output):
-                    count += 1
-        print(f"{count}/{len(X_test)} correct.")
-        print(f"The model has an accuracy of {count/len(X_test)*100:.2f}%.")
+                output = torch.matmul(output.float(), Y_train.float())
+                error += torch.mean((output - filter)**2)
+        print(f"The model has an average error per filter of {error/len(X_test):.2f}.")
 
-        count = 0
+        error = 0
         print("Testing on training data")
         for filter, configuration in zip(Y_train, X_train):
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
                 output = torch.matmul(output.float(), Y_train.float())
-                if torch.all(filter == output):
-                    count += 1
-        print(f"{count}/{len(X_test)} correct.")
-        print(f"The model has an accuracy of {count/len(X_test)*100:.2f}%.")
+                error += torch.mean((output - filter)**2)
+        print(f"The model has an average error per filter of {error/len(X_train):.2f}.")
 
 # vælg model her
-chosen_model = "regression"
+chosen_model = "interpolation"
 validate_filters(chosen_model)
