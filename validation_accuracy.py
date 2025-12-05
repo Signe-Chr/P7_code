@@ -18,8 +18,7 @@ filters_test = data_test[1]
 filters_train = data_train[1]
 filters_val = data_val[1]
 
-def load_model(a):
-    model_name = model_names[a]  # vælg model her
+def load_model(model_name):
     input_size = 9
     if model_name == "regression":
         output_size = filters_train.shape[1]
@@ -36,23 +35,46 @@ def load_model(a):
     model.eval()
     return model
 
-def validate_filters(a, X_test=X_test, Y_test = filters_test, Y_train = filters_train):
-    model = load_model(a) # Choose model here (0-2)
+def validate_filters(model_name, X_test=X_test, Y_test=filters_test, Y_train=filters_train):
+    model = load_model(model_name)
     count = 0
-    for filter, configuration in zip(Y_test, X_test):
-        with torch.no_grad():
-            output = model(configuration.unsqueeze(0).float())
-            if a == 1:
+    difference_per_filter = 0
+    difference_per_entry = 0
+
+
+    if model_name == "regression": # Test regression
+        for filter, configuration in zip(Y_test, X_test):
+            with torch.no_grad():
+                output = model(configuration.unsqueeze(0).float())
+                difference = output-filter
+                difference_per_filter += (difference).sum()
+                difference_per_entry += (difference).mean()
+                print(difference_per_entry)
+
+        print(f"The model has an average difference per entry of {difference_per_entry/len(Y_test[0]):.8f}.")        
+        print(f"The model has an average difference per filter of {difference_per_filter/len(X_test):.4f}.")
+
+    if model_name == "classification": # Test classification
+        for filter, configuration in zip(Y_test, X_test):
+            with torch.no_grad():
+                output = model(configuration.unsqueeze(0).float())
                 output = _, prediction = torch.max(output, 1)
                 output = Y_train[prediction]
-            elif a == 2:
-                output = torch.matmul(output.float(), Y_train.float())
-            if torch.all(filter == output):
-                count += 1
-    print(f"{count}/{len(X_test)} correct.")
-    print(f"The model has an accuracy of {count/len(X_test):.2f}%.")
+                if torch.all(filter == output):
+                    count += 1
+        print(f"{count}/{len(X_test)} correct.")
+        print(f"The model has an accuracy of {count/len(X_test)*100:.2f}%.")
 
-# vælg model her (0-2)
-#validate_filters(0)  # regression
-validate_filters(1, X_test=X_train, Y_test=filters_train)  # classification
-#validate_filters(2)  # interpolation
+    elif model_name == "interpolation": # Test interpolation
+        for filter, configuration in zip(Y_test, X_test):
+            with torch.no_grad():
+                output = model(configuration.unsqueeze(0).float())
+                output = torch.matmul(output.float(), Y_train.float())
+                if torch.all(filter == output):
+                    count += 1
+        print(f"{count}/{len(X_test)} correct.")
+        print(f"The model has an accuracy of {count/len(X_test)*100:.2f}%.")
+
+# vælg model her
+chosen_model = "regression"
+validate_filters(chosen_model, X_test=X_train, Y_test=filters_train)
