@@ -180,7 +180,7 @@ for split_name, categories in splits_info.items():
     ax.grid(True)
     
     # Save figure in the current folder
-    fig.savefig(f"pca_{split_name}_3d.pdf", bbox_inches='tight')
+    #fig.savefig(f"pca_{split_name}_3d.pdf", bbox_inches='tight')
     print(f'Figure saved!')
     #plt.show()
 import matplotlib.pyplot as plt
@@ -212,7 +212,7 @@ for split_name, categories in splits_info.items():
     
     ax.set_xlabel("PC1", fontsize=14)
     ax.set_ylabel("PC2", fontsize=14)
-    ax.legend(fontsize=12)
+    ax.legend(fontsize=16)
     ax.grid(True)
     
     # Save each figure individually
