@@ -123,7 +123,7 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, indeces_bright, rir
     d_B=cpwi(rir,wav_input)[indeces_bright]
 
     #d_B_tensor = torch.stack(d_B_list).squeeze(0)
-    min_len = min(d_B.shape[-1], p_B.shape[1])
+    min_len = min(d_B.shape[-1], p_B.shape[-1])
     d_B = d_B[:, :min_len]
     p_B = p_B[:, :min_len]
     
