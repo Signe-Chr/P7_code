@@ -28,11 +28,15 @@ def load_data_and_model(chosen_model):
     if chosen_model == "interpolation":
         model = torch.load("Saved Filters/interpolation_filters.pt")
 
+
     #---Load data and split into test and traning data---
     data_test, data_train, data_val = load_test_train_data()
 
     filters_test=data_test[1]
     filters_train=data_train[1]
+
+    if chosen_model == "acc":
+        model = filters_test
     
     n_srcs_test=data_test[4]
     n_srcs_train=data_train[4]
@@ -256,8 +260,9 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "interpolation"
 "regression"
 "classification"
+"acc"
 
-chosen_model = "regression"
+chosen_model = "acc"
 print(f"Du har valgt {chosen_model} til evaluering.")
 
 x_input = x_input_kronecker
