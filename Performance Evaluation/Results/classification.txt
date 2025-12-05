@@ -1,16 +1,6 @@
-<<<<<<< HEAD
 AC (std, mean, min, max): (np.float64(14.37195141437116), np.float64(11.604257836481633), np.float64(-6.58155698984621), np.float64(21.342641328801403))
 NSDP Bright Zone (std, mean, min, max): (inf, 252.51192092895508, 0.0, 276.15428924560547)
 Attenuation Dark Zone (std, mean, min, max):(2.174098014831543, -30.67557144165039, -37.660972595214844, -26.123388290405273)
 Attenuation Bright Zone (std, mean, min, max):(2.8182785511016846, -29.437246322631836, -36.97648620605469, -23.90135955810547)
 Total loss Bright Zone (std, mean, min, max):(102.44650268554688, 74.6297378540039, 5.681674003601074, 656.4508666992188)
 Individual Losses (MSE, Cosine, MSEP, AC) (std, mean, min, max):(array([ 1.3935922 ,  0.08083939, 41.284443  , 63.31506   ], dtype=float32), array([ 3.5639997,  1.0061966, 26.202127 , 43.85741  ], dtype=float32), array([1.6511302, 0.9814815, 1.1904634, 1.4349899], dtype=float32), array([  7.8545775,   1.9722447, 233.12024  , 417.03418  ], dtype=float32))
-=======
-AC (std, mean, min, max): (np.float64(13.684218186674254), np.float64(10.886514170784425), np.float64(-2.2123282441862173), np.float64(20.244430235374175))
-NSDP Bright Zone (std, mean, min, max): (inf, 253.1004524230957, 0.0, 273.6317443847656)
-Attenuation Dark Zone (std, mean, min, max):(1.7173959016799927, -32.89057540893555, -36.87612533569336, -30.076595306396484)
-Attenuation Bright Zone (std, mean, min, max):(1.838144063949585, -31.56886100769043, -34.783119201660156, -27.377044677734375)
-Total loss Bright Zone (std, mean, min, max):(122.9847412109375, 86.8066177368164, 9.429526329040527, 494.4440002441406)
-Individual Losses (MSE, Cosine, MSEP, AC) (std, mean, min, max):(array([1.3951173e+00, 6.5740333e-03, 3.8751633e+01, 8.5443993e+01],
-      dtype=float32), array([ 4.1544743,  0.9985696, 27.512148 , 54.141434 ], dtype=float32), array([2.2802348 , 0.96408343, 2.4187074 , 2.1241097 ], dtype=float32), array([  7.658769 ,   1.0123984, 181.8534   , 363.4341   ], dtype=float32))
->>>>>>> a25107c3debcd7e20aa521e9839affbb5f590979
