@@ -108,27 +108,26 @@ def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, indeces_bright, rir
     rir_m = rir[indeces_bright] 
     max_len = ref.shape[-1] + rir_m.shape[-1] - 1
     mic_pressure = torch.zeros((1, max_len), device=rir.device)
-    pad = len(rir_m[:,0].T)-len(wav_input) if len(wav_input) < len(rir_m[:,0].T) else 0
+    pad = len(rir_m[:,0].T)-1
     for s in range(rir_m.shape[1]):
         conv_result = F.conv1d(ref.unsqueeze(0).unsqueeze(0), rir_m[:,s].unsqueeze(0), padding=pad)
         conv_result = conv_result.squeeze(0)
         conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[-1]))
         mic_pressure += conv_result
     mic_pressure[mic_pressure==0] += 1e-12
-    d_B_list.append(mic_pressure) 
+    d_B_list.append(mic_pressure)
 
-    d_B_tensor = torch.stack(d_B_list) 
+    d_B_tensor = torch.stack(d_B_list).squeeze(0)
     min_len = min(d_B_tensor.shape[-1], p_B.shape[1])
     d_B_tensor = d_B_tensor[:, :min_len]
     p_B = p_B[:, :min_len]
     
-    rms_ref = torch.sqrt(torch.mean(ref ** 2))
+    rms_d_B_tensor = torch.sqrt(torch.mean(d_B_tensor ** 2))
     rms_pB = torch.sqrt(torch.mean(p_B ** 2))
-    ref = ref * (rms_pB / rms_ref)
+    d_B_tensor = d_B_tensor * (rms_pB / rms_d_B_tensor)
 
-    numerator = torch.sum((d_B_tensor - p_B) ** 2, dim=1)
-    denominator = torch.sum(d_B_tensor ** 2, dim=1)
-    
+    numerator = torch.sum((d_B_tensor - p_B) ** 2)
+    denominator = torch.sum(d_B_tensor ** 2)
 
     return numerator / denominator
 
@@ -185,7 +184,8 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     NSDP_B_list = np.array(NSDP_B_list)
     attenuation_arr = np.array(attenuation_list)
     attenuation_arr_bz = np.array(attenuation_list_bz)
-
+    
+    np.savetxt("I need help.txt", NSDP_B_list)
     # Compute statistics
     results = {
         "AC": (np.sqrt(np.var(10*np.log10(AC_list))), 10*np.log10(np.mean(AC_list)),  np.min(10*np.log10(AC_list)), np.max(10*np.log10(AC_list))),

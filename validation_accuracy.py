@@ -35,40 +35,82 @@ def load_model(model_name):
     model.eval()
     return model
 
-def validate_filters(model_name, X_test=X_test, Y_test=filters_test, Y_train=filters_train):
+def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_train, Y_train=filters_train):
     model = load_model(model_name)
-    count = 0
-    total_difference = 0
 
     if model_name == "regression": # Test regression
+        print("Testing on test data")
+        difference_per_filter = 0
+        difference_per_entry = 0
         for filter, configuration in zip(Y_test, X_test):
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
-                difference = (output-filter).sum()
-                total_difference += sum(difference)
-        print(f"The model has an average difference of {total_difference/len(X_test):.2f}%.")
+                difference = torch.abs(filter-output)
+                difference_per_filter += difference.sum()
+                difference_per_entry += difference.mean()
+
+        print(f"Average difference per entry: {difference_per_entry/len(X_test):.8f}.")        
+        print(f"Average difference per filter: {difference_per_filter/len(X_test):.4f}.")
+        print("")
+
+        difference_per_filter = 0
+        difference_per_entry = 0
+        print("Testing on training data")
+        for filter, configuration in zip(Y_train, X_train):
+
+            with torch.no_grad():
+                output = model(configuration.unsqueeze(0).float())
+                difference = torch.abs(filter-output)
+                difference_per_filter += difference.sum()
+                difference_per_entry += difference.mean()
+
+        print(f"Average difference per entry: {difference_per_entry/len(X_train):.8f}.")        
+        print(f"Average difference per filter: {difference_per_filter/len(X_train):.4f}.")
 
     if model_name == "classification": # Test classification
+        print("Testing on test data")
+        count = 0
         for filter, configuration in zip(Y_test, X_test):
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
-                output = _, prediction = torch.max(output, 1)
+                _, prediction = torch.max(output, 1)
                 output = Y_train[prediction]
-                if torch.all(filter == output):
+                if torch.allclose(filter, output, atol=1e-6):
                     count += 1
         print(f"{count}/{len(X_test)} correct.")
-        print(f"The model has an accuracy of {count/len(X_test):.2f}%.")
+        print(f"The model has an accuracy of {count/len(X_test)*100:.2f}%.")
+        print("")
+        count = 0
+        print("Testing on training data")
+        for filter, configuration in zip(Y_train, X_train):
+            with torch.no_grad():
+                output = model(configuration.unsqueeze(0).float())
+                _, prediction = torch.max(output, 1)
+                output = Y_train[prediction]
+                if torch.allclose(filter, output, atol=1e-6):
+                    count += 1
+        print(f"{count}/{len(X_train)} correct.")
+        print(f"The model has an accuracy of {count/len(X_train)*100:.2f}%.")
 
     elif model_name == "interpolation": # Test interpolation
+        print("Testing on test data")
+        error = 0
         for filter, configuration in zip(Y_test, X_test):
             with torch.no_grad():
                 output = model(configuration.unsqueeze(0).float())
                 output = torch.matmul(output.float(), Y_train.float())
-                if torch.all(filter == output):
-                    count += 1
-        print(f"{count}/{len(X_test)} correct.")
-        print(f"The model has an accuracy of {count/len(X_test):.2f}%.")
+                error += torch.mean((output - filter)**2)
+        print(f"The model has an average error per filter of {error/len(X_test):.2f}.")
+        print("")
+        error = 0
+        print("Testing on training data")
+        for filter, configuration in zip(Y_train, X_train):
+            with torch.no_grad():
+                output = model(configuration.unsqueeze(0).float())
+                output = torch.matmul(output.float(), Y_train.float())
+                error += torch.mean((output - filter)**2)
+        print(f"The model has an average error per filter of {error/len(X_train):.2f}.")
 
 # vælg model her
 chosen_model = "classification"
-validate_filters(chosen_model, X_test=X_train, Y_test=filters_train)
+validate_filters(chosen_model)
