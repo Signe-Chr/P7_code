@@ -210,10 +210,11 @@ for split_name, categories in splits_info.items():
                 alpha=0.8
             )
     
-    ax.set_xlabel("PC1", fontsize=14)
-    ax.set_ylabel("PC2", fontsize=14)
-    ax.legend(fontsize=16)
+    ax.set_xlabel("PC1", fontsize=18)
+    ax.set_ylabel("PC2", fontsize=18)
+    ax.legend(fontsize=18)
     ax.grid(True)
+    ax.tick_params(axis='both', which='major', labelsize=14)
     
     # Save each figure individually
     fig.savefig(os.path.join(save_dir, f"pca_{split_name}_2d.pdf"), bbox_inches='tight')
