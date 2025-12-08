@@ -482,7 +482,11 @@ if p == 3:
                 # Store average fold errors into heatmap grids
                 train_err_grid[u, i, j] = np.mean(train_mse_folds)
                 test_err_grid[u, i, j]  = np.mean(test_mse_folds)
-
+    with open("matrix.txt", "w") as f:
+        for i, slice2d in enumerate(train_err_grid):
+            f.write(f"# Slice {i}\n")
+            np.savetxt(f, slice2d)
+            f.write("\n")
     # -------------------------------------------------
     # PLOT HEATMAPS
     # -------------------------------------------------
@@ -493,12 +497,14 @@ if p == 3:
     vmax_train = train_err_grid.max()
     vmin_test  = test_err_grid.min()
     vmax_test  = test_err_grid.max()
+    
 
     for u, neuron3 in enumerate([128, 256, 512]):
         # Select slice for current L3 neuron
 
         train_slice = train_err_grid[u, :, :]
         test_slice  = test_err_grid[u, :, :]
+        print(np.shape(test_slice))
 
 
         # --- Plot Train Loss ---
