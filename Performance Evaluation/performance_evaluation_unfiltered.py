@@ -115,7 +115,74 @@ def attenuation(rir, raw_wav, filtered,zone):
     e_raw = torch.sum(raw_signal**2)
     e_filt = torch.sum(filtered**2)
     return e_raw/e_filt
+def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
+                             bright_zone_mics_index: list[int],
+                             dark_zone_mics_index: list[int],
+                             fs: int = 16000):
+    ref = wav_input.squeeze().detach().cpu().numpy().astype(np.float32)
 
+    def compute_zone_stoi(mic_indices):
+        stoi_list = []
+        for m in mic_indices:
+            deg = p_C[m, :].detach().cpu().numpy().astype(np.float32)
+            min_len = min(len(ref), len(deg))
+            s_target = ref[:min_len]
+            s_est = deg[:min_len]
+            score = stoi(s_target, s_est, fs, extended=False)
+            stoi_list.append(score)
+        stoi_list = np.array(stoi_list)
+        return np.mean(stoi_list)
+
+    mean_B = compute_zone_stoi(bright_zone_mics_index)
+    mean_D = compute_zone_stoi(dark_zone_mics_index)
+
+    return mean_B,mean_D
+
+def compute_pesq_unfiltered(
+    p_C,
+    wav_input: torch.Tensor,
+    bright_zone_mics_index_test: list[int],
+    dark_zone_mics_index_test: list[int],
+    fs: int=16000 ,
+):
+
+    p_B = p_C[bright_zone_mics_index_test]  # [n_bz_mics, n_samples]
+    p_D = p_C[dark_zone_mics_index_test]    # [n_dz_mics, n_samples]
+
+    # --- Step 3: Reference signal as NumPy ---
+    ref = wav_input.squeeze().detach().cpu().numpy().astype(np.float32)
+
+    # --- Step 4: Compute PESQ for Bright Zone ---
+    pesq_B_scores = []
+    for m in range(p_B.shape[0]):
+        deg = p_B[m, :].detach().cpu().numpy().astype(np.float32)
+        try:
+            score = pesq(fs, ref, deg, 'wb' if fs == 16000 else 'nb')
+        except Exception as e:
+            print(f"[Warning] PESQ failed for BZ mic {m}: {e}")
+            score = np.nan
+        pesq_B_scores.append(score)
+
+    # --- Step 5: Compute PESQ for Dark Zone ---
+    pesq_D_scores = []
+    for m in range(p_D.shape[0]):
+        deg = p_D[m, :].detach().cpu().numpy().astype(np.float32)
+        try:
+            score = pesq(fs, ref, deg, 'wb' if fs == 16000 else 'nb')
+        except Exception as e:
+            print(f"[Warning] PESQ failed for DZ mic {m}: {e}")
+            score = np.nan
+        pesq_D_scores.append(score)
+
+    # --- Step 6: Compute statistics ---
+    pesq_B_scores = np.array(pesq_B_scores)
+    pesq_D_scores = np.array(pesq_D_scores)
+
+    mean_pesq_B = float(np.nanmean(pesq_B_scores))
+
+    mean_pesq_D = float(np.nanmean(pesq_D_scores))
+
+    return mean_pesq_B,mean_pesq_D
 
 #---Compute average performance metrics across testset---
 def average_performance_metrics(RIR_test, wav_input, indeces_bright, indeces_dark):
@@ -123,6 +190,8 @@ def average_performance_metrics(RIR_test, wav_input, indeces_bright, indeces_dar
     NSDP_B_list= []
     attenuation_list = []
     attenuation_list_bz = []
+    STOI_B_list, STOI_D_list = [], []
+    pesq_B_list, pesq_D_list = [], []
     for i in tqdm(range(RIR_test.shape[0])):
         #print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
         rirs = RIR_test[i]
@@ -141,28 +210,47 @@ def average_performance_metrics(RIR_test, wav_input, indeces_bright, indeces_dar
         #Compute attentuation in dark zone
         atten = attenuation(rirs, wav_input, p_C[indeces_dark], indeces_dark)
         atten_bz=attenuation(rirs, wav_input, p_C[indeces_bright], indeces_bright)
-        
+        mean_pesq_B, mean_pesq_D = compute_pesq_unfiltered(p_C, wav_input, indeces_bright, indeces_dark)
+        mean_STOI_B, mean_STOI_D = compute_STOI(p_C, wav_input, indeces_bright, indeces_dark)
         
         AC_list.append(AC_i)
         NSDP_B_list.append(mean_NSDP_B)
         attenuation_list.append(atten)
         attenuation_list_bz.append(atten_bz)
+        pesq_B_list.append(mean_pesq_B)
+        pesq_D_list.append(mean_pesq_D)
+        STOI_B_list.append(mean_STOI_B)
+        STOI_D_list.append(mean_STOI_D)
+        
 
     AC_list = np.array(AC_list)
     attenuation_arr = np.array(attenuation_list)
     attenuation_arr_bz = np.array(attenuation_list_bz)
+    pesq_B_list = np.array(pesq_B_list)
+    pesq_D_list = np.array(pesq_D_list)
+    STOI_B_list = np.array(STOI_B_list)
+    STOI_D_list = np.array(STOI_D_list)
 
     # Compute statistics
     results = {
         "AC": (np.sqrt(np.var(10*np.log10(AC_list))) ,10*np.log10(np.mean(AC_list)) ,np.min(10*np.log10(AC_list)), np.max(10*np.log10(AC_list))),
         "NSDP_B": (np.sqrt(np.var(10*np.log10(NSDP_B_list))) ,10*np.log10(np.mean(NSDP_B_list)), np.min(10*np.log10(NSDP_B_list)), np.max(10*np.log10(NSDP_B_list))),
         "Attenuation_DZ": (np.sqrt(np.var(10*np.log10(attenuation_arr))),10*np.log10(np.mean(attenuation_arr)), np.min(10*np.log10(attenuation_arr)), np.max(10*np.log10(attenuation_arr))),
-        "Attenuation_BZ": (np.sqrt(np.var(10*np.log10(attenuation_arr_bz))),10*np.log10(np.mean(attenuation_arr_bz)), np.min(10*np.log10(attenuation_arr_bz)), np.max(10*np.log10(attenuation_arr_bz)))
+        "Attenuation_BZ": (np.sqrt(np.var(10*np.log10(attenuation_arr_bz))),10*np.log10(np.mean(attenuation_arr_bz)), np.min(10*np.log10(attenuation_arr_bz)), np.max(10*np.log10(attenuation_arr_bz))),
+        "PESQ_BZ": (np.sqrt(np.var(pesq_B_list)).item(),np.mean(pesq_B_list).item(), np.min(pesq_B_list),np.max(pesq_B_list)),
+        "PESQ_DZ": (np.sqrt(np.var(pesq_D_list)).item(),np.mean(pesq_D_list).item(), np.min(pesq_D_list),np.max(pesq_D_list)),
+        "STOI_BZ": (np.sqrt(np.var(STOI_B_list)).item(),np.mean(STOI_B_list).item(), np.min(STOI_B_list),np.max(STOI_B_list)),
+        "STOI_DZ": (np.sqrt(np.var(STOI_D_list)).item(),np.mean(STOI_D_list).item(), np.min(STOI_D_list),np.max(STOI_D_list)),
     }
     print(f"AC (std, mean, min, max): {results['AC']}")
     print(f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}")
     print(f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation_DZ']}")
     print(f"Attenuation Bright Zone (std, mean, min, max):{results['Attenuation_BZ']}")
+    print(f"PESQ Bright Zone (std, mean, min, max):{results['PESQ_BZ']}")
+    print(f"PESQ Dark Zone (std, mean, min, max):{results['PESQ_DZ']}")
+    print(f"STOI Bright Zone (std, mean, min, max):{results['STOI_BZ']}")
+    print(f"STOI Dark Zone (std, mean, min, max):{results['STOI_DZ']}")
+    
 
     return results
 
