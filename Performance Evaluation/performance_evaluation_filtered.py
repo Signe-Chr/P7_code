@@ -28,11 +28,15 @@ def load_data_and_model(chosen_model):
     if chosen_model == "interpolation":
         model = torch.load("Saved Filters/interpolation_filters.pt")
 
+
     #---Load data and split into test and traning data---
     data_test, data_train, data_val = load_test_train_data()
 
     filters_test=data_test[1]
     filters_train=data_train[1]
+
+    if chosen_model == "acc":
+        model = filters_test
     
     n_srcs_test=data_test[4]
     n_srcs_train=data_train[4]
@@ -97,37 +101,38 @@ def attenuation(rir, raw_wav, filtered, zone):
     raw_signal = cpwi(rir, raw_wav)[zone]
     e_raw = torch.sum(raw_signal**2)
     e_filt = torch.sum(filtered**2)
-    return 10 * torch.log10(e_raw/e_filt)
+    return e_raw/e_filt
 
 def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, indeces_bright, rir: torch.Tensor):
     p_B = p_C[indeces_bright]
-    ref = wav_input.float()
+    #ref = wav_input.float()
+    #ref = F.pad(wav_input.float(), (3, 0))
+    
+    #d_B_list = []
+    #rir_m = rir[indeces_bright] 
+    #max_len = ref.shape[-1] + rir_m.shape[-1] - 1
+    #mic_pressure = torch.zeros((1, max_len), device=rir.device)
+    #pad = len(rir_m[:,0].T)-1
+    #for s in range(rir_m.shape[1]):
+     #   conv_result = F.conv1d(ref.unsqueeze(0).unsqueeze(0), rir_m[:,s].unsqueeze(0), padding=pad)
+      #  conv_result = conv_result.squeeze(0)
+       # conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[-1]))
+       # mic_pressure += conv_result
+    #mic_pressure[mic_pressure==0] += 1e-12
+    #d_B_list.append(mic_pressure)
+    d_B=cpwi(rir,wav_input)[indeces_bright]
 
-    d_B_list = []
-    rir_m = rir[indeces_bright] 
-    max_len = ref.shape[-1] + rir_m.shape[-1] - 1
-    mic_pressure = torch.zeros((1, max_len), device=rir.device)
-
-    pad = len(rir_m[:,0].T)-len(wav_input) if len(wav_input) < len(rir_m[:,0].T) else 0
-    for s in range(rir_m.shape[1]):
-        conv_result = F.conv1d(ref.unsqueeze(0).unsqueeze(0), rir_m[:,s].unsqueeze(0), padding=pad)
-        conv_result = conv_result.squeeze(0)
-        conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[-1]))
-        mic_pressure += conv_result
-    mic_pressure[mic_pressure==0] += 1e-12
-    d_B_list.append(mic_pressure) 
-
-    d_B_tensor = torch.stack(d_B_list) 
-    min_len = min(d_B_tensor.shape[-1], p_B.shape[1])
-    d_B_tensor = d_B_tensor[:, :min_len]
+    #d_B_tensor = torch.stack(d_B_list).squeeze(0)
+    min_len = min(d_B.shape[-1], p_B.shape[-1])
+    d_B = d_B[:, :min_len]
     p_B = p_B[:, :min_len]
     
-    rms_ref = torch.sqrt(torch.mean(ref ** 2))
-    rms_pB = torch.sqrt(torch.mean(p_B ** 2))
-    ref = ref * (rms_pB / rms_ref)
+    #rms_d_B_tensor = torch.sqrt(torch.mean(d_B_tensor ** 2))
+    #rms_pB = torch.sqrt(torch.mean(p_B ** 2))
+    #d_B_tensor = d_B_tensor * (rms_pB / rms_d_B_tensor)
 
-    numerator = torch.sum((d_B_tensor - p_B) ** 2, dim=1)
-    denominator = torch.sum(d_B_tensor ** 2, dim=1)
+    numerator = torch.sum((d_B - p_B) ** 2)
+    denominator = torch.sum(d_B ** 2)
 
     return numerator / denominator
 
@@ -184,13 +189,14 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     NSDP_B_list = np.array(NSDP_B_list)
     attenuation_arr = np.array(attenuation_list)
     attenuation_arr_bz = np.array(attenuation_list_bz)
-
+    
+    np.savetxt("I need help.txt", NSDP_B_list)
     # Compute statistics
     results = {
-        "AC": (10*np.log10((np.sqrt(np.var(AC_list)))), 10*np.log10(np.mean(AC_list)),  10*np.log10(np.min(AC_list)), 10*np.log10(np.max(AC_list))),
-        "NSDP_B": (10*np.log10(np.sqrt(np.var(NSDP_B_list))).item(), 10*np.log10(np.mean(NSDP_B_list)).item(), 10*np.log10(np.min(NSDP_B_list)).item(), 10*np.log10(np.max(NSDP_B_list)).item()),
-        "Attenuation_DZ": (np.sqrt(np.var(attenuation_arr)).item(), np.mean(attenuation_arr).item(), np.min(attenuation_arr).item(), np.max(attenuation_arr).item()),
-        "Attenuation_BZ": (np.sqrt(np.var(attenuation_arr_bz)).item(), np.mean(attenuation_arr_bz).item(), np.min(attenuation_arr_bz).item(), np.max(attenuation_arr_bz).item())
+        "AC": (np.sqrt(np.var(10*np.log10(AC_list))), 10*np.log10(np.mean(AC_list)),  np.min(10*np.log10(AC_list)), np.max(10*np.log10(AC_list))),
+        "NSDP_B": (np.sqrt(np.var(10*np.log10(NSDP_B_list))).item(), 10*np.log10(np.mean(NSDP_B_list)).item(), 10*np.log10(np.min(NSDP_B_list)).item(), 10*np.log10(np.max(NSDP_B_list)).item()),
+        "Attenuation_DZ": (np.sqrt(np.var(10*np.log10(attenuation_arr))).item(),10*np.log10( np.mean(attenuation_arr).item()), np.min(10*np.log10(attenuation_arr)).item(), np.max(10*np.log10(attenuation_arr)).item()),
+        "Attenuation_BZ": (np.sqrt(np.var(10*np.log10(attenuation_arr_bz))).item(), 10*np.log10(np.mean(attenuation_arr_bz)).item(), np.min(10*np.log10(attenuation_arr_bz)).item(), np.max(10*np.log10(attenuation_arr_bz)).item())
     }
     print(f"AC (std, mean, min, max): {results['AC']}")
     print(f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}")
@@ -255,8 +261,9 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "interpolation"
 "regression"
 "classification"
+"acc"
 
-chosen_model = "random"
+chosen_model = "acc"
 print(f"Du har valgt {chosen_model} til evaluering.")
 
 x_input = x_input_kronecker

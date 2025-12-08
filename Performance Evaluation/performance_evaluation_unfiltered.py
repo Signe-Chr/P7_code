@@ -33,7 +33,7 @@ def load_wav_file():
     x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
     return x_input
 
-#---Compute Acoustic contrast---
+#---Compute pressure--
 def compute_pressure_with_input(rir: torch.Tensor, x_input: torch.Tensor) -> torch.Tensor:
     n_mics, n_srcs, n_rir_samples = rir.shape
     n_input_samples = x_input.shape[-1]
@@ -66,7 +66,8 @@ def compute_pressure_with_input(rir: torch.Tensor, x_input: torch.Tensor) -> tor
 
     return p
 
-#---Compute Acoustic Contrast---
+
+#---Metrics--
 def acoustic_contrast(p_C,indeces_bright, indeces_dark):
     p_B=p_C[indeces_bright]
     p_D=p_C[indeces_dark]
@@ -75,135 +76,46 @@ def acoustic_contrast(p_C,indeces_bright, indeces_dark):
     M_B=len(indeces_bright)
     M_D=len(indeces_dark)
     AC=(M_D / M_B) * (e_B / e_D) if e_D.item() != 0 else torch.tensor(1e10)
-    return 10*torch.log10(AC)
+    return AC
 
-#---Compute PESQ---
-def compute_pesq_unfiltered(
-    p_C,
-    wav_input: torch.Tensor,
-    indeces_bright_test: list[int],
-    indeces_dark_test: list[int],
-    fs: int=16000 ,
-):
-
-    p_B = p_C[indeces_bright_test]  # [n_bz_mics, n_samples]
-    p_D = p_C[indeces_dark_test]    # [n_dz_mics, n_samples]
-
-    # --- Step 3: Reference signal as NumPy ---
-    ref = wav_input.squeeze().detach().cpu().numpy().astype(np.float32)
-
-    # --- Step 4: Compute PESQ for Bright Zone ---
-    pesq_B_scores = []
-    for m in range(p_B.shape[0]):
-        deg = p_B[m, :].detach().cpu().numpy().astype(np.float32)
-        try:
-            score = pesq(fs, ref, deg, 'wb' if fs == 16000 else 'nb')
-        except Exception as e:
-            print(f"[Warning] PESQ failed for BZ mic {m}: {e}")
-            score = np.nan
-        pesq_B_scores.append(score)
-
-    # --- Step 5: Compute PESQ for Dark Zone ---
-    pesq_D_scores = []
-    for m in range(p_D.shape[0]):
-        deg = p_D[m, :].detach().cpu().numpy().astype(np.float32)
-        try:
-            score = pesq(fs, ref, deg, 'wb' if fs == 16000 else 'nb')
-        except Exception as e:
-            print(f"[Warning] PESQ failed for DZ mic {m}: {e}")
-            score = np.nan
-        pesq_D_scores.append(score)
-
-    # --- Step 6: Compute statistics ---
-    pesq_B_scores = np.array(pesq_B_scores)
-    pesq_D_scores = np.array(pesq_D_scores)
-
-    mean_pesq_B = float(np.nanmean(pesq_B_scores))
-
-    mean_pesq_D = float(np.nanmean(pesq_D_scores))
-
-    return mean_pesq_B,mean_pesq_D
-
-#---Compute NSDP---
 def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, indeces_bright, rir: torch.Tensor):
     p_B = p_C[indeces_bright]
     ref = wav_input.float()
-
+    #ref = F.pad(wav_input.float(), (3, 0))
+    
     d_B_list = []
     rir_m = rir[indeces_bright] 
     max_len = ref.shape[-1] + rir_m.shape[-1] - 1
     mic_pressure = torch.zeros((1, max_len), device=rir.device)
-
-    pad = len(rir_m[:,0].T)-len(wav_input) if len(wav_input) < len(rir_m[:,0].T) else 0
+    pad = len(rir_m[:,0].T)-1
     for s in range(rir_m.shape[1]):
         conv_result = F.conv1d(ref.unsqueeze(0).unsqueeze(0), rir_m[:,s].unsqueeze(0), padding=pad)
         conv_result = conv_result.squeeze(0)
         conv_result = F.pad(conv_result, (0, max_len - conv_result.shape[-1]))
         mic_pressure += conv_result
+    mic_pressure[mic_pressure==0] += 1e-12
+    d_B_list.append(mic_pressure)
 
-    d_B_list.append(mic_pressure) 
-
-    d_B_tensor = torch.stack(d_B_list) 
-    min_len = min(d_B_tensor.shape[1], p_B.shape[1])
+    d_B_tensor = torch.stack(d_B_list).squeeze(0)
+    min_len = min(d_B_tensor.shape[-1], p_B.shape[1])
     d_B_tensor = d_B_tensor[:, :min_len]
     p_B = p_B[:, :min_len]
     
-    rms_ref = torch.sqrt(torch.mean(ref ** 2))
+    rms_d_B_tensor = torch.sqrt(torch.mean(d_B_tensor ** 2))
     rms_pB = torch.sqrt(torch.mean(p_B ** 2))
-    ref = ref * (rms_pB / rms_ref)
+    d_B_tensor = d_B_tensor * (rms_pB / rms_d_B_tensor)
 
-    numerator = torch.sum((d_B_tensor - p_B) ** 2, dim=1)
-    denominator = torch.sum(d_B_tensor ** 2, dim=1)
-    nSDP = 10 * torch.log10(numerator / denominator)
+    numerator = torch.sum((d_B_tensor - p_B) ** 2)
+    denominator = torch.sum(d_B_tensor ** 2)
 
-    return torch.mean(nSDP)
-
-#---Compute STOI---
-def compute_STOI(p_C: torch.Tensor, wav_input: torch.Tensor,
-                             indeces_bright: list[int],
-                             indeces_dark: list[int],
-                             fs: int = 16000):
-    ref = wav_input.squeeze().detach().cpu().numpy().astype(np.float32)
-
-    def compute_zone_stoi(mic_indices):
-        stoi_list = []
-        for m in mic_indices:
-            deg = p_C[m, :].detach().cpu().numpy().astype(np.float32)
-            min_len = min(len(ref), len(deg))
-            s_target = ref[:min_len]
-            s_est = deg[:min_len]
-            score = stoi(s_target, s_est, fs, extended=False)
-            stoi_list.append(score)
-        stoi_list = np.array(stoi_list)
-
-        return stoi_list
-
-    b = compute_zone_stoi(indeces_bright)
-    d = compute_zone_stoi(indeces_dark)
-
-    mean_B = np.mean(b)
-    mean_D = np.mean(d)
-
-
-
-    return mean_B,mean_D
-
-#---Compute Attenuation---  
+    return numerator / denominator
+ 
 def attenuation(rir, raw_wav, filtered,zone):
     raw_signal = compute_pressure_with_input(rir, raw_wav)[zone]
     e_raw = torch.sum(raw_signal**2)
     e_filt = torch.sum(filtered**2)
-    return 10 * np.log10(e_raw/e_filt)
+    return e_raw/e_filt
 
-#---Compute losses---
-def loss_functions(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_idx):
-    mse_loss = MSE(predicted_filter, true_filter)
-    cosine_loss = Cosine_similarity(predicted_filter.reshape(1, L*J), true_filter.reshape(1, L*J))
-    msep_loss_B, _ = MSEP(predicted_filter, true_filter, rir_test, wav_input, B_idx, D_idx)
-    MSPE_loss = msep_loss_B
-    H, _ = compute_H_matrix(rir_test)
-    AC_los = AC_loss(predicted_filter, true_filter, H, B_idx, D_idx)
-    return 1/4*(mse_loss+cosine_loss+MSPE_loss+AC_los), [mse_loss, cosine_loss, MSPE_loss, AC_los]
 
 #---Compute average performance metrics across testset---
 def average_performance_metrics(RIR_test, wav_input, indeces_bright, indeces_dark):
@@ -242,18 +154,29 @@ def average_performance_metrics(RIR_test, wav_input, indeces_bright, indeces_dar
 
     # Compute statistics
     results = {
-        "AC": (np.sqrt(np.var(AC_list)) ,np.mean(AC_list) ,np.min(AC_list), np.max(AC_list)),
-        "NSDP_B": (np.sqrt(np.var(NSDP_B_list)) ,np.mean(NSDP_B_list), np.min(NSDP_B_list), np.max(NSDP_B_list)),
-        "Attenuation_DZ": (np.sqrt(np.var(attenuation_arr)),np.mean(attenuation_arr), np.min(attenuation_arr), np.max(attenuation_arr)),
-        "Attenuation_BZ": (np.sqrt(np.var(attenuation_arr_bz)),np.mean(attenuation_arr_bz), np.min(attenuation_arr_bz), np.max(attenuation_arr_bz))
+        "AC": (np.sqrt(np.var(10*np.log10(AC_list))) ,10*np.log10(np.mean(AC_list)) ,np.min(10*np.log10(AC_list)), np.max(10*np.log10(AC_list))),
+        "NSDP_B": (np.sqrt(np.var(10*np.log10(NSDP_B_list))) ,10*np.log10(np.mean(NSDP_B_list)), np.min(10*np.log10(NSDP_B_list)), np.max(10*np.log10(NSDP_B_list))),
+        "Attenuation_DZ": (np.sqrt(np.var(10*np.log10(attenuation_arr))),10*np.log10(np.mean(attenuation_arr)), np.min(10*np.log10(attenuation_arr)), np.max(10*np.log10(attenuation_arr))),
+        "Attenuation_BZ": (np.sqrt(np.var(10*np.log10(attenuation_arr_bz))),10*np.log10(np.mean(attenuation_arr_bz)), np.min(10*np.log10(attenuation_arr_bz)), np.max(10*np.log10(attenuation_arr_bz)))
     }
     print(f"AC (std, mean, min, max): {results['AC']}")
     print(f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}")
     print(f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation_DZ']}")
     print(f"Attenuation Bright Zone (std, mean, min, max):{results['Attenuation_BZ']}")
 
+    return results
+
 
 if __name__=='__main__':
     x_input = x_input_kronecker #load_wav_file()
     RIRs_test, RIRs_train, = load_data()
-    average_performance_metrics(RIRs_test, x_input, indeces_bright, indeces_dark)
+    results = average_performance_metrics(RIRs_test, x_input, indeces_bright, indeces_dark)
+    
+    gemt = [f"AC (std, mean, min, max): {results['AC']}\n",
+                f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}\n", 
+                f"Attenuation Dark Zone (std, mean, min, max):{results['Attenuation_DZ']}\n",
+                f"Attenuation Bright Zone (std, mean, min, max):{results['Attenuation_BZ']}\n"]
+
+    with open(f"Performance Evaluation/Results/unfiltered.txt", "w") as file:
+        for string in gemt:
+            file.writelines(string)
