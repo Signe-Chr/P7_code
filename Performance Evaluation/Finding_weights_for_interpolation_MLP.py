@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
-from performance_evaluation_unfiltered import compute_pressure_with_input as cpwi
 from Test_train_split import load_test_train_data, x_input, indeces_bright, indeces_dark
 
 def load_data_and_model(chosen_model, filters_dir = "Saved Filters Speech/"):
