@@ -75,7 +75,7 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
         
     return np.array(mse),np.array(cosine), np.array(MSEP),np.array(AC)
 
-chosen_model = "interpolation"
+chosen_model = "baseline"
 x_input = x_input_kronecker
 n_srcs_val, n_srcs_train, filters_val, filters_train, RIRs_val, RIRs_train, model_filters = load_data_and_model(chosen_model)
 mse,cosine, MSEP,AC=loss_function_evaluation(RIRs_val, model_filters, x_input, indeces_bright, indeces_dark, filters_val)
