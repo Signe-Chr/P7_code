@@ -16,7 +16,7 @@ print(f"Using device: {device}")
 p = 3
 neurons = [128, 256, 512]
 layers = [1, 2, 3]
-num_folds = 1
+num_folds = 5
 
 # Load data
 data_test, data_train, nej = load_test_train_data()
@@ -40,7 +40,7 @@ if p == 1:
 
         for folds in range(num_folds):
             # Reload data for each fold
-            data_test, data_train = load_test_train_data(random_seed=folds)
+            data_test, data_train, nej = load_test_train_data(random_seed=folds)
 
             # Prepare training and test sets
             X_train = data_train[0][:50].to(device).to(torch.float32)
@@ -188,7 +188,7 @@ if p == 2:
 
             for fold in range(num_folds):
                 # Reload data for each fold
-                data_test, data_train = load_test_train_data()
+                data_test, data_train, nej = load_test_train_data()
 
                 # Prepare training and test sets
                 X_train = data_train[0][:50].to(device).to(torch.float32)
@@ -389,7 +389,7 @@ if p == 3:
                     # --------------------
                     # Train model
                     # --------------------
-                    for epoch in range(1, 2):
+                    for epoch in range(1, 41):
                         total_loss = 0
                         total = 0
                         for k in range(len(X_train)):
