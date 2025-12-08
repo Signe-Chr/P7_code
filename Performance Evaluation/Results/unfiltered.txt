@@ -1,4 +1,4 @@
-AC (std, mean, min, max): (5.620738537086538, 12.05913126783493, -0.8752123409524646, 20.981474878900478)
+AC (std, mean, min, max): (6.579556878314677, 10.574347557805531, -9.47961482623003, 19.6837419828497)
 NSDP Bright Zone (std, mean, min, max): (nan, -inf, -inf, -inf)
 Attenuation Dark Zone (std, mean, min, max):(0.0, 0.0, 0.0, 0.0)
 Attenuation Bright Zone (std, mean, min, max):(0.0, 0.0, 0.0, 0.0)
