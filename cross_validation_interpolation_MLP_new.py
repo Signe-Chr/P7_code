@@ -13,7 +13,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Parameters
-p = 2
+p = 1
 neurons = [128, 256, 512]
 layers = [1, 2, 3]
 num_folds = 5
@@ -57,6 +57,7 @@ if p == 1:
             # Define model and move to device
             model = torch.nn.Sequential(
                 torch.nn.Linear(input_size, neuron),
+                torch.nn.Dropout(0.3),
                 torch.nn.ReLU(),
                 torch.nn.Linear(neuron, output_size)
             ).to(device)
