@@ -1,12 +1,9 @@
 import torch, time, os
-import torch.nn.functional as F
 import numpy as np
 import Loss_functions as LF
-import Dataset_class as dc
-from sklearn.neighbors import KDTree 
-from scipy.io import wavfile
+#from sklearn.neighbors import KDTree 
 from tqdm import tqdm
-from Test_train_split import load_test_train_data
+from Test_train_split import load_test_train_data, x_input, L, J
 
 
 
@@ -30,8 +27,9 @@ def Extensive_search(
     chosen_indices = []
     times_per_test = []
 
+
     # Loss weights
-    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 1/3.729, 1/1.000, 1/18.390, 1/17.181
+    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 1, 1, 1, 1 #0.002, 0.005, 0.009, 2.859  #1/3.729, 1/1.000, 1/18.390, 1/17.181
     print("\nStarting Extensive Brute-Force Search with FULL COMPOSITE LOSS...")
     for i in tqdm(range(N_test)):
 
@@ -86,7 +84,7 @@ def Extensive_search(
         f.write(f"Chosen indices: {chosen_indices}\n")
         f.write(f"Average time per test sample: {avg_time_per_test:.6f}s\n")
     filter_q = filters_train[chosen_indices].to(device)
-    torch.save(filter_q, "Saved Filters/baseline_filters.pt")
+    torch.save(filter_q, "Saved Filters Speech/baseline_filters_speech.pt")
     return chosen_indices, avg_time_per_test
 
 
@@ -103,10 +101,9 @@ if __name__ == "__main__":
     
 
     data_test, data_train, data_val = load_test_train_data(val_size=0.10, random_seed=42)
-    filters_test, filters_train = data_test[1], data_train[1]
-                
+    filters_test, filters_train = data_val[1], data_train[1]
+            
     max_filters = len(filters_test)
-    x_input = torch.tensor([1])
     IR_train = data_train[5]
     
     Extensive_search(
