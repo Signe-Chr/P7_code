@@ -191,7 +191,7 @@ import os
 cmap = cm.get_cmap('tab10')
 
 # Save to current working directory
-save_dir = "./"
+save_dir = "Plots/"
 os.makedirs(save_dir, exist_ok=True)
 
 # Loop over splits to create separate figures
