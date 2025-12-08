@@ -12,8 +12,7 @@ indeces_dark = [0,1,2,3,4,5,6,7,8,9,10,11]
 indeces_bright = [12]
 x_input_kronecker = torch.tensor([1] + [0]*(J+512-2),dtype=torch.float32)
 
-def load_test_train_data(val_size=0.1, random_seed=42):
-    data_dir = "Data Archive"
+def load_test_train_data(val_size=0.1, random_seed=42, data_dir="Data Archive Speech"):
     full_data = os.listdir(data_dir)
 
     # Perform train/test split with fixed random seed
