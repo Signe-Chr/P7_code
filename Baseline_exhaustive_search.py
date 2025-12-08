@@ -1,12 +1,9 @@
 import torch, time, os
-#import torch.nn.functional as F
 import numpy as np
 import Loss_functions as LF
-#import Dataset_class as dc
 #from sklearn.neighbors import KDTree 
-#from scipy.io import wavfile
 from tqdm import tqdm
-from Test_train_split import load_test_train_data, load_speech_file, L, J
+from Test_train_split import load_test_train_data, x_input, L, J
 
 
 
@@ -104,7 +101,6 @@ if __name__ == "__main__":
     
 
     data_test, data_train, data_val = load_test_train_data(val_size=0.10, random_seed=42)
-    x_input = load_speech_file()
     filters_test, filters_train = data_val[1], data_train[1]
             
     max_filters = len(filters_test)
