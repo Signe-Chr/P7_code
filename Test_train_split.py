@@ -62,7 +62,6 @@ def load_speech_file():
     wav = wav[ : 1*fs_wav]
     wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
     x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
-    x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
     return x_input
 
 
