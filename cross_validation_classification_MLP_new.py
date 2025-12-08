@@ -464,6 +464,17 @@ if p == 3:
                 train_err_grid[j, i, k] = np.mean(fold_train_err)
                 test_err_grid[j, i, k]  = np.mean(fold_test_err)
 
+    with open("matrix_classification_train.txt", "w") as f:
+        for slice2d in train_err_grid:
+            np.savetxt(f, slice2d)
+    train_err_grid = np.loadtxt("matrix_classification_train.txt").reshape(3,3,3)
+
+    with open("matrix_classification_test.txt", "w") as f:
+        for slice2d in test_err_grid:
+            np.savetxt(f, slice2d)
+    test_err_grid = np.loadtxt("matrix_classification_test.txt").reshape(3,3,3)
+    
+
     fig, axes = plt.subplots(2, 3, figsize=(18, 10))  # 2 rows: train/test, 3 cols: L3 neurons
 
     # Determine vmin/vmax separately for train and test

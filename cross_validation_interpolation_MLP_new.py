@@ -374,10 +374,13 @@ if p == 3:
                     # --------------------
                     model = torch.nn.Sequential(
                         torch.nn.Linear(input_size, neuron1),
+                        torch.nn.Dropout(0.3),
                         torch.nn.ReLU(),
                         torch.nn.Linear(neuron1, neuron2),
+                        torch.nn.Dropout(0.3),
                         torch.nn.ReLU(),
                         torch.nn.Linear(neuron2, neuron3),
+                        torch.nn.Dropout(0.3),
                         torch.nn.ReLU(),
                         torch.nn.Linear(neuron3, output_size)
                     ).to(device)
@@ -482,11 +485,20 @@ if p == 3:
                 # Store average fold errors into heatmap grids
                 train_err_grid[u, i, j] = np.mean(train_mse_folds)
                 test_err_grid[u, i, j]  = np.mean(test_mse_folds)
-    with open("matrix.txt", "w") as f:
-        for i, slice2d in enumerate(train_err_grid):
-            f.write(f"# Slice {i}\n")
+    
+    with open("matrix_interpolation_train.txt", "w") as f:
+        for slice2d in train_err_grid:
             np.savetxt(f, slice2d)
-            f.write("\n")
+
+    with open("matrix_interpolation_test.txt", "w") as f:
+        for slice2d in test_err_grid:
+            np.savetxt(f, slice2d)
+
+    train_err_grid = np.loadtxt("matrix_interpolation_train.txt").reshape(3,3,3)
+    test_err_grid = np.loadtxt("matrix_interpolation_test.txt").reshape(3,3,3)
+
+    exit()
+
     # -------------------------------------------------
     # PLOT HEATMAPS
     # -------------------------------------------------
