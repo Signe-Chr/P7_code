@@ -9,20 +9,8 @@ from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matr
 from performance_evaluation_unfiltered import compute_pressure_with_input as cpwi
 from Test_train_split import load_test_train_data, load_wav_file, L, J, x_input_kronecker, indeces_bright, indeces_dark
 
-def load_data_and_model(chosen_model):
-    if chosen_model == "interpolation":
-        model = torch.load("Saved Filters/interpolation_filters.pt")
-    if chosen_model == "baseline":
-        model = torch.load("Saved Filters/baseline_filters.pt")
-
-    if chosen_model == "classification":
-        model = torch.load("Saved Filters/classification_filters.pt")
-
-    if chosen_model == "regression":
-        model = torch.load("Saved Filters/regression_filters.pt")
-
-    if chosen_model == "interpolation":
-        model = torch.load("Saved Filters/interpolation_filters.pt")
+def load_data_and_model(chosen_model, filters_dir = "Saved Filters Speech/"):
+    model = torch.load(filters_dir + chosen_model +"_filters_speech.pt")
 
     #---Load data and split into test and traning data---
     data_test, data_train, data_val = load_test_train_data()

@@ -30,8 +30,9 @@ def Extensive_search(
     chosen_indices = []
     times_per_test = []
 
+
     # Loss weights
-    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 1, 1, 1, 1 #1/3.729, 1/1.000, 1/18.390, 1/17.181
+    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 0.002, 0.005, 0.009, 2.859 # 1, 1, 1, 1 #1/3.729, 1/1.000, 1/18.390, 1/17.181
     print("\nStarting Extensive Brute-Force Search with FULL COMPOSITE LOSS...")
     for i in tqdm(range(N_test)):
 
