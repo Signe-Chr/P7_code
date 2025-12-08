@@ -78,5 +78,5 @@ if __name__ == "__main__":
     elif os.path.exists("MLP_regression.pth"):
         model.load_state_dict(torch.load("MLP_regression.pth"))
         print("Succesfully loaded a previously trained model")
-    model = train(data_train, x_input.to(device), epochs=40, dev=device, model=model)
+    model = train(data_train, x_input.to(device), epochs=50, dev=device, model=model)
     torch.save(model.state_dict(), f"MLP_regression.pth")

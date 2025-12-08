@@ -54,6 +54,7 @@ if p==1:
             #model=model_.to(device)
             model = torch.nn.Sequential(
                 torch.nn.Linear(input_size, neuron),
+                torch.nn.Dropout(0.3),
                 torch.nn.ReLU(),
                 torch.nn.Linear(neuron, len(unique_filters_train))
             )
@@ -195,8 +196,10 @@ if p == 2:
                 # --------------------
                 model = torch.nn.Sequential(
                     torch.nn.Linear(input_size, neuron1),
+                    torch.nn.Dropout(0.3),
                     torch.nn.ReLU(),
                     torch.nn.Linear(neuron1, neuron2),
+                    torch.nn.Dropout(0.3),
                     torch.nn.ReLU(),
                     torch.nn.Linear(neuron2, len(unique_filters_train))
                 )
@@ -342,7 +345,7 @@ if p == 3:
     test_err_grid = np.zeros((len(neurons1), len(neurons2), len(neurons3)))
     train_err_grid = np.zeros((len(neurons1), len(neurons2), len(neurons3)))
 
-    for k, neuron3 in enumerate(neurons3):
+    """for k, neuron3 in enumerate(neurons3):
         for i, neuron2 in enumerate(neurons2):
             for j, neuron1 in enumerate(neurons1):
                 print(f"\n--- Testing architecture: Layer 1: {neuron1}, Layer 2: {neuron2}, Layer 3: {neuron3} ---")
@@ -372,10 +375,13 @@ if p == 3:
                     # --- Build model ---
                     model = torch.nn.Sequential(
                         torch.nn.Linear(input_size, neuron1),
+                        torch.nn.Dropout(0.3),
                         torch.nn.ReLU(),
                         torch.nn.Linear(neuron1, neuron2),
+                        torch.nn.Dropout(0.3),
                         torch.nn.ReLU(),
                         torch.nn.Linear(neuron2, neuron3),
+                        torch.nn.Dropout(0.3),
                         torch.nn.ReLU(),
                         torch.nn.Linear(neuron3, len(unique_filters_train))
                     )
@@ -438,8 +444,8 @@ if p == 3:
                             # L3: MSEP (Bright-zone only)
                             x_input = torch.zeros(1, 1)
                             x_input[0,0] = 1.0
-                            rirs_train_i = torch.tensor(RIRs_train[idx], dtype=torch.float32)
-                            rirs_test_i  = torch.tensor(RIRs_test[idx], dtype=torch.float32)
+                            rirs_train_i = RIRs_train[idx].to(torch.float32)
+                            rirs_test_i  = RIRs_test[idx].to(torch.float32)
                             L3_train, _ = MSEP(pred_filters_train[idx], true_filters_train[idx],
                                                rirs_train_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
                             L3_test,  _ = MSEP(pred_filters_test[idx], true_filters_test[idx],
@@ -467,13 +473,15 @@ if p == 3:
     with open("matrix_classification_train.txt", "w") as f:
         for slice2d in train_err_grid:
             np.savetxt(f, slice2d)
-    train_err_grid = np.loadtxt("matrix_classification_train.txt").reshape(3,3,3)
+    
 
     with open("matrix_classification_test.txt", "w") as f:
         for slice2d in test_err_grid:
             np.savetxt(f, slice2d)
-    test_err_grid = np.loadtxt("matrix_classification_test.txt").reshape(3,3,3)
     
+    """
+    train_err_grid = np.loadtxt("matrix_classification_train.txt").reshape(3,3,3)
+    test_err_grid = np.loadtxt("matrix_classification_test.txt").reshape(3,3,3)
 
     fig, axes = plt.subplots(2, 3, figsize=(18, 10))  # 2 rows: train/test, 3 cols: L3 neurons
 
