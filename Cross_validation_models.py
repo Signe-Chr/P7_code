@@ -33,13 +33,16 @@ class FilterNet_classification(nn.Module):
     def __init__(self, input_size, output_size):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(input_size, 256),
+            nn.Linear(input_size, 512),
+            nn.Dropout(p=0.3),
             nn.ReLU(),
-            nn.Linear(256,512),
+            nn.Linear(512,128),
+            nn.Dropout(p=0.3),
             nn.ReLU(),
-            nn.Linear(512,256),
+            nn.Linear(128,128),
+            nn.Dropout(p=0.3),
             nn.ReLU(),
-            nn.Linear(256, output_size)  # logits
+            nn.Linear(128, output_size)  # logits
         )
 
     def forward(self, x):
