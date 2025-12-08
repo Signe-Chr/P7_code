@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
 from performance_evaluation_unfiltered import compute_pressure_with_input as cpwi
+from performance_evaluation_unfiltered import load_wav_file
 from Test_train_split import load_test_train_data, load_wav_file, L, J, x_input_kronecker, indeces_bright, indeces_dark
 
 
@@ -30,7 +31,7 @@ def load_data_and_model(chosen_model):
 
 
     #---Load data and split into test and traning data---
-    data_test, data_train, data_val = load_test_train_data()
+    data_test, data_train, data_val = load_test_train_data(data_dir="Data Archive Speech")
 
     filters_test=data_test[1]
     filters_train=data_train[1]
@@ -160,6 +161,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     attenuation_list_bz=[]
 
     for i in tqdm(range(RIR_test.shape[0]), disable=not sys.stdout.isatty()):
+        print(i)
         #print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
         rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
         n_srcs = 3
@@ -263,10 +265,10 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "classification"
 "acc"
 
-chosen_model = "interpolation"
+chosen_model = "acc"
 print(f"Du har valgt {chosen_model} til evaluering.")
 
-x_input = x_input_kronecker
+x_input = load_wav_file()#x_input_kronecker
 n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, model = load_data_and_model(chosen_model)
 
 results = average_performance_metrics_with_filters(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test, chosen_model)
