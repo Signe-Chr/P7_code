@@ -6,7 +6,7 @@ import Loss_functions as LF
 #from sklearn.neighbors import KDTree 
 #from scipy.io import wavfile
 from tqdm import tqdm
-from Test_train_split import load_test_train_data
+from Test_train_split import load_test_train_data, load_speech_file, L, J
 
 
 
@@ -32,7 +32,7 @@ def Extensive_search(
 
 
     # Loss weights
-    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 0.002, 0.005, 0.009, 2.859 # 1, 1, 1, 1 #1/3.729, 1/1.000, 1/18.390, 1/17.181
+    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 1, 1, 1, 1 #0.002, 0.005, 0.009, 2.859  #1/3.729, 1/1.000, 1/18.390, 1/17.181
     print("\nStarting Extensive Brute-Force Search with FULL COMPOSITE LOSS...")
     for i in tqdm(range(N_test)):
 
@@ -104,10 +104,10 @@ if __name__ == "__main__":
     
 
     data_test, data_train, data_val = load_test_train_data(val_size=0.10, random_seed=42)
-    filters_test, filters_train = data_test[1], data_train[1]
-                
+    x_input = load_speech_file()
+    filters_test, filters_train = data_val[1], data_train[1]
+            
     max_filters = len(filters_test)
-    x_input = torch.tensor([1])
     IR_train = data_train[5]
     
     Extensive_search(
