@@ -15,7 +15,7 @@ from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matr
 
 #---Load data test and train data---
 def load_data():
-    data_test, data_train, data_val = load_test_train_data()
+    data_test, data_train, data_val = load_test_train_data(data_dir="Data Archive Speech")
     RIRs_train=data_train[5]
     RIRs_test=data_test[5]
 
@@ -23,11 +23,11 @@ def load_data():
 
 #---Load Wav file---
 def load_wav_file():
-    wav_path = "relaxing-guitar-loop-v5-245859.wav"
+    wav_path = "president-is-moron_downsampled.wav"
     fs_wav, wav = wavfile.read(wav_path)
     if wav.ndim > 1:
         wav = np.mean(wav, axis=1)
-    wav = wav[5*fs_wav : 7*fs_wav]
+    wav = wav[ : 1*fs_wav]
     wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
     x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
     x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
@@ -168,7 +168,7 @@ def average_performance_metrics(RIR_test, wav_input, indeces_bright, indeces_dar
 
 
 if __name__=='__main__':
-    x_input = x_input_kronecker #load_wav_file()
+    x_input = load_wav_file() #x_input_kronecker 
     RIRs_test, RIRs_train, = load_data()
     results = average_performance_metrics(RIRs_test, x_input, indeces_bright, indeces_dark)
     

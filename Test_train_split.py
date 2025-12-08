@@ -53,3 +53,14 @@ def load_wav_file():
     x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
     x_input_wav = x_input.squeeze(0)
     return x_input_wav
+
+def load_speech_file():
+    wav_path = "president-is-moron_downsampled.wav"
+    fs_wav, wav = wavfile.read(wav_path)
+    if wav.ndim > 1:
+        wav = np.mean(wav, axis=1)
+    wav = wav[ : 1*fs_wav]
+    wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
+    x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
+    x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
+    return x_input
