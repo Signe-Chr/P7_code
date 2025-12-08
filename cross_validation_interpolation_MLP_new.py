@@ -13,7 +13,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Parameters
-p = 3
+p = 2
 neurons = [128, 256, 512]
 layers = [1, 2, 3]
 num_folds = 5
