@@ -27,7 +27,7 @@ def load_model(model_name):
     elif model_name == "classification":
         output_size = filters_train.shape[0] 
         model = cvm.FilterNet_classification(input_size, output_size).to(device)
-        model.load_state_dict(torch.load("MLP_classification.pth", map_location=device))
+        model.load_state_dict(torch.load("MLP_classification_700.pth", map_location=device))
     elif model_name == "interpolation":
         output_size = filters_train.shape[0]
         model = cvm.FilterNet_interpolation(input_size, output_size).to(device)
@@ -130,7 +130,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
         print(f"The model has an average error per filter of {error/len(X_train):.2f}.")
 
 # vælg model her
-chosen_model = "regression"
+chosen_model = "classification"
 #validate_filters(chosen_model)
 
 
