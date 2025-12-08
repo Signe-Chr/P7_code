@@ -1,6 +1,8 @@
 import torch
 import torch.nn.functional as F
-import Dataset_generator_script as dgs
+
+fs_target = 16000
+J = 1024
 
 def compute_H_matrix(rir_array, fs=16000, n_fft=None):
     """
@@ -176,7 +178,7 @@ def AC_loss(q_pred, q_true, H, bright_indices, dark_indices):
     M_D = len(dark_indices)
     fcentres = torch.tensor([1000, 2000])
     fd = torch.tensor(2**(1/6))
-    delta_f = dgs.fs_target/dgs.J
+    delta_f = fs_target/J
     g = torch.fft.fft(q_pred, axis = 0)
     g_true = torch.fft.fft(q_true, axis = 0)
     AC_loss_total = 0

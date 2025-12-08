@@ -130,3 +130,74 @@ plt.savefig("ACC_fig_brightdark_subplots.pdf", dpi=500)
 plt.show()
 
 print("Subplot figure saved.")
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.mlab import specgram
+
+fs = 16000
+n_fft = 512
+hop_length = 128
+
+# Compute spectrograms
+S_bright_orig, _, _ = specgram(bright_original_signal, NFFT=n_fft, Fs=fs, noverlap=hop_length)
+S_bright_filt, _, _ = specgram(bright_signal, NFFT=n_fft, Fs=fs, noverlap=hop_length)
+S_dark_orig, _, _ = specgram(dark_original_signal, NFFT=n_fft, Fs=fs, noverlap=hop_length)
+S_dark_filt, _, _ = specgram(dark_signal, NFFT=n_fft, Fs=fs, noverlap=hop_length)
+
+# Convert to dB
+S_bright_orig_db = 10 * np.log10(S_bright_orig + 1e-10)
+S_bright_filt_db = 10 * np.log10(S_bright_filt + 1e-10)
+S_dark_orig_db = 10 * np.log10(S_dark_orig + 1e-10)
+S_dark_filt_db = 10 * np.log10(S_dark_filt + 1e-10)
+
+# Global min/max for consistent color scale
+vmin = min(S_bright_orig_db.min(), S_bright_filt_db.min(),
+           S_dark_orig_db.min(), S_dark_filt_db.min())
+vmax = max(S_bright_orig_db.max(), S_bright_filt_db.max(),
+           S_dark_orig_db.max(), S_dark_filt_db.max())
+
+# ------------------------
+# Create figure without constrained_layout
+# ------------------------
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Bright zone unfiltered
+im0 = axes[0,0].imshow(S_bright_orig_db, aspect='auto', origin='lower',
+                       extent=[0, len(bright_original_signal)/fs, 0, fs/2],
+                       cmap='viridis', vmin=vmin, vmax=vmax)
+axes[0,0].set_title("Bright Zone - Unfiltered")
+axes[0,0].set_ylabel("Frequency [Hz]")
+axes[0,0].set_xlabel("Time [s]")
+
+# Bright zone filtered
+im1 = axes[0,1].imshow(S_bright_filt_db, aspect='auto', origin='lower',
+                       extent=[0, len(bright_signal)/fs, 0, fs/2],
+                       cmap='viridis', vmin=vmin, vmax=vmax)
+axes[0,1].set_title("Bright Zone - Filtered (ACC)")
+axes[0,1].set_xlabel("Time [s]")
+
+# Dark zone unfiltered
+im2 = axes[1,0].imshow(S_dark_orig_db, aspect='auto', origin='lower',
+                       extent=[0, len(dark_original_signal)/fs, 0, fs/2],
+                       cmap='viridis', vmin=vmin, vmax=vmax)
+axes[1,0].set_title("Dark Zone - Unfiltered")
+axes[1,0].set_ylabel("Frequency [Hz]")
+axes[1,0].set_xlabel("Time [s]")
+
+# Dark zone filtered
+im3 = axes[1,1].imshow(S_dark_filt_db, aspect='auto', origin='lower',
+                       extent=[0, len(dark_signal)/fs, 0, fs/2],
+                       cmap='viridis', vmin=vmin, vmax=vmax)
+axes[1,1].set_title("Dark Zone - Filtered (ACC)")
+axes[1,1].set_xlabel("Time [s]")
+
+# ------------------------
+# Adjust layout and add colorbar to the right
+# ------------------------
+plt.subplots_adjust(right=0.88, wspace=0.3, hspace=0.4)  # increase hspace
+cbar_ax = fig.add_axes([0.9, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
+cbar = fig.colorbar(im3, cax=cbar_ax)
+cbar.set_label('Power [dB]')
+
+plt.show()
+
