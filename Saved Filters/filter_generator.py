@@ -44,15 +44,18 @@ def load_model(a):
 def generate_filters(a, X_test=X_test, Y_test = filters_test, Y_train = filters_train):
     model, output_file = load_model(a) # Choose model here (0-2)
     all_outputs = []
-
+    timings = []
     for configuration in X_test:
         with torch.no_grad():
+            start = time.perf_counter()
             output = model(configuration.unsqueeze(0).float())
             if a == 1:
                 output = _, prediction = torch.max(output, 1)
                 output = Y_train[prediction]
             if a == 2:
                 output = torch.matmul(Y_train.T.float(), output.T.float()).T
+            end = time.perf_counter()
+            timings.append(end - start)
 
         # Gem output i dict
         all_outputs.append(output.cpu())
@@ -60,6 +63,8 @@ def generate_filters(a, X_test=X_test, Y_test = filters_test, Y_train = filters_
     # Gem alle output i én .pt fil
     torch.save(all_outputs, output_file)
     print(f"All outputs saved in '{output_file}'")
+    avg_time_per_sample = sum(timings) / len(timings)
+    print(f"Average forward time per sample: {avg_time_per_sample:.6f} s")
 
 def test_model_efficiency(a, X_test, filters_test=filters_test, device='cpu'):
     """
