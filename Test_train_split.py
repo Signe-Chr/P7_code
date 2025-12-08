@@ -10,7 +10,7 @@ L = 3
 J = 1024
 indeces_dark = [0,1,2,3,4,5,6,7,8,9,10,11]
 indeces_bright = [12]
-x_input_kronecker = torch.tensor([1] + [0]*(J+512-2),dtype=torch.float32)
+
 
 def load_test_train_data(val_size=0.1, random_seed=42, data_dir="Data Archive Speech"):
     full_data = os.listdir(data_dir)
@@ -62,5 +62,9 @@ def load_speech_file():
     wav = wav[ : 1*fs_wav]
     wav = wav / np.max(np.abs(wav))  # scale to [-1,1]
     x_input = torch.from_numpy(wav.astype(np.float32)).unsqueeze(0)
-    x_input = torchaudio.functional.resample(x_input, orig_freq=fs_wav, new_freq=16000)
     return x_input
+
+
+#x_input = torch.tensor([1] + [0]*(J+512-2),dtype=torch.float32)
+#x_input = load_wav_file()
+x_input = load_speech_file()

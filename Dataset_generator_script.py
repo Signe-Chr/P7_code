@@ -7,7 +7,7 @@ import pyroomacoustics as pra
 import multiprocessing as mp
 from VAST_filter_coefficients import design_vast_filter
 from tqdm import tqdm
-from Test_train_split import x_input_kronecker, load_wav_file
+from Test_train_split import x_input
 
 def unit_vector_to_angles(v):
     x, y, z = v
@@ -102,7 +102,7 @@ RT60s = np.linspace(0.3, 0.9, 4)
 user_rotations = [0, np.pi/2, np.pi, np.pi*3/2]
 tilt_rotations = [np.deg2rad(15), np.deg2rad(45), np.deg2rad(75)]
 M_D = 12
-x_input = x_input_kronecker
+#x_input = x_input_kronecker
 N = len(x_input)
 if __name__ == "__main__":
     out_q_path = "ACC_filter_archive"
