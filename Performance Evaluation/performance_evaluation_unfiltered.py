@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import numpy as np
 from scipy.io import wavfile
 from pesq import pesq
-from Test_train_split import load_test_train_data, load_wav_file, L, J, x_input_kronecker, indeces_bright, indeces_dark
+from Test_train_split import load_test_train_data, load_wav_file, L, J, x_input, indeces_bright, indeces_dark
 from pystoi import stoi
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
@@ -168,7 +168,7 @@ def average_performance_metrics(RIR_test, wav_input, indeces_bright, indeces_dar
 
 
 if __name__=='__main__':
-    x_input = load_wav_file() #x_input_kronecker 
+    x_input = x_input 
     RIRs_test, RIRs_train, = load_data()
     results = average_performance_metrics(RIRs_test, x_input, indeces_bright, indeces_dark)
     
