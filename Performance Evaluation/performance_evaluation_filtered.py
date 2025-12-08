@@ -14,22 +14,12 @@ from pystoi import stoi
 
 
 
-def load_data_and_model(chosen_model):
+def load_data_and_model(chosen_model, filters_dir = "Saved Filters Speech/"):
     if chosen_model == "random":
-        data_random_selection = torch.load("Saved Filters/random_selection_filters.pt")
+        data_random_selection = torch.load("Saved Filters/random_filters.pt")
         model = data_random_selection['selected_filters']
-
-    if chosen_model == "baseline":
-        model = torch.load("Saved Filters/baseline_filters.pt")
-
-    if chosen_model == "classification":
-        model = torch.load("Saved Filters/classification_filters.pt")
-
-    if chosen_model == "regression":
-        model = torch.load("Saved Filters/regression_filters.pt")
-
-    if chosen_model == "interpolation":
-        model = torch.load("Saved Filters/interpolation_filters.pt")
+    else:
+        model = torch.load(f"{filters_dir + chosen_model}_filters.pt")
 
 
     #---Load data and split into test and traning data---
