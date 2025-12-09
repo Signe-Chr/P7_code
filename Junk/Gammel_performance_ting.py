@@ -1,5 +1,5 @@
-from VAST_filter_coefficients import setup_acoustic_scenario
-from Dataset_generator_script import sources_mics, fs_target, rooms #, #mic_directions, mic_positions_list, bright_zone_mics_index
+from Gemt.VAST_filter_coefficients import setup_acoustic_scenario
+from Gemt.Dataset_generator_script import sources_mics, fs_target, rooms #, #mic_directions, mic_positions_list, bright_zone_mics_index
 
 
 
@@ -510,7 +510,7 @@ import numpy as np
 import Cross_validation_models as cvm
 from Dataset_class import CustomDataset
 from torch.utils.data import DataLoader
-from Dataset_generator_script import room_indices as ri
+from Gemt.Dataset_generator_script import room_indices as ri
 model_ = cvm.model_
 
 

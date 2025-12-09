@@ -1,7 +1,7 @@
 import numpy as np
 import pyroomacoustics as pra
-import VAST_filter_coefficients as vfc
-import Dataset_generator_script as dgs
+import Gemt.VAST_filter_coefficients as vfc
+import Gemt.Dataset_generator_script as dgs
 
 sources, mic_positions_list, bright_zone_mics_index, dark_zone_mics_index, mic_directions = dgs.sources_mics(dgs.dark_mic_radius, [1, 5, 1.7], 12)
 mic_directions[:-1]+[pra.directivities.HyperCardioid(pra.directivities.DirectionVector(0))]

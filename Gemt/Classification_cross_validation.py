@@ -10,7 +10,7 @@ from sklearn.model_selection import KFold
 from scipy.io import wavfile
 from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
-from Dataset_generator_script import room_indices as ri
+from Gemt.Dataset_generator_script import room_indices as ri
 import os
 
 #---Check Device--

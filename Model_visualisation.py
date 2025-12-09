@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import lfilter, fftconvolve
 # Assuming the file 'Dataset_generator_script.py' exists and is imported correctly
-import Dataset_generator_script as dgs 
+import Gemt.Dataset_generator_script as dgs 
 import os
 from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
