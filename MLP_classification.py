@@ -47,8 +47,8 @@ def main():
     data_test, data_train, data_val = load_test_train_data()
     input_size = len(data_train[0][0])
     output_size = len(data_train[0])
-    epochs = 200
-    load = 500
+    epochs = 100
+    load = 700
 
     # Model, loss, optimizer
     model = cvm.FilterNet_classification(input_size, output_size).to(device)
