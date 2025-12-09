@@ -33,7 +33,7 @@ def load_model(a):
     elif model_name == "classification":
         output_size = filters_train.shape[0] 
         model = cvm.FilterNet_classification(input_size, output_size).to(device)
-        model.load_state_dict(torch.load("MLP_classification.pth", map_location=device))
+        model.load_state_dict(torch.load("MLP_classification600.pth", map_location=device))
     elif model_name == "interpolation":
         output_size = filters_train.shape[0]
         model = cvm.FilterNet_interpolation(input_size, output_size).to(device)
@@ -129,6 +129,6 @@ def test_model_efficiency(a, X_test, filters_test=filters_test, device='cpu'):
 
 
 # vælg model her (0-2)
-generate_filters(0)  # regression
-#generate_filters(1, X_test=X_train, Y_test=filters_train)  # classification
+#generate_filters(0)  # regression
+generate_filters(1)  # classification
 #generate_filters(2)  # interpolation
