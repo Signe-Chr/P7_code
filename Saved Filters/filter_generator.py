@@ -135,5 +135,5 @@ filters_val = data_val[1]
 
 chosen_model = "interpolation"
 print(f"Du har valgt {chosen_model} til evaluering.")
-generate_filters(chosen_model, X_val, filters_train) 
+generate_filters(chosen_model, X_test, filters_train) 
 
