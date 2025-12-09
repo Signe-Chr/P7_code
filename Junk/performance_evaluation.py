@@ -11,7 +11,7 @@ from pesq import pesq
 from pystoi import stoi
 from Dataset_class import CustomDataset, L, J
 from torch.utils.data import DataLoader
-from Dataset_generator_script import room_indices as ri
+from Gemt.Dataset_generator_script import room_indices as ri
 from MLP_classification import SoftFilterNet
 
 
