@@ -36,10 +36,10 @@ class FilterNet_classification(nn.Module):
             nn.Linear(input_size, 512),
             nn.Dropout(p=0.3),
             nn.ReLU(),
-            nn.Linear(512,128),
+            nn.Linear(512,512),
             nn.Dropout(p=0.3),
             nn.ReLU(),
-            nn.Linear(128,128),
+            nn.Linear(512,128),
             nn.Dropout(p=0.3),
             nn.ReLU(),
             nn.Linear(128, output_size)  # logits
