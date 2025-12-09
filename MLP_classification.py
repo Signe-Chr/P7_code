@@ -48,20 +48,21 @@ def main():
     data_test, data_train, data_val = load_test_train_data()
     input_size = len(data_train[0][0])
     output_size = len(data_train[0])
+    epochs = 900
 
     # Model, loss, optimizer
     model = cvm.FilterNet_classification(input_size, output_size).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr = 1e-3)
-    if os.path.exists("MLP_classification.pth"):
-        model.load_state_dict(torch.load("MLP_classification.pth"))
+    if os.path.exists(f"MLP_classification_{epochs}.pth"):
+        model.load_state_dict(torch.load(f"MLP_classification_{epochs}.pth"))
     # Training loop
-    for epoch in tqdm(range(1, 41)):
+    for epoch in tqdm(range(1, epochs+1)):
         model, train_loss, train_acc = train_epoch(model, data_train, criterion, optimizer, device)
         print(f"Epoch {epoch:02d} | Loss: {train_loss:.4f} | Acc: {train_acc:.2f}%")
 
     print("\n Training complete!")
-    torch.save(model.state_dict(), "MLP_classification.pth")
+    torch.save(model.state_dict(), f"MLP_classification_{epochs}.pth")
 
 
 if __name__ == "__main__":

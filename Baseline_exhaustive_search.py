@@ -17,7 +17,8 @@ def Extensive_search(
     x_input: torch.Tensor,
     bright_zone_mics_index,
     dark_zone_mics_index,
-    max_filters
+    max_filters,
+    save_dir
 ):
     """
     Brute-force search over dictionary filters.
@@ -28,8 +29,10 @@ def Extensive_search(
     times_per_test = []
 
 
+    #Means: MSE: 1.189, Cosine similairty: 0.485, MSEP: 335.877, AC:19.689
+    #Medians: MSE: 0.002, Cosine similairty: 0.005, MSEP: 0.359, AC:3.437
     # Loss weights
-    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 1, 1, 1, 1 #0.002, 0.005, 0.009, 2.859  #1/3.729, 1/1.000, 1/18.390, 1/17.181
+    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 0.002, 0.005, 0.359, 3.437  #1/3.729, 1/1.000, 1/18.390, 1/17.181
     print("\nStarting Extensive Brute-Force Search with FULL COMPOSITE LOSS...")
     for i in tqdm(range(N_test)):
 
@@ -79,12 +82,12 @@ def Extensive_search(
         )
 
     avg_time_per_test = np.mean(times_per_test)
-    os.makedirs("Saved Filters", exist_ok=True)
-    with open("Saved Filters/baseline_filters_time.txt", "a") as f:
+    
+    with open(f"{save_dir}/baseline_filters_time.txt", "a") as f:
         f.write(f"Chosen indices: {chosen_indices}\n")
         f.write(f"Average time per test sample: {avg_time_per_test:.6f}s\n")
     filter_q = filters_train[chosen_indices].to(device)
-    torch.save(filter_q, "Saved Filters Speech/baseline_filters_speech.pt")
+    torch.save(filter_q, save_dir + "/baseline_filters.pt")
     return chosen_indices, avg_time_per_test
 
 
@@ -99,9 +102,11 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
+    save_dir = "Saved Filters"
+    os.makedirs(save_dir, exist_ok=True)
 
     data_test, data_train, data_val = load_test_train_data(val_size=0.10, random_seed=42)
-    filters_test, filters_train = data_val[1], data_train[1]
+    filters_test, filters_train = data_test[1], data_train[1]
             
     max_filters = len(filters_test)
     IR_train = data_train[5]
@@ -113,6 +118,7 @@ if __name__ == "__main__":
         x_input=x_input,
         bright_zone_mics_index=bright_zone_mics_index,
         dark_zone_mics_index=dark_zone_mics_index,
-        max_filters=max_filters 
+        max_filters=max_filters,
+        save_dir=save_dir 
     )
 
