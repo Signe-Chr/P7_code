@@ -31,7 +31,7 @@ def train_model(model, data, optimizer, device, wav):
         coefficients = model(X).to(device)
         outputs = torch.matmul(filters_train.T.float() , coefficients.T.float()).T.unsqueeze(0)
 
-        lambda_1,lambda_2,lambda_3,lambda_4=1,1,1,1 #1/2.970,1/1.032,1/11.495,1/24.648
+        lambda_1,lambda_2,lambda_3,lambda_4=1/0.256, 1/0.972, 1/29.131, 1/21.684#1,1,1,1 1/2.970,1/1.032,1/11.495,1/24.648
         H = LF.compute_H_matrix(rir, fs=16000, n_fft=None)[0].to(device)
         loss = lambda_1*LF.MSE(outputs, y) + lambda_2* LF.Cosine_similarity(outputs, y) + lambda_3* LF.MSEP(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, wav, B_idx, D_idx)[0] + lambda_4* LF.AC_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), H, B_idx, D_idx)
         #print(LF.MSE(outputs, y), LF.Cosine_similarity(outputs, y), LF.MSEP(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), rir, wav, B_idx, D_idx)[0], LF.AC_loss(outputs.reshape(dc.L,dc.J), y.reshape(dc.L,dc.J), H, B_idx, D_idx))
