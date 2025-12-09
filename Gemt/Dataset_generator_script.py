@@ -5,7 +5,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 import numpy as np
 import pyroomacoustics as pra
 import multiprocessing as mp
-from VAST_filter_coefficients import design_vast_filter
+from Gemt.VAST_filter_coefficients import design_vast_filter
 from tqdm import tqdm
 from Test_train_split import x_input
 

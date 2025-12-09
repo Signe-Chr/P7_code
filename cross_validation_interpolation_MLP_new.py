@@ -13,7 +13,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Parameters
-p = 1
+p = 3
 neurons = [128, 256, 512]
 layers = [1, 2, 3]
 num_folds = 5
@@ -493,8 +493,8 @@ if p == 3:
                 # ----------- END OF FOLDS LOOP -----------
 
                 # Store average fold errors into heatmap grids
-                train_err_grid[u, i, j] = np.mean(train_mse_folds)
-                test_err_grid[u, i, j]  = np.mean(test_mse_folds)
+                train_err_grid[u, i, j] = torch.mean(train_mse_folds)
+                test_err_grid[u, i, j]  = torch.mean(test_mse_folds)
     
     with open("matrix_interpolation_train.txt", "w") as f:
         for slice2d in train_err_grid:
@@ -504,15 +504,13 @@ if p == 3:
         for slice2d in test_err_grid:
             np.savetxt(f, slice2d)
 
-    train_err_grid = np.loadtxt("matrix_interpolation_train.txt").reshape(3,3,3)
-    test_err_grid = np.loadtxt("matrix_interpolation_test.txt").reshape(3,3,3)
-
-    exit()
+    train_err_grid = np.loadtxt("matrix_interpolation_train_3_layers.txt").reshape(3,3,3)
+    test_err_grid = np.loadtxt("matrix_interpolation_test_3_layers.txt").reshape(3,3,3)
 
     # -------------------------------------------------
     # PLOT HEATMAPS
     # -------------------------------------------------
-    fig, axes = plt.subplots(2, 3, figsize=(14, 6))
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
 
     # Determine vmin/vmax separately for train and test
     vmin_train = train_err_grid.min()
@@ -524,47 +522,51 @@ if p == 3:
     for u, neuron3 in enumerate([128, 256, 512]):
         # Select slice for current L3 neuron
 
-        train_slice = train_err_grid[u, :, :]
-        test_slice  = test_err_grid[u, :, :]
-        print(np.shape(test_slice))
-
+        train_slice = train_err_grid[:, :, u]
+        test_slice  = test_err_grid[:, :, u]
 
         # --- Plot Train Loss ---
         ax_train = axes[0, u]
-        im_train = ax_train.imshow(train_slice, origin='lower', cmap='viridis', vmin=vmin_train, vmax=vmax_train)
+        im_train = ax_train.imshow(train_slice.T, origin='lower', cmap='viridis', vmin=vmin_train, vmax=vmax_train)
         for x in range(len(neurons1)):
             for y in range(len(neurons2)):
-                ax_train.text(y, x, f"{train_slice[x, y]:.4f}", ha='center', va='center', color='w', fontsize=8)
+                ax_train.text(y, x, f"{train_slice[y, x]:.2f}", ha='center', va='center', color='w', fontsize=15)
         ax_train.set_xticks(range(len(neurons2)))
         ax_train.set_xticklabels(neurons2)
         ax_train.set_yticks(range(len(neurons1)))
         ax_train.set_yticklabels(neurons1)
-        ax_train.set_xlabel("Neurons in Layer 2")
-        ax_train.set_ylabel("Neurons in Layer 1")
+        ax_train.set_xlabel("Neurons in Layer 1", fontsize=12)
+        ax_train.set_ylabel("Neurons in Layer 2", fontsize=12)
         ax_train.set_title(f"Train Loss, L3={neuron3}")
+        ax_train.tick_params(axis='x',labelsize=12)
+        ax_train.tick_params(axis='y',labelsize=12)
 
         # --- Plot Test Loss ---
         ax_test = axes[1, u]
-        im_test = ax_test.imshow(test_slice, origin='lower', cmap='viridis', vmin=vmin_test, vmax=vmax_test)
+        im_test = ax_test.imshow(test_slice.T, origin='lower', cmap='viridis', vmin=vmin_test, vmax=vmax_test)
         for x in range(len(neurons1)):
             for y in range(len(neurons2)):
-                ax_test.text(y, x, f"{test_slice[x, y]:.4f}", ha='center', va='center', color='w', fontsize=8)
+                ax_test.text(y, x, f"{test_slice[y, x]:.2f}", ha='center', va='center', color='w', fontsize=15)
         ax_test.set_xticks(range(len(neurons2)))
         ax_test.set_xticklabels(neurons2)
         ax_test.set_yticks(range(len(neurons1)))
         ax_test.set_yticklabels(neurons1)
-        ax_test.set_xlabel("Neurons in Layer 2")
-        ax_test.set_ylabel("Neurons in Layer 1")
+        ax_test.set_xlabel("Neurons in Layer 1", fontsize=12)
+        ax_test.set_ylabel("Neurons in Layer 2", fontsize=12)
         ax_test.set_title(f"Test Loss, L3={neuron3}")
+        ax_test.tick_params(axis='x',labelsize=12)
+        ax_test.tick_params(axis='y',labelsize=12)
 
     # --- Add shared colorbars ---
     # Train colorbar
     cbar_ax_train = fig.add_axes([0.92, 0.55, 0.02, 0.35])  # [left, bottom, width, height]
-    fig.colorbar(im_train, cax=cbar_ax_train, label='Train Loss')
+    cbar_train = fig.colorbar(im_train, cax=cbar_ax_train)
+    cbar_train.set_label('Train Loss', fontsize=12)     # <-- and here
 
     # Test colorbar
     cbar_ax_test = fig.add_axes([0.92, 0.1, 0.02, 0.35])
-    fig.colorbar(im_test, cax=cbar_ax_test, label='Test Loss')
+    cbar_test = fig.colorbar(im_test, cax=cbar_ax_test)
+    cbar_test.set_label('Test Loss', fontsize=12)     # <-- and here
 
     plt.tight_layout(rect=[0,0,0.9,1])  # leave space for colorbars
-    plt.savefig("Cross_validation_interpolation_figure.pdf", dpi = 500)
+    plt.savefig("Plots/CV_interpolation_3_layers.pdf", dpi = 500)
