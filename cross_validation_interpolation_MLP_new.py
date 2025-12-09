@@ -355,7 +355,7 @@ if p == 3:
     test_err_grid = np.zeros((len(neurons1), len(neurons2), len(neurons3)))
     train_err_grid = np.zeros((len(neurons1), len(neurons2), len(neurons3)))
 
-    """for u, neuron1 in enumerate(neurons1):
+    for u, neuron1 in enumerate(neurons1):
         for i, neuron2 in enumerate(neurons2):
             for j, neuron3 in enumerate(neurons3):
                 print(f"\n--- Testing architecture: Layer 1: {neuron1}, Layer 2: {neuron2}, Layer 3 {neuron3} ---")
@@ -493,8 +493,8 @@ if p == 3:
                 # ----------- END OF FOLDS LOOP -----------
 
                 # Store average fold errors into heatmap grids
-                train_err_grid[u, i, j] = np.mean(train_mse_folds)
-                test_err_grid[u, i, j]  = np.mean(test_mse_folds)
+                train_err_grid[u, i, j] = torch.mean(train_mse_folds)
+                test_err_grid[u, i, j]  = torch.mean(test_mse_folds)
     
     with open("matrix_interpolation_train.txt", "w") as f:
         for slice2d in train_err_grid:
@@ -502,7 +502,7 @@ if p == 3:
 
     with open("matrix_interpolation_test.txt", "w") as f:
         for slice2d in test_err_grid:
-            np.savetxt(f, slice2d)"""
+            np.savetxt(f, slice2d)
 
     train_err_grid = np.loadtxt("matrix_interpolation_train_3_layers.txt").reshape(3,3,3)
     test_err_grid = np.loadtxt("matrix_interpolation_test_3_layers.txt").reshape(3,3,3)
