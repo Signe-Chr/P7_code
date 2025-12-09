@@ -89,7 +89,7 @@ if p == 1:
 
                     H = compute_H_matrix(rir)[0].to(device)
 
-                    loss = 0.25 * (
+                    loss = (
                         MSE(outputs, filter) +
                         Cosine_similarity(outputs, filter) +
                         MSEP(outputs_2d, filter_2d, rir, x_input, bright_zone_mics_index, dark_zone_mics_index)[0] +
@@ -207,8 +207,10 @@ if p == 2:
                 # --------------------
                 model = torch.nn.Sequential(
                     torch.nn.Linear(input_size, neuron1),
+                    torch.nn.Dropout(0.3),
                     torch.nn.ReLU(),
                     torch.nn.Linear(neuron1, neuron2),
+                    torch.nn.Dropout(0.3),
                     torch.nn.ReLU(),
                     torch.nn.Linear(neuron2, output_size)
                 ).to(device)
@@ -237,12 +239,11 @@ if p == 2:
 
                         H = compute_H_matrix(rir)[0].to(device)
 
-                        loss = 0.25 * (
+                        loss =(
                             MSE(outputs, filter) +
                             Cosine_similarity(outputs, filter) +
                             MSEP(outputs_2d, filter_2d, rir, x_input, bright_zone_mics_index, dark_zone_mics_index)[0] +
-                            AC_loss(outputs_2d, filter_2d, H, bright_zone_mics_index, dark_zone_mics_index)
-                        )
+                            AC_loss(outputs_2d, filter_2d, H, bright_zone_mics_index, dark_zone_mics_index))
 
                         loss.backward()
                         optimizer.step()
@@ -312,6 +313,14 @@ if p == 2:
             # Store average fold errors into heatmap grids
             train_err_grid[i, j] = np.mean(train_mse_folds)
             test_err_grid[i, j]  = np.mean(test_mse_folds)
+    np.savetxt("matrix_interpolation_train_2_layers.txt", train_err_grid)
+
+    np.savetxt("matrix_interpolation_test_2_layers.txt", test_err_grid)
+
+    train_err_grid = np.loadtxt("matrix_interpolation_train_2_layers.txt").reshape(3,3)
+    test_err_grid = np.loadtxt("matrix_interpolation_test_2_layers.txt").reshape(3,3)
+
+    exit()
 
     # -------------------------------------------------
     # PLOT HEATMAPS
