@@ -336,7 +336,7 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "classification"
 "acc"
 
-chosen_model = "acc"
+chosen_model = "interpolation"
 print(f"Du har valgt {chosen_model} til evaluering.")
 
 x_input = x_input
