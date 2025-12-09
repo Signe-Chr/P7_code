@@ -18,8 +18,10 @@ def load_data_and_model(chosen_model, filters_dir = "Saved Filters Speech/"):
     if chosen_model == "random":
         data_random_selection = torch.load("Saved Filters/random_filters.pt")
         model = data_random_selection['selected_filters']
+    if chosen_model == "acc":
+        model = filters_test
     else:
-        model = torch.load(f"{filters_dir + chosen_model}_filters.pt")
+        model = torch.load(f"{filters_dir + chosen_model}_filters_speech.pt")
 
 
     #---Load data and split into test and traning data---
@@ -27,9 +29,6 @@ def load_data_and_model(chosen_model, filters_dir = "Saved Filters Speech/"):
 
     filters_test=data_test[1]
     filters_train=data_train[1]
-
-    if chosen_model == "acc":
-        model = filters_test
     
     n_srcs_test=data_test[4]
     n_srcs_train=data_train[4]
@@ -341,7 +340,7 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "classification"
 "acc"
 
-chosen_model = "classification_600"
+chosen_model = "baseline"
 print(f"Du har valgt {chosen_model} til evaluering.")
 
 x_input = x_input
