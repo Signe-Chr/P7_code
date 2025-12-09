@@ -14,22 +14,17 @@ from pystoi import stoi
 
 
 
-def load_data_and_model(chosen_model, filters_dir = "Saved Filters Speech/"):
-    if chosen_model == "random":
-        data_random_selection = torch.load("Saved Filters/random_filters.pt")
-        model = data_random_selection['selected_filters']
+def load_data_and_model(chosen_model, filters_dir = "Saved Filters/"):
+    if chosen_model == "acc":
+        model = filters_test
     else:
         model = torch.load(f"{filters_dir + chosen_model}_filters.pt")
 
-
     #---Load data and split into test and traning data---
-    data_test, data_train, data_val = load_test_train_data(data_dir="Data Archive Speech")
+    data_test, data_train, data_val = load_test_train_data()
 
     filters_test=data_test[1]
     filters_train=data_train[1]
-
-    if chosen_model == "acc":
-        model = filters_test
     
     n_srcs_test=data_test[4]
     n_srcs_train=data_train[4]
@@ -222,8 +217,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     pesq_B_list, pesq_D_list = [], []
 
     for i in tqdm(range(RIR_test.shape[0]), disable=not sys.stdout.isatty()):
-        print(i)
-        #print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
+        #print(i)
         rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
         n_srcs = 3
         filter_len = 1024
@@ -341,7 +335,7 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "classification"
 "acc"
 
-chosen_model = "baseline"
+chosen_model = "random"
 print(f"Du har valgt {chosen_model} til evaluering.")
 
 x_input = x_input
@@ -349,7 +343,6 @@ n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, m
 
 results = average_performance_metrics_with_filters(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test, chosen_model)
 loss = loss_function_evaluation(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test)
-#results.append(loss)
 
 gemt = [f"AC (std, mean, min, max): {results['AC']}\n",
             f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}\n", 

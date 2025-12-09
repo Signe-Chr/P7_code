@@ -8,22 +8,9 @@ from Test_train_split import load_test_train_data
 
 
 
-save_dir = "Saved Filters"
-os.makedirs(save_dir, exist_ok=True)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model_names = ("regression", "classification", "interpolation")
 
-#---Load data and split into test and traning data---
-data_test, data_train, data_val = load_test_train_data()
-X_test = data_test[0]
-X_train = data_train[0]
-X_val=data_val[0]
-filters_test = data_test[1]
-filters_train = data_train[1]
-filters_val = data_val[1]
 
-def load_model(a):
-    model_name = model_names[a]  # vælg model her
+def load_model(model_name):
     input_size = 9
     output_file = os.path.join(save_dir, f"{model_name}_filters.pt")
     if model_name == "regression":
@@ -41,18 +28,18 @@ def load_model(a):
     model.eval()
     return model, output_file
 
-def generate_filters(a, X_test=X_test, Y_test = filters_test, Y_train = filters_train):
-    model, output_file = load_model(a) # Choose model here (0-2)
+def generate_filters(chosen_model, X_test, Y_train):
+    model, output_file = load_model(chosen_model)
     all_outputs = []
     timings = []
     for configuration in X_test:
         with torch.no_grad():
             start = time.perf_counter()
             output = model(configuration.unsqueeze(0).float())
-            if a == 1:
+            if chosen_model == "classification":
                 output = _, prediction = torch.max(output, 1)
                 output = Y_train[prediction]
-            if a == 2:
+            if chosen_model == "interpolation":
                 output = torch.matmul(Y_train.T.float(), output.T.float()).T
             end = time.perf_counter()
             timings.append(end - start)
@@ -66,7 +53,7 @@ def generate_filters(a, X_test=X_test, Y_test = filters_test, Y_train = filters_
     avg_time_per_sample = sum(timings) / len(timings)
     print(f"Average forward time per sample: {avg_time_per_sample:.6f} s")
 
-def test_model_efficiency(a, X_test, filters_test=filters_test, device='cpu'):
+def test_model_efficiency(chosen_model, X_test, filters_test, device='cpu'):
     """
     Evaluates computational efficiency of a model on:
     - Inference time (avg per sample)
@@ -74,7 +61,7 @@ def test_model_efficiency(a, X_test, filters_test=filters_test, device='cpu'):
     - Algorithmic order (time scaling with input size)
     """
     # --- Load model ---
-    model, output_file = load_model(a)
+    model, output_file = load_model(chosen_model)
     model.to(device)
     model.eval()
 
@@ -127,8 +114,28 @@ def test_model_efficiency(a, X_test, filters_test=filters_test, device='cpu'):
     }
 
 
+save_dir = "Saved Filters"
+os.makedirs(save_dir, exist_ok=True)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# vælg model her (0-2)
-#generate_filters(0)  # regression
-generate_filters(1)  # classification
-#generate_filters(2)  # interpolation
+#---Load data and split into test and traning data---
+data_test, data_train, data_val = load_test_train_data()
+X_test = data_test[0]
+X_train = data_train[0]
+X_val = data_val[0]
+filters_test = data_test[1]
+filters_train = data_train[1]
+filters_val = data_val[1]
+
+#Choose between:
+"random"
+"baseline"
+"interpolation"
+"regression"
+"classification"
+"acc"
+
+chosen_model = "random"
+print(f"Du har valgt {chosen_model} til evaluering.")
+generate_filters(chosen_model, X_test, filters_train) 
+
