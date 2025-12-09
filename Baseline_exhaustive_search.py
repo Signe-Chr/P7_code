@@ -17,7 +17,8 @@ def Extensive_search(
     x_input: torch.Tensor,
     bright_zone_mics_index,
     dark_zone_mics_index,
-    max_filters
+    max_filters,
+    save_dir
 ):
     """
     Brute-force search over dictionary filters.
@@ -81,12 +82,12 @@ def Extensive_search(
         )
 
     avg_time_per_test = np.mean(times_per_test)
-    os.makedirs("Saved Filters", exist_ok=True)
-    with open("Saved Filters/baseline_filters_time.txt", "a") as f:
+    
+    with open(f"{save_dir}/baseline_filters_time.txt", "a") as f:
         f.write(f"Chosen indices: {chosen_indices}\n")
         f.write(f"Average time per test sample: {avg_time_per_test:.6f}s\n")
     filter_q = filters_train[chosen_indices].to(device)
-    torch.save(filter_q, "Saved Filters Speech/baseline_filters_speech.pt")
+    torch.save(filter_q, save_dir + "/baseline_filters_speech.pt")
     return chosen_indices, avg_time_per_test
 
 
@@ -101,6 +102,8 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
+    save_dir = "Saved Filters Speech"
+    os.makedirs(save_dir, exist_ok=True)
 
     data_test, data_train, data_val = load_test_train_data(val_size=0.10, random_seed=42)
     filters_test, filters_train = data_test[1], data_train[1]
@@ -115,8 +118,7 @@ if __name__ == "__main__":
         x_input=x_input,
         bright_zone_mics_index=bright_zone_mics_index,
         dark_zone_mics_index=dark_zone_mics_index,
-        max_filters=max_filters 
+        max_filters=max_filters,
+        save_dir=save_dir 
     )
 
-import winsound
-winsound.MessageBeep()
