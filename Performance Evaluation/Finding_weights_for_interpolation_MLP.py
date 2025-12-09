@@ -7,8 +7,8 @@ from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
 from Test_train_split import load_test_train_data, x_input, indeces_bright, indeces_dark
 
-def load_data_and_model(chosen_model, filters_dir = "Saved Filters Speech/"):
-    model = torch.load(filters_dir + chosen_model +"_filters_speech.pt")
+def load_data_and_model(chosen_model, filters_dir = "Saved Filters/"):
+    model = torch.load(filters_dir + chosen_model +"_filters.pt")
 
     #---Load data and split into test and traning data---
     data_test, data_train, data_val = load_test_train_data()
