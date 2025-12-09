@@ -87,7 +87,7 @@ def Extensive_search(
         f.write(f"Chosen indices: {chosen_indices}\n")
         f.write(f"Average time per test sample: {avg_time_per_test:.6f}s\n")
     filter_q = filters_train[chosen_indices].to(device)
-    torch.save(filter_q, save_dir + "/baseline_filters_speech.pt")
+    torch.save(filter_q, save_dir + "/baseline_filters.pt")
     return chosen_indices, avg_time_per_test
 
 
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    save_dir = "Saved Filters Speech"
+    save_dir = "Saved Filters"
     os.makedirs(save_dir, exist_ok=True)
 
     data_test, data_train, data_val = load_test_train_data(val_size=0.10, random_seed=42)
