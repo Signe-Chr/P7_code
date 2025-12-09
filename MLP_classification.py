@@ -47,13 +47,13 @@ def main():
     data_test, data_train, data_val = load_test_train_data()
     input_size = len(data_train[0][0])
     output_size = len(data_train[0])
-    epochs = 100
-    load = 700
+    epochs = 500
+    load = 0
 
     # Model, loss, optimizer
     model = cvm.FilterNet_classification(input_size, output_size).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr = 1e-5)
+    optimizer = optim.Adam(model.parameters(), lr = 1e-4)
     if os.path.exists(f"MLP_classification_{load}.pth"):
         model.load_state_dict(torch.load(f"MLP_classification_{load}.pth"))
     # Training loop
