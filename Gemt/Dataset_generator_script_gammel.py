@@ -6,7 +6,7 @@ import numpy as np
 import scipy.io.wavfile as wavfile
 import pyroomacoustics as pra
 import multiprocessing as mp
-from VAST_filter_coefficients import design_vast_filter
+from Gemt.VAST_filter_coefficients import design_vast_filter
 from tqdm import tqdm
 
 def sources_mics(R, Center, N_mics):
