@@ -13,7 +13,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Parameters
-p = 1
+p = 3
 neurons = [128, 256, 512]
 layers = [1, 2, 3]
 num_folds = 5
@@ -90,7 +90,7 @@ if p == 1:
 
                     H = compute_H_matrix(rir)[0].to(device)
 
-                    loss = 0.25 * (
+                    loss = (
                         MSE(outputs, filter) +
                         Cosine_similarity(outputs, filter) +
                         MSEP(outputs_2d, filter_2d, rir, x_input, bright_zone_mics_index, dark_zone_mics_index)[0] +
@@ -208,8 +208,10 @@ if p == 2:
                 # --------------------
                 model = torch.nn.Sequential(
                     torch.nn.Linear(input_size, neuron1),
+                    torch.nn.Dropout(0.3),
                     torch.nn.ReLU(),
                     torch.nn.Linear(neuron1, neuron2),
+                    torch.nn.Dropout(0.3),
                     torch.nn.ReLU(),
                     torch.nn.Linear(neuron2, output_size)
                 ).to(device)
@@ -238,12 +240,11 @@ if p == 2:
 
                         H = compute_H_matrix(rir)[0].to(device)
 
-                        loss = 0.25 * (
+                        loss =(
                             MSE(outputs, filter) +
                             Cosine_similarity(outputs, filter) +
                             MSEP(outputs_2d, filter_2d, rir, x_input, bright_zone_mics_index, dark_zone_mics_index)[0] +
-                            AC_loss(outputs_2d, filter_2d, H, bright_zone_mics_index, dark_zone_mics_index)
-                        )
+                            AC_loss(outputs_2d, filter_2d, H, bright_zone_mics_index, dark_zone_mics_index))
 
                         loss.backward()
                         optimizer.step()
@@ -313,6 +314,14 @@ if p == 2:
             # Store average fold errors into heatmap grids
             train_err_grid[i, j] = np.mean(train_mse_folds)
             test_err_grid[i, j]  = np.mean(test_mse_folds)
+    np.savetxt("matrix_interpolation_train_2_layers.txt", train_err_grid)
+
+    np.savetxt("matrix_interpolation_test_2_layers.txt", test_err_grid)
+
+    train_err_grid = np.loadtxt("matrix_interpolation_train_2_layers.txt").reshape(3,3)
+    test_err_grid = np.loadtxt("matrix_interpolation_test_2_layers.txt").reshape(3,3)
+
+    exit()
 
     # -------------------------------------------------
     # PLOT HEATMAPS
@@ -346,7 +355,7 @@ if p == 3:
     test_err_grid = np.zeros((len(neurons1), len(neurons2), len(neurons3)))
     train_err_grid = np.zeros((len(neurons1), len(neurons2), len(neurons3)))
 
-    for u, neuron1 in enumerate(neurons1):
+    """for u, neuron1 in enumerate(neurons1):
         for i, neuron2 in enumerate(neurons2):
             for j, neuron3 in enumerate(neurons3):
                 print(f"\n--- Testing architecture: Layer 1: {neuron1}, Layer 2: {neuron2}, Layer 3 {neuron3} ---")
@@ -493,12 +502,10 @@ if p == 3:
 
     with open("matrix_interpolation_test.txt", "w") as f:
         for slice2d in test_err_grid:
-            np.savetxt(f, slice2d)
+            np.savetxt(f, slice2d)"""
 
-    train_err_grid = np.loadtxt("matrix_interpolation_train.txt").reshape(3,3,3)
-    test_err_grid = np.loadtxt("matrix_interpolation_test.txt").reshape(3,3,3)
-
-    exit()
+    train_err_grid = np.loadtxt("matrix_interpolation_train_3_layers.txt").reshape(3,3,3)
+    test_err_grid = np.loadtxt("matrix_interpolation_test_3_layers.txt").reshape(3,3,3)
 
     # -------------------------------------------------
     # PLOT HEATMAPS
@@ -515,37 +522,35 @@ if p == 3:
     for u, neuron3 in enumerate([128, 256, 512]):
         # Select slice for current L3 neuron
 
-        train_slice = train_err_grid[u, :, :]
-        test_slice  = test_err_grid[u, :, :]
-        print(np.shape(test_slice))
-
+        train_slice = train_err_grid[:, :, u]
+        test_slice  = test_err_grid[:, :, u]
 
         # --- Plot Train Loss ---
         ax_train = axes[0, u]
-        im_train = ax_train.imshow(train_slice, origin='lower', cmap='viridis', vmin=vmin_train, vmax=vmax_train)
+        im_train = ax_train.imshow(train_slice.T, origin='lower', cmap='viridis', vmin=vmin_train, vmax=vmax_train)
         for x in range(len(neurons1)):
             for y in range(len(neurons2)):
-                ax_train.text(y, x, f"{train_slice[x, y]:.4f}", ha='center', va='center', color='w', fontsize=8)
+                ax_train.text(y, x, f"{train_slice[y, x]:.4f}", ha='center', va='center', color='w', fontsize=8)
         ax_train.set_xticks(range(len(neurons2)))
         ax_train.set_xticklabels(neurons2)
         ax_train.set_yticks(range(len(neurons1)))
         ax_train.set_yticklabels(neurons1)
-        ax_train.set_xlabel("Neurons in Layer 2")
-        ax_train.set_ylabel("Neurons in Layer 1")
+        ax_train.set_xlabel("Neurons in Layer 1")
+        ax_train.set_ylabel("Neurons in Layer 2")
         ax_train.set_title(f"Train Loss, L3={neuron3}")
 
         # --- Plot Test Loss ---
         ax_test = axes[1, u]
-        im_test = ax_test.imshow(test_slice, origin='lower', cmap='viridis', vmin=vmin_test, vmax=vmax_test)
+        im_test = ax_test.imshow(test_slice.T, origin='lower', cmap='viridis', vmin=vmin_test, vmax=vmax_test)
         for x in range(len(neurons1)):
             for y in range(len(neurons2)):
-                ax_test.text(y, x, f"{test_slice[x, y]:.4f}", ha='center', va='center', color='w', fontsize=8)
+                ax_test.text(y, x, f"{test_slice[y, x]:.4f}", ha='center', va='center', color='w', fontsize=8)
         ax_test.set_xticks(range(len(neurons2)))
         ax_test.set_xticklabels(neurons2)
         ax_test.set_yticks(range(len(neurons1)))
         ax_test.set_yticklabels(neurons1)
-        ax_test.set_xlabel("Neurons in Layer 2")
-        ax_test.set_ylabel("Neurons in Layer 1")
+        ax_test.set_xlabel("Neurons in Layer 1")
+        ax_test.set_ylabel("Neurons in Layer 2")
         ax_test.set_title(f"Test Loss, L3={neuron3}")
 
     # --- Add shared colorbars ---
@@ -558,4 +563,4 @@ if p == 3:
     fig.colorbar(im_test, cax=cbar_ax_test, label='Test Loss')
 
     plt.tight_layout(rect=[0,0,0.9,1])  # leave space for colorbars
-    plt.savefig("Cross_validation_interpolation_figure.pdf", dpi = 500)
+    plt.savefig("Plots/CV_interpolation_3_layers.pdf", dpi = 500)
