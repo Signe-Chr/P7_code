@@ -221,8 +221,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     pesq_B_list, pesq_D_list = [], []
 
     for i in tqdm(range(RIR_test.shape[0]), disable=not sys.stdout.isatty()):
-        print(i)
-        #print(f"\n--- Evaluating sample {i+1}/{RIR_test.shape[0]} ---")
+        #print(i)
         rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
         n_srcs = 3
         filter_len = 1024
@@ -348,7 +347,6 @@ n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, m
 
 results = average_performance_metrics_with_filters(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test, chosen_model)
 loss = loss_function_evaluation(RIRs_test, model, x_input, indeces_bright, indeces_dark, filters_test)
-#results.append(loss)
 
 gemt = [f"AC (std, mean, min, max): {results['AC']}\n",
             f"NSDP Bright Zone (std, mean, min, max): {results['NSDP_B']}\n", 
