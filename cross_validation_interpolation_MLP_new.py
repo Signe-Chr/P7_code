@@ -1,6 +1,4 @@
-
 import torch
-import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
@@ -493,8 +491,8 @@ if p == 3:
                 # ----------- END OF FOLDS LOOP -----------
 
                 # Store average fold errors into heatmap grids
-                train_err_grid[u, i, j] = torch.mean(train_mse_folds)
-                test_err_grid[u, i, j]  = torch.mean(test_mse_folds)
+                train_err_grid[u, i, j] = np.mean(train_mse_folds)
+                test_err_grid[u, i, j]  = np.mean(test_mse_folds)
     
     with open("matrix_interpolation_train.txt", "w") as f:
         for slice2d in train_err_grid:
