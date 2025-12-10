@@ -16,7 +16,7 @@ print(f"Using device: {device}")
 p = 3
 neurons = [128, 256, 512]
 layers = [1, 2, 3]
-num_folds = 5
+num_folds = 3
 
 # Load data
 data_test, data_train, nej = load_test_train_data()
@@ -411,7 +411,7 @@ if p == 3:
                     # --------------------
                     # Train model
                     # --------------------
-                    epochs = tqdm(range(1, 41), desc=f"Fold {folds+1}/5", position=0)
+                    epochs = tqdm(range(1, 6), desc=f"Fold {folds+1}/5", position=0)
                     fold_loss = 0
                     for epoch in epochs:
                         total_loss = 0
