@@ -13,7 +13,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Parameters
-p = 1
+p = 2
 neurons = [128, 256, 512]
 layers = [1, 2, 3]
 num_folds = 3
@@ -46,16 +46,16 @@ if p == 1:
             #data_test, data_train, nej = load_test_train_data(random_seed=folds)
 
             # Prepare training and test sets
-            indices_test = np.array([True if folds*10 <= k < folds*10+10 else False for k in range(50)])
+            indices_test = np.array([True if folds*15 <= k < folds*15+15 else False for k in range(45)])
             indices_train = indices_test == False
-            X_train = data_train[0][:50].to(device).to(torch.float32)[indices_train]
-            X_test = data_train[0][:50].to(device).to(torch.float32)[indices_test]
+            X_train = data_train[0][:45].to(device).to(torch.float32)[indices_train]
+            X_test = data_train[0][:45].to(device).to(torch.float32)[indices_test]
 
-            filters_train = data_train[1][:50].to(device).to(torch.float32)[indices_train]
-            filters_test = data_train[1][:50].to(device).to(torch.float32)[indices_test]
+            filters_train = data_train[1][:45].to(device).to(torch.float32)[indices_train]
+            filters_test = data_train[1][:45].to(device).to(torch.float32)[indices_test]
 
-            RIRs_train = data_train[5][:50][indices_train]
-            RIRs_test = data_train[5][:50][indices_test]
+            RIRs_train = data_train[5][:45][indices_train]
+            RIRs_test = data_train[5][:45][indices_test]
 
             output_size = len(X_train)
 
@@ -70,7 +70,7 @@ if p == 1:
             optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
             # Training loop
-            for epoch in range(1, 41):
+            for epoch in range(1, 6):
                 print("epoch", epoch)
                 total_loss = 0
                 total = 0
@@ -120,7 +120,7 @@ if p == 1:
                 for i in range(len(filters_train)):
                     filter_train = filters_train[i].unsqueeze(0)
 
-                    pred_filter_train = torch.matmul(torch.softmax(model(X_train[i]), 1, torch.float32), filters_train).unsqueeze(0)
+                    pred_filter_train = torch.matmul(torch.softmax(model(X_train[i]).unsqueeze(0), 1, torch.float32), filters_train)
 
                     filter_train_2d = filter_train.reshape(3, 1024)
                     pred_filter_train_2d = pred_filter_train.reshape(3, 1024)
@@ -148,7 +148,7 @@ if p == 1:
 
                 for i in range(len(filters_test)):
                     filter_test = filters_test[i].unsqueeze(0)
-                    pred_filter_test = torch.matmul(torch.softmax(model(X_test[i]), 1, torch.float32), filters_train).unsqueeze(0)
+                    pred_filter_test = torch.matmul(torch.softmax(model(X_test[i]).unsqueeze(0), 1, torch.float32), filters_train)
                     filter_test_2d = filter_test.reshape(3, 1024)
                     pred_filter_test_2d = pred_filter_test.reshape(3, 1024)
                     
@@ -182,7 +182,7 @@ if p == 1:
         test_err_list.append(np.mean(fold_test_err))
 
     for neuronss, train, test in zip(neurons, train_err_list, test_err_list):
-        print(f"Average over 5 folds: (Neurons, Train error, Test error): ({neuronss}, {train:.20f}, {test:.20f})")
+        print(f"Average over 3 folds: (Neurons, Train error, Test error): ({neuronss}, {train:.20f}, {test:.20f})")
 
 if p == 2:
     neurons1 = [128, 256, 512]
@@ -199,16 +199,16 @@ if p == 2:
             test_mse_folds = []
 
             for folds in range(num_folds):
-                indices_test = np.array([True if folds*10 <= k < folds*10+10 else False for k in range(50)])
+                indices_test = np.array([True if folds*15 <= k < folds*15+15 else False for k in range(45)])
                 indices_train = indices_test == False
-                X_train = data_train[0][:50].to(device).to(torch.float32)[indices_train]
-                X_test = data_train[0][:50].to(device).to(torch.float32)[indices_test]
+                X_train = data_train[0][:45].to(device).to(torch.float32)[indices_train]
+                X_test = data_train[0][:45].to(device).to(torch.float32)[indices_test]
 
-                filters_train = data_train[1][:50].to(device).to(torch.float32)[indices_train]
-                filters_test = data_train[1][:50].to(device).to(torch.float32)[indices_test]
+                filters_train = data_train[1][:45].to(device).to(torch.float32)[indices_train]
+                filters_test = data_train[1][:45].to(device).to(torch.float32)[indices_test]
 
-                RIRs_train = data_train[5][:50][indices_train]
-                RIRs_test = data_train[5][:50][indices_test]
+                RIRs_train = data_train[5][:45][indices_train]
+                RIRs_test = data_train[5][:45][indices_test]
 
                 output_size = len(X_train)
 
@@ -229,7 +229,7 @@ if p == 2:
                 # --------------------
                 # Train model
                 # --------------------
-                for epoch in range(1, 41):
+                for epoch in range(1, 6):
                     total_loss = 0
                     total = 0
                     for k in range(len(X_train)):
@@ -273,7 +273,7 @@ if p == 2:
                     for k in range(len(filters_train)):
                         filter_train = filters_train[k].unsqueeze(0)
 
-                        pred_filter_train = torch.matmul(torch.softmax(model(X_train[k]), 1, torch.float32), filters_train).unsqueeze(0)
+                        pred_filter_train = torch.matmul(torch.softmax(model(X_train[k]).unsqueeze(0), 1, torch.float32), filters_train)
 
                         filter_train_2d = filter_train.reshape(3, 1024)
                         pred_filter_train_2d = pred_filter_train.reshape(3, 1024)
@@ -301,7 +301,7 @@ if p == 2:
 
                     for k in range(len(filters_test)):
                         filter_test = filters_test[k].unsqueeze(0)
-                        pred_filter_test = torch.matmul(torch.softmax(model(X_test[k]), 1, torch.float32), filters_train).unsqueeze(0)
+                        pred_filter_test = torch.matmul(torch.softmax(model(X_test[k]).unsqueeze(0), 1, torch.float32), filters_train)
                         filter_test_2d = filter_test.reshape(3, 1024)
                         pred_filter_test_2d = pred_filter_test.reshape(3, 1024)
                         rirs_test_i = RIRs_test[k]
@@ -361,8 +361,8 @@ if p == 2:
     plt.show()
 
 if p == 3:
-    neurons1 = [128, 256, 512]
-    neurons2 = [128, 256, 512]
+    neurons1 = [int(input("Neuron 1: "))]
+    neurons2 = [int(input("Neuron 2: "))]
     neurons3 = [128, 256, 512]
 
     test_err_grid = np.zeros((len(neurons1), len(neurons2), len(neurons3)))
@@ -378,16 +378,16 @@ if p == 3:
 
                 for folds in range(num_folds):
                     # Reload data for each fold
-                    indices_test = np.array([True if folds*10 <= k < folds*10+10 else False for k in range(50)])
+                    indices_test = np.array([True if folds*15 <= k < folds*15+15 else False for k in range(45)])
                     indices_train = indices_test == False
-                    X_train = data_train[0][:50].to(device).to(torch.float32)[indices_train]
-                    X_test = data_train[0][:50].to(device).to(torch.float32)[indices_test]
+                    X_train = data_train[0][:45].to(device).to(torch.float32)[indices_train]
+                    X_test = data_train[0][:45].to(device).to(torch.float32)[indices_test]
 
-                    filters_train = data_train[1][:50].to(device).to(torch.float32)[indices_train]
-                    filters_test = data_train[1][:50].to(device).to(torch.float32)[indices_test]
+                    filters_train = data_train[1][:45].to(device).to(torch.float32)[indices_train]
+                    filters_test = data_train[1][:45].to(device).to(torch.float32)[indices_test]
 
-                    RIRs_train = data_train[5][:50][indices_train]
-                    RIRs_test = data_train[5][:50][indices_test]
+                    RIRs_train = data_train[5][:45][indices_train]
+                    RIRs_test = data_train[5][:45][indices_test]
 
                     output_size = len(X_train)
 
@@ -458,10 +458,10 @@ if p == 3:
                         filters_loss_train = []
                         filters_loss_test = []
 
-                        for k in tqdm(range(output_size), desc="Eval ", position=1):
+                        for k in tqdm(range(output_size), desc="Eval ", position=1, leave=False):
                             filter_train = filters_train[k].unsqueeze(0)
 
-                            pred_filter_train = torch.matmul(torch.softmax(model(X_train[k]), 1, torch.float32), filters_train).unsqueeze(0)
+                            pred_filter_train = torch.matmul(torch.softmax(model(X_train[k]).unsqueeze(0), 1, torch.float32), filters_train)
 
                             filter_train_2d = filter_train.reshape(3, 1024)
                             pred_filter_train_2d = pred_filter_train.reshape(3, 1024)
@@ -489,7 +489,7 @@ if p == 3:
 
                         for k in range(len(filters_test)):
                             filter_test = filters_test[k].unsqueeze(0)
-                            pred_filter_test = torch.matmul(torch.softmax(model(X_test[k]), 1, torch.float32), filters_train).unsqueeze(0)
+                            pred_filter_test = torch.matmul(torch.softmax(model(X_test[k]).unsqueeze(0), 1, torch.float32), filters_train)
                             filter_test_2d = filter_test.reshape(3, 1024)
                             pred_filter_test_2d = pred_filter_test.reshape(3, 1024)
                             rirs_test_i = RIRs_test[k]
@@ -515,11 +515,11 @@ if p == 3:
                 train_err_grid[u, i, j] = np.mean(train_mse_folds)
                 test_err_grid[u, i, j]  = np.mean(test_mse_folds)
     
-    with open("matrix_interpolation_train.txt", "w") as f:
+    with open(f"matrix_interpolation_train_{neurons1[0]}_{neurons2[0]}.txt", "w") as f:
         for slice2d in train_err_grid:
             np.savetxt(f, slice2d)
 
-    with open("matrix_interpolation_test.txt", "w") as f:
+    with open(f"matrix_interpolation_test_{neurons1[0]}_{neurons2[0]}.txt", "w") as f:
         for slice2d in test_err_grid:
             np.savetxt(f, slice2d)
 
