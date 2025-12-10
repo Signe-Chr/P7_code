@@ -28,10 +28,10 @@ def train_model(model, data, optimizer, device, wav):
         D_idx = torch.tensor([0,1,2,3,4,5,6,7,8,9,10,11]).to(device)
 
         optimizer.zero_grad()
-        coefficients = model(X).to(device)
+        coefficients = model(X).to(device).unsqueeze(0)
 
-        soft_max_coeffs = torch.softmax(coefficients, 0, dtype=torch.float32)
-        outputs = torch.matmul(filters_train.T.float() , soft_max_coeffs.T.float()).T.unsqueeze(0)
+        soft_max_coeffs = torch.softmax(coefficients, 1, dtype=torch.float32)
+        outputs = torch.matmul(filters_train.T.float() , soft_max_coeffs.T.float()).T
 
         lambda_1,lambda_2,lambda_3,lambda_4=1/0.256, 1/0.972, 1/29.131, 1/21.684#1,1,1,1 1/2.970,1/1.032,1/11.495,1/24.648
         H = LF.compute_H_matrix(rir, fs=16000, n_fft=None)[0].to(device)
