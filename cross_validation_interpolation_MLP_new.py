@@ -1,11 +1,10 @@
-
 import torch
-import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
 
 from Test_train_split import load_test_train_data
+import Test_train_split as TTS
 from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE, compute_H_matrix
 
 # Device setup
@@ -26,8 +25,11 @@ dark_zone_mics_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 bright_zone_mics_index = [12]
 
 # x_input initialization
-x_input = torch.zeros(1, 1, dtype=torch.float32).to(device)
-x_input[0, 0] = 1.0
+#x_input = torch.zeros(1, 1, dtype=torch.float32).to(device)
+
+x_input = TTS.load_speech_file()
+
+
 
 if p == 1:
     train_err_list = []
@@ -43,16 +45,16 @@ if p == 1:
             #data_test, data_train, nej = load_test_train_data(random_seed=folds)
 
             # Prepare training and test sets
-            indice_test = [i for i in range(50) if folds*10 <= i < folds*10 +10]
-            indice_train = [i for i in range(50) if i not in indice_test]
-            X_train = data_train[0][:50].to(device).to(torch.float32)[indice_train]
-            X_test = data_train[0][:50].to(device).to(torch.float32)[indice_test]
+            indices_test = np.array([True if folds*10 <= i < folds*10+10 else False for i in range(50)])
+            indices_train = indices_test == False
+            X_train = data_train[0][:50].to(device).to(torch.float32)[indices_train]
+            X_test = data_train[0][:50].to(device).to(torch.float32)[indices_test]
 
-            filters_train = data_train[1][:50].to(device).to(torch.float32)[indice_train]
-            filters_test = data_train[1][:50].to(device).to(torch.float32)[indice_test]
+            filters_train = data_train[1][:50].to(device).to(torch.float32)[indices_train]
+            filters_test = data_train[1][:50].to(device).to(torch.float32)[indices_test]
 
-            RIRs_train = data_train[5][:50][indice_train]
-            RIRs_test = data_train[5][:50][indice_test]
+            RIRs_train = data_train[5][:50][indices_train]
+            RIRs_test = data_train[5][:50][indices_test]
 
             output_size = len(X_train)
 
@@ -84,7 +86,7 @@ if p == 1:
                     optimizer.zero_grad()
 
                     coeff = model(X)  # Already on device
-                    outputs = torch.matmul(coeff, filters_train).to(device)
+                    outputs = torch.matmul(torch.softmax(coeff, 1, torch.float32), filters_train).to(device)
 
                     # 2D versions
                     filter_2d = filter.reshape(3, 1024).to(device)
@@ -116,47 +118,53 @@ if p == 1:
 
                 for i in range(len(filters_train)):
                     filter_train = filters_train[i].unsqueeze(0)
-                    filter_test = filters_test[i].unsqueeze(0)
 
-                    pred_filter_train = torch.matmul(model(X_train[i]), filters_train).unsqueeze(0)
-                    pred_filter_test = torch.matmul(model(X_test[i]), filters_train).unsqueeze(0)
+                    pred_filter_train = torch.matmul(torch.softmax(model(X_train[i]), 1, torch.float32), filters_train).unsqueeze(0)
 
                     filter_train_2d = filter_train.reshape(3, 1024)
-                    filter_test_2d = filter_test.reshape(3, 1024)
                     pred_filter_train_2d = pred_filter_train.reshape(3, 1024)
-                    pred_filter_test_2d = pred_filter_test.reshape(3, 1024)
 
                     L1_train = MSE(pred_filter_train, filter_train)
-                    L1_test = MSE(pred_filter_test, filter_test)
 
                     L2_train = Cosine_similarity(pred_filter_train, filter_train)
-                    L2_test = Cosine_similarity(pred_filter_test, filter_test)
 
                     rirs_train_i = RIRs_train[i]
-                    rirs_test_i = RIRs_test[i]
 
                     if not isinstance(rirs_train_i, torch.Tensor):
                         rirs_train_i = torch.tensor(rirs_train_i, dtype=torch.float32)
-                    if not isinstance(rirs_test_i, torch.Tensor):
-                        rirs_test_i = torch.tensor(rirs_test_i, dtype=torch.float32)
 
                     rirs_train_i = rirs_train_i.to(device)
-                    rirs_test_i = rirs_test_i.to(device)
 
                     msep_B_train, msep_D_train = MSEP(pred_filter_train_2d, filter_train_2d, rirs_train_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
-                    msep_B_test, msep_D_test = MSEP(pred_filter_test_2d, filter_test_2d, rirs_test_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
 
                     L3_train = msep_B_train
-                    L3_test = msep_B_test
 
                     H_B_train = compute_H_matrix(rirs_train_i)[0].to(device)
-                    H_B_test = compute_H_matrix(rirs_test_i)[0].to(device)
 
                     L4_train = AC_loss(pred_filter_train_2d, filter_train_2d, H_B_train, bright_zone_mics_index, dark_zone_mics_index)
+
+                    filters_loss_train.append(L1_train + L2_train + L3_train + L4_train)
+
+                for i in range(len(filters_test)):
+                    filter_test = filters_test[i].unsqueeze(0)
+                    pred_filter_test = torch.matmul(torch.softmax(model(X_test[i]), 1, torch.float32), filters_train).unsqueeze(0)
+                    filter_test_2d = filter_test.reshape(3, 1024)
+                    pred_filter_test_2d = pred_filter_test.reshape(3, 1024)
+                    
+                    rirs_test_i = RIRs_test[i]
+                    if not isinstance(rirs_test_i, torch.Tensor):
+                        rirs_test_i = torch.tensor(rirs_test_i, dtype=torch.float32)
+                    rirs_test_i = rirs_test_i.to(device)
+                    
+                    H_B_test = compute_H_matrix(rirs_test_i)[0].to(device)
+
+                    L1_test = MSE(pred_filter_test, filter_test)
+                    L2_test = Cosine_similarity(pred_filter_test, filter_test)
+                    msep_B_test, msep_D_test = MSEP(pred_filter_test_2d, filter_test_2d, rirs_test_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
+                    L3_test = msep_B_test
                     L4_test = AC_loss(pred_filter_test_2d, filter_test_2d, H_B_test, bright_zone_mics_index, dark_zone_mics_index)
 
-                    filters_loss_train.append(0.25 * (L1_train + L2_train + L3_train + L4_train))
-                    filters_loss_test.append(0.25 * (L1_test + L2_test + L3_test + L4_test))
+                    filters_loss_test.append(L1_test + L2_test + L3_test + L4_test)
 
             train_err = torch.stack(filters_loss_train).mean().item()
             test_err = torch.stack(filters_loss_test).mean().item()
@@ -190,16 +198,16 @@ if p == 2:
             test_mse_folds = []
 
             for folds in range(num_folds):
-                indice_test = [i for i in range(50) if folds*10 <= i < folds*10 +10]
-                indice_train = [i for i in range(50) if i not in indice_test]
-                X_train = data_train[0][:50].to(device).to(torch.float32)[indice_train]
-                X_test = data_train[0][:50].to(device).to(torch.float32)[indice_test]
+                indices_test = np.array([True if folds*10 <= i < folds*10+10 else False for i in range(50)])
+                indices_train = indices_test == False
+                X_train = data_train[0][:50].to(device).to(torch.float32)[indices_train]
+                X_test = data_train[0][:50].to(device).to(torch.float32)[indices_test]
 
-                filters_train = data_train[1][:50].to(device).to(torch.float32)[indice_train]
-                filters_test = data_train[1][:50].to(device).to(torch.float32)[indice_test]
+                filters_train = data_train[1][:50].to(device).to(torch.float32)[indices_train]
+                filters_test = data_train[1][:50].to(device).to(torch.float32)[indices_test]
 
-                RIRs_train = data_train[5][:50][indice_train]
-                RIRs_test = data_train[5][:50][indice_test]
+                RIRs_train = data_train[5][:50][indices_train]
+                RIRs_test = data_train[5][:50][indices_test]
 
                 output_size = len(X_train)
 
@@ -227,7 +235,7 @@ if p == 2:
                         X = X_train[k].unsqueeze(0).to(device)
                         optimizer.zero_grad()
                         coeff = model(X_train[k]).unsqueeze(0)
-                        outputs = torch.matmul(coeff, filters_train).to(device)
+                        outputs = torch.matmul(torch.softmax(coeff, 1, torch.float32), filters_train).to(device)
                         filter = filters_train[k].unsqueeze(0).to(device)
                         rir = RIRs_train[k]
                         if not isinstance(rir, torch.Tensor):
@@ -263,47 +271,51 @@ if p == 2:
 
                     for k in range(len(filters_train)):
                         filter_train = filters_train[k].unsqueeze(0)
-                        filter_test = filters_test[k].unsqueeze(0)
 
-                        pred_filter_train = torch.matmul(model(X_train[k]), filters_train).unsqueeze(0)
-                        pred_filter_test = torch.matmul(model(X_test[k]), filters_train).unsqueeze(0)
+                        pred_filter_train = torch.matmul(torch.softmax(model(X_train[k]), 1, torch.float32), filters_train).unsqueeze(0)
 
                         filter_train_2d = filter_train.reshape(3, 1024)
-                        filter_test_2d = filter_test.reshape(3, 1024)
                         pred_filter_train_2d = pred_filter_train.reshape(3, 1024)
-                        pred_filter_test_2d = pred_filter_test.reshape(3, 1024)
 
                         L1_train = MSE(pred_filter_train, filter_train)
-                        L1_test = MSE(pred_filter_test, filter_test)
 
                         L2_train = Cosine_similarity(pred_filter_train, filter_train)
-                        L2_test = Cosine_similarity(pred_filter_test, filter_test)
 
                         rirs_train_i = RIRs_train[k]
-                        rirs_test_i = RIRs_test[k]
 
                         if not isinstance(rirs_train_i, torch.Tensor):
                             rirs_train_i = torch.tensor(rirs_train_i, dtype=torch.float32)
-                        if not isinstance(rirs_test_i, torch.Tensor):
-                            rirs_test_i = torch.tensor(rirs_test_i, dtype=torch.float32)
 
                         rirs_train_i = rirs_train_i.to(device)
-                        rirs_test_i = rirs_test_i.to(device)
 
                         msep_B_train, msep_D_train = MSEP(pred_filter_train_2d, filter_train_2d, rirs_train_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
-                        msep_B_test, msep_D_test = MSEP(pred_filter_test_2d, filter_test_2d, rirs_test_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
 
                         L3_train = msep_B_train
-                        L3_test = msep_B_test
 
                         H_B_train = compute_H_matrix(rirs_train_i)[0].to(device)
-                        H_B_test = compute_H_matrix(rirs_test_i)[0].to(device)
 
                         L4_train = AC_loss(pred_filter_train_2d, filter_train_2d, H_B_train, bright_zone_mics_index, dark_zone_mics_index)
-                        L4_test = AC_loss(pred_filter_test_2d, filter_test_2d, H_B_test, bright_zone_mics_index, dark_zone_mics_index)
 
-                        filters_loss_train.append(0.25 * (L1_train + L2_train + L3_train + L4_train))
-                        filters_loss_test.append(0.25 * (L1_test + L2_test + L3_test + L4_test))
+                        filters_loss_train.append(L1_train + L2_train + L3_train + L4_train)
+
+                    for k in range(len(filters_test)):
+                        filter_test = filters_test[k].unsqueeze(0)
+                        pred_filter_test = torch.matmul(torch.softmax(model(X_test[k]), 1, torch.float32), filters_train).unsqueeze(0)
+                        filter_test_2d = filter_test.reshape(3, 1024)
+                        pred_filter_test_2d = pred_filter_test.reshape(3, 1024)
+                        rirs_test_i = RIRs_test[k]
+                        if not isinstance(rirs_test_i, torch.Tensor):
+                            rirs_test_i = torch.tensor(rirs_test_i, dtype=torch.float32)
+                        rirs_test_i = rirs_test_i.to(device)
+                        H_B_test = compute_H_matrix(rirs_test_i)[0].to(device)
+                        
+                        L1_test = MSE(pred_filter_test, filter_test)
+                        L2_test = Cosine_similarity(pred_filter_test, filter_test)
+                        msep_B_test, msep_D_test = MSEP(pred_filter_test_2d, filter_test_2d, rirs_test_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
+                        L3_test = msep_B_test
+                        L4_test = AC_loss(pred_filter_test_2d, filter_test_2d, H_B_test, bright_zone_mics_index, dark_zone_mics_index)
+                        
+                        filters_loss_test.append(L1_test + L2_test + L3_test + L4_test)
 
                     # Fold errors
                     train_mse_folds.append(torch.stack(filters_loss_train).mean().item())
@@ -492,8 +504,8 @@ if p == 3:
                 # ----------- END OF FOLDS LOOP -----------
 
                 # Store average fold errors into heatmap grids
-                train_err_grid[u, i, j] = torch.mean(train_mse_folds)
-                test_err_grid[u, i, j]  = torch.mean(test_mse_folds)
+                train_err_grid[u, i, j] = np.mean(train_mse_folds)
+                test_err_grid[u, i, j]  = np.mean(test_mse_folds)
     
     with open("matrix_interpolation_train.txt", "w") as f:
         for slice2d in train_err_grid:
