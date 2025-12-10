@@ -45,7 +45,7 @@ if p == 1:
             #data_test, data_train, nej = load_test_train_data(random_seed=folds)
 
             # Prepare training and test sets
-            indices_test = np.array([True if folds*10 <= i < folds*10+10 else False for i in range(50)])
+            indices_test = np.array([True if folds*10 <= k < folds*10+10 else False for k in range(50)])
             indices_train = indices_test == False
             X_train = data_train[0][:50].to(device).to(torch.float32)[indices_train]
             X_test = data_train[0][:50].to(device).to(torch.float32)[indices_test]
@@ -198,7 +198,7 @@ if p == 2:
             test_mse_folds = []
 
             for folds in range(num_folds):
-                indices_test = np.array([True if folds*10 <= i < folds*10+10 else False for i in range(50)])
+                indices_test = np.array([True if folds*10 <= k < folds*10+10 else False for k in range(50)])
                 indices_train = indices_test == False
                 X_train = data_train[0][:50].to(device).to(torch.float32)[indices_train]
                 X_test = data_train[0][:50].to(device).to(torch.float32)[indices_test]
