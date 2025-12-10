@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from Test_train_split import load_test_train_data
+import Test_train_split as TTS
 from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE, compute_H_matrix
 
 # Device setup
@@ -26,8 +27,11 @@ dark_zone_mics_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 bright_zone_mics_index = [12]
 
 # x_input initialization
-x_input = torch.zeros(1, 1, dtype=torch.float32).to(device)
-x_input[0, 0] = 1.0
+#x_input = torch.zeros(1, 1, dtype=torch.float32).to(device)
+
+x_input = TTS.load_speech_file()
+
+
 
 if p == 1:
     train_err_list = []
