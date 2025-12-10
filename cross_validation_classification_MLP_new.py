@@ -7,25 +7,18 @@ from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE,compute_H_matri
 import matplotlib.pyplot as plt
 
 
-p=2
+p=3
 neurons = [128, 256, 512]
-
 layers = [1,2,3]
-
 num_folds=5
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 data_test, data_train, data_val = load_test_train_data()
 
-
 input_size = len(data_train[0][0])
-output_size = 50
 dark_zone_mics_index=[0,1,2,3,4,5,6,7,8,9,10,11]
 bright_zone_mics_index=[12]
-
-
-
        
 if p==1:
     train_err_list=[]
@@ -35,8 +28,8 @@ if p==1:
         fold_test_err= []
         print(f"\n--- Testing architecture: Layer 1: {neuron}")
         for folds in range(num_folds):
-            indice_test = [i for i in range(50) if folds*10 <= i < folds*10 +10]
-            indice_train = [i for i in range(50) if i not in indice_test]
+            indice_test = [w for w in range(50) if folds*10 <= w < folds*10 +10]
+            indice_train = [w for w in range(50) if w not in indice_test]
             X_train = data_train[0][:50].to(device).to(torch.float32)[indice_train]
             X_test = data_train[0][:50].to(device).to(torch.float32)[indice_test]
 
@@ -181,8 +174,8 @@ if p == 2:
                 print(f" Fold {folds+1}/{num_folds}")
 
                 # Reload data each fold
-                indice_test = [i for i in range(50) if folds*10 <= i < folds*10 +10]
-                indice_train = [i for i in range(50) if i not in indice_test]
+                indice_test = [w for w in range(50) if folds*10 <= w < folds*10 +10]
+                indice_train = [w for w in range(50) if w not in indice_test]
                 X_train = data_train[0][:50].to(device).to(torch.float32)[indice_train]
                 X_test = data_train[0][:50].to(device).to(torch.float32)[indice_test]
 
@@ -370,8 +363,10 @@ if p == 3:
                 fold_test_err  = []
 
                 for folds in range(num_folds):
-                    indice_test = [i for i in range(50) if folds*10 <= i < folds*10 +10]
-                    indice_train = [i for i in range(50) if i not in indice_test]
+                    print(f" Fold {folds+1}/{num_folds}")
+                    
+                    indice_test = [w for w in range(50) if folds*10 <= w < folds*10 +10]
+                    indice_train = [w for w in range(50) if w not in indice_test]
                     X_train = data_train[0][:50].to(device).to(torch.float32)[indice_train]
                     X_test = data_train[0][:50].to(device).to(torch.float32)[indice_test]
 
@@ -439,15 +434,15 @@ if p == 3:
                         filters_loss_train = []
                         filters_loss_test  = []
 
-                        for i in range(len(pred_filters_test)):
-                            pred_flat_test = pred_filters_test[i].reshape(1, -1)
-                            true_flat_test = true_filters_test[i].reshape(1, -1)
+                        for jdx in range(len(pred_filters_test)):
+                            pred_flat_test = pred_filters_test[jdx].reshape(1, -1)
+                            true_flat_test = true_filters_test[jdx].reshape(1, -1)
                             L1_test  = MSE(true_flat_test, pred_flat_test)
                             L2_test  = Cosine_similarity(pred_flat_test, true_flat_test)
                             rirs_test_i  = RIRs_test[i].to(torch.float32)
-                            L3_test,  _ = MSEP(pred_filters_test[i], true_filters_test[i],
+                            L3_test,  _ = MSEP(pred_filters_test[jdx], true_filters_test[jdx],
                                                rirs_test_i, x_input, bright_zone_mics_index, dark_zone_mics_index)
-                            L4_test  = AC_loss(pred_filters_test[i], true_filters_test[i],
+                            L4_test  = AC_loss(pred_filters_test[jdx], true_filters_test[jdx],
                                                compute_H_matrix(rirs_test_i)[0],
                                                bright_zone_mics_index, dark_zone_mics_index)
                             filters_loss_test.append((L1_test + L2_test + L3_test + L4_test))
@@ -549,7 +544,6 @@ if p == 3:
 
     # --- Add shared colorbars ---
     # Train colorbar
-    # Train colorbar
     cbar_ax_train = fig.add_axes([0.92, 0.55, 0.02, 0.35])
     cbar_train = fig.colorbar(im_train, cax=cbar_ax_train)
     cbar_train.set_label('Train Loss', fontsize=12)   # <-- change font size here
@@ -562,5 +556,5 @@ if p == 3:
 
     plt.tight_layout(rect=[0,0,0.9,1])  # leave space for colorbars
     plt.savefig(f"Plots/CV_classification_3_layers.pdf")
-    #plt.show()
+    plt.show()
 
