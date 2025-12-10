@@ -411,12 +411,12 @@ if p == 3:
                     # --------------------
                     # Train model
                     # --------------------
-                    epochs = tqdm(range(1, 6), desc=f"Fold {folds+1}/5", position=0)
+                    epochs = tqdm(range(1, 6), desc=f"Fold {folds+1}/3", position=0)
                     fold_loss = 0
                     for epoch in epochs:
                         total_loss = 0
                         total = 0
-                        loop = tqdm(range(output_size), desc=f"Epoch {epoch}/40", position=1, leave=False)
+                        loop = tqdm(range(output_size), desc=f"Epoch {epoch}/5", position=1, leave=False)
                         for k in loop:
                             X = X_train[k].unsqueeze(0).to(device)
                             optimizer.zero_grad()
@@ -458,10 +458,10 @@ if p == 3:
                         filters_loss_train = []
                         filters_loss_test = []
 
-                        for k in range(output_size):
+                        for k in tqdm(range(output_size), desc="Eval ", position=1):
                             filter_train = filters_train[k].unsqueeze(0)
 
-                            pred_filter_train = torch.matmul(model(X_train[k]), filters_train).unsqueeze(0)
+                            pred_filter_train = torch.matmul(torch.softmax(model(X_train[k]), 1, torch.float32), filters_train).unsqueeze(0)
 
                             filter_train_2d = filter_train.reshape(3, 1024)
                             pred_filter_train_2d = pred_filter_train.reshape(3, 1024)
@@ -489,7 +489,7 @@ if p == 3:
 
                         for k in range(len(filters_test)):
                             filter_test = filters_test[k].unsqueeze(0)
-                            pred_filter_test = torch.matmul(model(X_test[k]), filters_test).unsqueeze(0)
+                            pred_filter_test = torch.matmul(torch.softmax(model(X_test[k]), 1, torch.float32), filters_train).unsqueeze(0)
                             filter_test_2d = filter_test.reshape(3, 1024)
                             pred_filter_test_2d = pred_filter_test.reshape(3, 1024)
                             rirs_test_i = RIRs_test[k]
