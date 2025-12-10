@@ -6,13 +6,14 @@ import matplotlib.pyplot as plt
 from Test_train_split import load_test_train_data
 import Test_train_split as TTS
 from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE, compute_H_matrix
+from tqdm import tqdm
 
 # Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Parameters
-p = 1
+p = 3
 neurons = [128, 256, 512]
 layers = [1, 2, 3]
 num_folds = 5
@@ -377,7 +378,7 @@ if p == 3:
 
                 for folds in range(num_folds):
                     # Reload data for each fold
-                    indices_test = np.array([True if folds*10 <= i < folds*10+10 else False for i in range(50)])
+                    indices_test = np.array([True if folds*10 <= k < folds*10+10 else False for k in range(50)])
                     indices_train = indices_test == False
                     X_train = data_train[0][:50].to(device).to(torch.float32)[indices_train]
                     X_test = data_train[0][:50].to(device).to(torch.float32)[indices_test]
@@ -410,10 +411,13 @@ if p == 3:
                     # --------------------
                     # Train model
                     # --------------------
-                    for epoch in range(1, 41):
+                    epochs = tqdm(range(1, 41), desc=f"Fold {folds+1}/5", position=0)
+                    fold_loss = 0
+                    for epoch in epochs:
                         total_loss = 0
                         total = 0
-                        for k in range(output_size):
+                        loop = tqdm(range(output_size), desc=f"Epoch {epoch}/40", position=1)
+                        for k in loop:
                             X = X_train[k].unsqueeze(0).to(device)
                             optimizer.zero_grad()
                             coeff = model(X_train[k]).unsqueeze(0).to(device)
@@ -442,8 +446,10 @@ if p == 3:
 
                             total_loss += loss.item() * X.size(0)
                             total += X.size(0)
-                    avg_loss = total_loss / total
-                    print(" Training complete!\n")
+                            loop.set_postfix_str(f"loss ={total_loss/total:6.2f}")
+                        fold_loss += total_loss/total
+                        epochs.set_postfix_str(f"loss ={fold_loss/(epochs.n+1):6.2f}")
+                    #print(" Training complete!\n")
                     # --------------------
                     # EVALUATION inside folds-loop  (your bug fix!)
                     # --------------------
