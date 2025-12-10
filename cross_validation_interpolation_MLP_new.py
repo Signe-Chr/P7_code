@@ -416,7 +416,7 @@ if p == 3:
                     for epoch in epochs:
                         total_loss = 0
                         total = 0
-                        loop = tqdm(range(output_size), desc=f"Epoch {epoch}/40", position=1)
+                        loop = tqdm(range(output_size), desc=f"Epoch {epoch}/40", position=1, leave=False)
                         for k in loop:
                             X = X_train[k].unsqueeze(0).to(device)
                             optimizer.zero_grad()
