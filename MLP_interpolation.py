@@ -10,7 +10,7 @@ from Test_train_split import load_test_train_data#, x_input_kronecker
 import Test_train_split as TTS
 
 # ---- 1. Training function ----
-def train_model(model, data, optimizer, device, wav): 
+def train_model(model, data, optimizer, device, wav):
     model.train()
     total_loss = 0
     total = 0
@@ -29,7 +29,9 @@ def train_model(model, data, optimizer, device, wav):
 
         optimizer.zero_grad()
         coefficients = model(X).to(device)
-        outputs = torch.matmul(filters_train.T.float() , coefficients.T.float()).T.unsqueeze(0)
+
+        soft_max_coeffs = torch.softmax(coefficients, 0, dtype=torch.float32)
+        outputs = torch.matmul(filters_train.T.float() , soft_max_coeffs.T.float()).T.unsqueeze(0)
 
         lambda_1,lambda_2,lambda_3,lambda_4=1/0.256, 1/0.972, 1/29.131, 1/21.684#1,1,1,1 1/2.970,1/1.032,1/11.495,1/24.648
         H = LF.compute_H_matrix(rir, fs=16000, n_fft=None)[0].to(device)
@@ -65,7 +67,7 @@ def main():
         
 
     print("\nTraining complete!")
-    torch.save(model_interpolation.state_dict(), "MLP_interpolation_100.pth")
+    torch.save(model_interpolation.state_dict(), "MLP_interpolation_softmax.pth")
 
 if __name__ == "__main__":
     main()
