@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from Test_train_split import load_test_train_data
 import Test_train_split as TTS
 from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE, compute_H_matrix
+from tqdm import tqdm
 
 # Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -15,7 +16,7 @@ print(f"Using device: {device}")
 p = 1
 neurons = [128, 256, 512]
 layers = [1, 2, 3]
-num_folds = 5
+num_folds = 3
 
 # Load data
 data_test, data_train, nej = load_test_train_data()
@@ -45,7 +46,7 @@ if p == 1:
             #data_test, data_train, nej = load_test_train_data(random_seed=folds)
 
             # Prepare training and test sets
-            indices_test = np.array([True if folds*10 <= i < folds*10+10 else False for i in range(50)])
+            indices_test = np.array([True if folds*10 <= k < folds*10+10 else False for k in range(50)])
             indices_train = indices_test == False
             X_train = data_train[0][:50].to(device).to(torch.float32)[indices_train]
             X_test = data_train[0][:50].to(device).to(torch.float32)[indices_test]
@@ -198,7 +199,7 @@ if p == 2:
             test_mse_folds = []
 
             for folds in range(num_folds):
-                indices_test = np.array([True if folds*10 <= i < folds*10+10 else False for i in range(50)])
+                indices_test = np.array([True if folds*10 <= k < folds*10+10 else False for k in range(50)])
                 indices_train = indices_test == False
                 X_train = data_train[0][:50].to(device).to(torch.float32)[indices_train]
                 X_test = data_train[0][:50].to(device).to(torch.float32)[indices_test]
@@ -377,7 +378,7 @@ if p == 3:
 
                 for folds in range(num_folds):
                     # Reload data for each fold
-                    indices_test = np.array([True if folds*10 <= i < folds*10+10 else False for i in range(50)])
+                    indices_test = np.array([True if folds*10 <= k < folds*10+10 else False for k in range(50)])
                     indices_train = indices_test == False
                     X_train = data_train[0][:50].to(device).to(torch.float32)[indices_train]
                     X_test = data_train[0][:50].to(device).to(torch.float32)[indices_test]
@@ -410,10 +411,13 @@ if p == 3:
                     # --------------------
                     # Train model
                     # --------------------
-                    for epoch in range(1, 41):
+                    epochs = tqdm(range(1, 6), desc=f"Fold {folds+1}/3", position=0)
+                    fold_loss = 0
+                    for epoch in epochs:
                         total_loss = 0
                         total = 0
-                        for k in range(output_size):
+                        loop = tqdm(range(output_size), desc=f"Epoch {epoch}/5", position=1, leave=False)
+                        for k in loop:
                             X = X_train[k].unsqueeze(0).to(device)
                             optimizer.zero_grad()
                             coeff = model(X_train[k]).unsqueeze(0).to(device)
@@ -442,8 +446,10 @@ if p == 3:
 
                             total_loss += loss.item() * X.size(0)
                             total += X.size(0)
-                    avg_loss = total_loss / total
-                    print(" Training complete!\n")
+                            loop.set_postfix_str(f"loss ={total_loss/total:6.2f}")
+                        fold_loss += total_loss/total
+                        epochs.set_postfix_str(f"loss ={fold_loss/(epochs.n+1):6.2f}")
+                    #print(" Training complete!\n")
                     # --------------------
                     # EVALUATION inside folds-loop  (your bug fix!)
                     # --------------------
@@ -452,10 +458,10 @@ if p == 3:
                         filters_loss_train = []
                         filters_loss_test = []
 
-                        for k in range(output_size):
+                        for k in tqdm(range(output_size), desc="Eval ", position=1):
                             filter_train = filters_train[k].unsqueeze(0)
 
-                            pred_filter_train = torch.matmul(model(X_train[k]), filters_train).unsqueeze(0)
+                            pred_filter_train = torch.matmul(torch.softmax(model(X_train[k]), 1, torch.float32), filters_train).unsqueeze(0)
 
                             filter_train_2d = filter_train.reshape(3, 1024)
                             pred_filter_train_2d = pred_filter_train.reshape(3, 1024)
@@ -483,7 +489,7 @@ if p == 3:
 
                         for k in range(len(filters_test)):
                             filter_test = filters_test[k].unsqueeze(0)
-                            pred_filter_test = torch.matmul(model(X_test[k]), filters_test).unsqueeze(0)
+                            pred_filter_test = torch.matmul(torch.softmax(model(X_test[k]), 1, torch.float32), filters_train).unsqueeze(0)
                             filter_test_2d = filter_test.reshape(3, 1024)
                             pred_filter_test_2d = pred_filter_test.reshape(3, 1024)
                             rirs_test_i = RIRs_test[k]
