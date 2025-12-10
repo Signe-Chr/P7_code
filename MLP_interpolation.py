@@ -65,7 +65,7 @@ def main():
         
 
     print("\nTraining complete!")
-    torch.save(model_interpolation.state_dict(), "MLP_interpolation.pth")
+    torch.save(model_interpolation.state_dict(), "MLP_interpolation_100.pth")
 
 if __name__ == "__main__":
     main()
