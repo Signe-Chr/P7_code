@@ -15,10 +15,6 @@ from pystoi import stoi
 
 
 def load_data_and_model(chosen_model, filters_dir = "Saved Filters/"):
-    if chosen_model == "acc":
-        model = filters_test
-    else:
-        model = torch.load(f"{filters_dir + chosen_model}_filters.pt")
 
     #---Load data and split into test and traning data---
     data_test, data_train, data_val = load_test_train_data()
@@ -31,6 +27,11 @@ def load_data_and_model(chosen_model, filters_dir = "Saved Filters/"):
     
     RIRs_test=data_test[5]
     RIRs_train=data_train[5]
+    
+    if chosen_model == "acc":
+        model = filters_test
+    else:
+        model = torch.load(f"{filters_dir + chosen_model}_filters.pt")
     
     return n_srcs_test, n_srcs_train, filters_test, filters_train, RIRs_test, RIRs_train, model
 
@@ -87,8 +88,8 @@ def loss_functions(true_filter, predicted_filter, rir_test, wav_input, B_idx, D_
 
 def attenuation(rir, raw_wav, filtered, zone):
     raw_signal = cpwi(rir, raw_wav)[zone]
-    e_raw = torch.sum(raw_signal**2)
-    e_filt = torch.sum(filtered**2)
+    e_raw = torch.sqrt(torch.mean(raw_signal**2))
+    e_filt = torch.sqrt(torch.mean(filtered**2))
     return e_raw/e_filt
 
 def compute_nSDP(p_C: torch.Tensor, wav_input: torch.Tensor, indeces_bright, rir: torch.Tensor):
@@ -217,7 +218,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     pesq_B_list, pesq_D_list = [], []
 
     for i in tqdm(range(RIR_test.shape[0]), disable=not sys.stdout.isatty()):
-        #print(i)
+        print(i)
         rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
         n_srcs = 3
         filter_len = 1024
@@ -335,7 +336,7 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "classification"
 "acc"
 
-chosen_model = "random"
+chosen_model = "regression"
 print(f"Du har valgt {chosen_model} til evaluering.")
 
 x_input = x_input

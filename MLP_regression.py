@@ -6,11 +6,11 @@ from Dataset_class import L, J
 from multiprocessing import cpu_count
 from tqdm import tqdm
 import Loss_functions as lf
-from Test_train_split import load_test_train_data, x_input_kronecker
+from Test_train_split import load_test_train_data, x_input
 
 
 def train(data, wav, epochs, model, dev):
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
     dark_indices = [0,1,2,3,4,5,6,7,8,9,10,11]
     bright_indices = [12]
@@ -64,9 +64,9 @@ def train(data, wav, epochs, model, dev):
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
-
+    epoch=50
     data_test, data_train, data_val = load_test_train_data()
-    x_input = x_input_kronecker
+    x_input = x_input
     p_features = len(data_train[0][0])    # Load the first data point and then find the length of the X matrix
     out_features = len(data_train[1][0])  # Length of the flattened filter coeffecients
     compute_cpus = cpu_count()-1
@@ -78,5 +78,5 @@ if __name__ == "__main__":
     elif os.path.exists("MLP_regression.pth"):
         model.load_state_dict(torch.load("MLP_regression.pth"))
         print("Succesfully loaded a previously trained model")
-    model = train(data_train, x_input.to(device), epochs=50, dev=device, model=model)
+    model = train(data_train, x_input.to(device), epochs=epoch, dev=device, model=model)
     torch.save(model.state_dict(), f"MLP_regression.pth")

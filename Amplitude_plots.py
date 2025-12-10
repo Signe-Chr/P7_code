@@ -1,3 +1,5 @@
+import os, sys, torch
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
@@ -9,15 +11,15 @@ J=1024
 x_inp=x_input.squeeze(0).numpy()
 data_test, data_train, data_val = load_test_train_data()
 
-q_filters=data_test[1][0]
+q_filters=data_test[1][2].reshape(3,1024)
 
 
-RIRs_test=data_test[5][0]
+RIRs_test=data_test[5][2]
 bright_zone_IR=RIRs_test[12]
 dark_zone_IR=RIRs_test[4]
 
 # === Load filters ===
-filters_random = torch.load("Saved Filters/random_selection_filters.pt")['selected_filters'][0].reshape(3, 1024)
+#filters_random = torch.load("Saved Filters/random_selection_filters.pt")['selected_filters'][0].reshape(3, 1024)
 filters_baseline = torch.load("Saved Filters/baseline_filters.pt")[0].reshape(3, 1024)
 filters_classification = torch.load("Saved Filters/classification_filters.pt")[0].reshape(3, 1024)
 filters_regression = torch.load("Saved Filters/regression_filters.pt")[0].reshape(3, 1024)
@@ -56,7 +58,6 @@ def resulting_amp_dark(q):
 
 # === Filter sets ===
 filter_sets = {
-    "Random": filters_random,
     "Baseline": filters_baseline,
     "Classification": filters_classification,
     "Regression": filters_regression,
@@ -66,23 +67,32 @@ filter_sets = {
 #wav = wav/max(abs(wav))
 # === Compute and plot for each filter set ===
 font = 10
-
-bright_signal = resulting_amp_bright(q_filters)[:88200]
-bright_original_signal = resulting_amp_original_bright(x_inp)[:88200]
+filters=q_filters
+bright_signal = resulting_amp_bright(filters)
+bright_original_signal = resulting_amp_original_bright(x_inp)
 
 norm = max(abs(bright_original_signal))
 
-dark_original_signal = resulting_amp_original_dark(x_inp)[:88200]
-dark_signal = resulting_amp_dark(q_filters)[:88200]
+dark_original_signal = resulting_amp_original_dark(x_inp)
+dark_signal = resulting_amp_dark(filters)
 
 # normalize for fair comparison (optional)
 bright_signal = bright_signal / norm
 bright_original_signal = bright_original_signal / norm
 dark_original_signal = dark_original_signal / norm
 dark_signal = dark_signal / norm
+min_len = min(len(bright_signal), len(bright_original_signal),
+              len(dark_signal), len(dark_original_signal))
 
+bright_signal = bright_signal[:min_len]
+bright_original_signal = bright_original_signal[:min_len]
+dark_signal = dark_signal[:min_len]
+dark_original_signal = dark_original_signal[:min_len]
+
+# Recompute time vector
+t = np.arange(min_len) / 16000
 # make time vector (samples to seconds)
-t = np.arange(len(bright_signal)) / 16000
+#t = np.arange(len(bright_signal)) / 16000
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True, sharey=True)
 plt.rcParams.update({"font.size": 17})
@@ -199,5 +209,6 @@ cbar_ax = fig.add_axes([0.9, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
 cbar = fig.colorbar(im3, cax=cbar_ax)
 cbar.set_label('Power [dB]')
 
+plt.savefig("ACC_fig_spectrogram.pdf", dpi=500)
 plt.show()
 

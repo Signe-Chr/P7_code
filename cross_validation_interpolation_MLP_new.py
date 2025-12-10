@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from Test_train_split import load_test_train_data
+import Test_train_split as TTS
 from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE, compute_H_matrix
 
 # Device setup
@@ -11,7 +12,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Parameters
-p = 3
+p = 1
 neurons = [128, 256, 512]
 layers = [1, 2, 3]
 num_folds = 5
@@ -24,8 +25,11 @@ dark_zone_mics_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 bright_zone_mics_index = [12]
 
 # x_input initialization
-x_input = torch.zeros(1, 1, dtype=torch.float32).to(device)
-x_input[0, 0] = 1.0
+#x_input = torch.zeros(1, 1, dtype=torch.float32).to(device)
+
+x_input = TTS.load_speech_file()
+
+
 
 if p == 1:
     train_err_list = []
@@ -38,17 +42,19 @@ if p == 1:
 
         for folds in range(num_folds):
             # Reload data for each fold
-            data_test, data_train, nej = load_test_train_data(random_seed=folds)
+            #data_test, data_train, nej = load_test_train_data(random_seed=folds)
 
             # Prepare training and test sets
-            X_train = data_train[0][:50].to(device).to(torch.float32)
-            X_test = data_test[0][:50].to(device).to(torch.float32)
+            indice_test = [i for i in range(50) if folds*10 <= i < folds*10 +10]
+            indice_train = [i for i in range(50) if i not in indice_test]
+            X_train = data_train[0][:50].to(device).to(torch.float32)[indice_train]
+            X_test = data_train[0][:50].to(device).to(torch.float32)[indice_test]
 
-            filters_train = data_train[1][:50].to(device).to(torch.float32)
-            filters_test = data_test[1][:50].to(device).to(torch.float32)
+            filters_train = data_train[1][:50].to(device).to(torch.float32)[indice_train]
+            filters_test = data_train[1][:50].to(device).to(torch.float32)[indice_test]
 
-            RIRs_train = data_train[5][:50]
-            RIRs_test = data_test[5][:50]
+            RIRs_train = data_train[5][:50][indice_train]
+            RIRs_test = data_train[5][:50][indice_test]
 
             output_size = len(X_train)
 
@@ -185,19 +191,17 @@ if p == 2:
             train_mse_folds = []
             test_mse_folds = []
 
-            for fold in range(num_folds):
-                # Reload data for each fold
-                data_test, data_train, nej = load_test_train_data()
+            for folds in range(num_folds):
+                indice_test = [i for i in range(50) if folds*10 <= i < folds*10 +10]
+                indice_train = [i for i in range(50) if i not in indice_test]
+                X_train = data_train[0][:50].to(device).to(torch.float32)[indice_train]
+                X_test = data_train[0][:50].to(device).to(torch.float32)[indice_test]
 
-                # Prepare training and test sets
-                X_train = data_train[0][:50].to(device).to(torch.float32)
-                X_test = data_test[0][:50].to(device).to(torch.float32)
+                filters_train = data_train[1][:50].to(device).to(torch.float32)[indice_train]
+                filters_test = data_train[1][:50].to(device).to(torch.float32)[indice_test]
 
-                filters_train = data_train[1][:50].to(device).to(torch.float32)
-                filters_test = data_test[1][:50].to(device).to(torch.float32)
-
-                RIRs_train = data_train[5][:50]
-                RIRs_test = data_test[5][:50]
+                RIRs_train = data_train[5][:50][indice_train]
+                RIRs_test = data_train[5][:50][indice_test]
 
                 output_size = len(X_train)
 
@@ -361,19 +365,18 @@ if p == 3:
                 train_mse_folds = []
                 test_mse_folds = []
 
-                for fold in range(num_folds):
+                for folds in range(num_folds):
                     # Reload data for each fold
-                    data_test, data_train, nej = load_test_train_data()
+                    indice_test = [i for i in range(50) if folds*10 <= i < folds*10 +10]
+                    indice_train = [i for i in range(50) if i not in indice_test]
+                    X_train = data_train[0][:50].to(device).to(torch.float32)[indice_train]
+                    X_test = data_train[0][:50].to(device).to(torch.float32)[indice_test]
 
-                    # Prepare training and test sets
-                    X_train = data_train[0][:50].to(device).to(torch.float32)
-                    X_test = data_test[0][:50].to(device).to(torch.float32)
+                    filters_train = data_train[1][:50].to(device).to(torch.float32)[indice_train]
+                    filters_test = data_train[1][:50].to(device).to(torch.float32)[indice_test]
 
-                    filters_train = data_train[1][:50].to(device).to(torch.float32)
-                    filters_test = data_test[1][:50].to(device).to(torch.float32)
-
-                    RIRs_train = data_train[5][:50]
-                    RIRs_test = data_test[5][:50]
+                    RIRs_train = data_train[5][:50][indice_train]
+                    RIRs_test = data_train[5][:50][indice_test]
 
                     output_size = len(X_train)
 
