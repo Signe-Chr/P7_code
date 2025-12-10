@@ -130,7 +130,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
         print(f"The model has an average error per filter of {error/len(X_train):.2f}.")
 
 # vælg model her
-chosen_model = "classification"
+chosen_model = "regression"
 #validate_filters(chosen_model)
 
 
