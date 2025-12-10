@@ -31,7 +31,7 @@ def load_model(model_name):
     elif model_name == "interpolation":
         output_size = filters_train.shape[0]
         model = cvm.FilterNet_interpolation(input_size, output_size).to(device)
-        model.load_state_dict(torch.load("MLP_interpolation_without_weights.pth", map_location=device))
+        model.load_state_dict(torch.load("MLP_interpolation.pth", map_location=device))
     model.eval()
     return model
 
@@ -85,7 +85,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
         print(f"Normalized RMSE (relative to mean filter magnitude): {nrmse*100:.2f}%")
 
     if model_name == "classification": # Test classification
-        print("Testing on test data")
+        """print("Testing on test data")
         count = 0
         for filter, configuration in zip(Y_test, X_test):
             with torch.no_grad():
@@ -96,7 +96,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
                     count += 1
         print(f"{count}/{len(X_test)} correct.")
         print(f"The model has an accuracy of {count/len(X_test)*100:.2f}%.")
-        print("")
+        print("")"""
         count = 0
         print("Testing on training data")
         for filter, configuration in zip(Y_train, X_train):
@@ -110,7 +110,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
         print(f"The model has an accuracy of {count/len(X_train)*100:.2f}%.")
 
     elif model_name == "interpolation": # Test interpolation
-        print("Testing on test data")
+        """print("Testing on test data")
         error = 0
         for filter, configuration in zip(Y_test, X_test):
             with torch.no_grad():
@@ -119,7 +119,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
                 output = torch.matmul(output.float(), Y_train.float())
                 error += torch.mean((output - filter)**2)
         print(f"The model has an average error per filter of {error/len(X_test):.2f}.")
-        print("")
+        print("")"""
         error = 0
         print("Testing on training data")
         for filter, configuration in zip(Y_train, X_train):
@@ -128,6 +128,34 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
                 output = torch.matmul(output.float(), Y_train.float())
                 error += torch.mean((output - filter)**2)
         print(f"The model has an average error per filter of {error/len(X_train):.2f}.")
+
+        # for printing weights
+        for filter, configuration in zip(Y_train, X_train):
+            with torch.no_grad():
+                output = model(configuration.unsqueeze(0).float())
+                #print(output)
+                #print(output.max())
+                #print(torch.where(output==output.max()))
+
+        
+        rmse_per_filter = []
+        with torch.no_grad():
+            for filter, configuration in zip(Y_train, X_train):
+                output = model(configuration.unsqueeze(0).float())
+                output = torch.matmul(output.float(), Y_train.float())
+                output = output.squeeze(0)
+                mse = torch.mean((filter.float() - output.float())**2)
+                rmse = torch.sqrt(mse)
+                rmse_per_filter.append(rmse.item())
+
+        rmse_per_filter = torch.tensor(rmse_per_filter)
+        avg_rmse = rmse_per_filter.mean().item()
+        mean_filter_magnitude = torch.mean(torch.abs(Y_train.float())).item()
+        nrmse_dataset = avg_rmse / mean_filter_magnitude
+
+        print(f"Average RMSE per filter: {avg_rmse:.6f}")
+        print(f"Normalized RMSE (relative to dataset mean abs magnitude): {nrmse_dataset*100:.2f}%")
+
 
 # vælg model her
 chosen_model = "regression"
