@@ -7,25 +7,19 @@ from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE,compute_H_matri
 import matplotlib.pyplot as plt
 
 
-p=2
+p=3
+
 neurons = [128, 256, 512]
-
 layers = [1,2,3]
-
 num_folds=5
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 data_test, data_train, data_val = load_test_train_data()
 
-
 input_size = len(data_train[0][0])
-output_size = 50
 dark_zone_mics_index=[0,1,2,3,4,5,6,7,8,9,10,11]
 bright_zone_mics_index=[12]
-
-
-
        
 if p==1:
     train_err_list=[]
@@ -548,7 +542,6 @@ if p == 3:
         ax_test.tick_params(axis='y',labelsize=12)
 
     # --- Add shared colorbars ---
-    # Train colorbar
     # Train colorbar
     cbar_ax_train = fig.add_axes([0.92, 0.55, 0.02, 0.35])
     cbar_train = fig.colorbar(im_train, cax=cbar_ax_train)
