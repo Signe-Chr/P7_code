@@ -177,7 +177,7 @@ def pca_plots_3d():
         ax.view_init(elev=25, azim=30)
         #ax.set_box_aspect((1, 1, 1))
         #ax.grid(True)
-        #fig.set_size_inches(6, 6)
+        fig.set_size_inches(7, 6)
         fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
         
         # Save figure
