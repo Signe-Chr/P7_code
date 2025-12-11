@@ -70,7 +70,7 @@ if p == 1:
             optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
             # Training loop
-            for epoch in range(1, 41):
+            for epoch in range(1, 6):
                 print("epoch", epoch)
                 total_loss = 0
                 total = 0
@@ -120,7 +120,7 @@ if p == 1:
                 for i in range(len(filters_train)):
                     filter_train = filters_train[i].unsqueeze(0)
 
-                    pred_filter_train = torch.matmul(torch.softmax(model(X_train[i]), 1, torch.float32), filters_train).unsqueeze(0)
+                    pred_filter_train = torch.matmul(torch.softmax(model(X_train[i].unsqueeze(0)), 1, torch.float32), filters_train)
 
                     filter_train_2d = filter_train.reshape(3, 1024)
                     pred_filter_train_2d = pred_filter_train.reshape(3, 1024)
@@ -224,12 +224,12 @@ if p == 2:
                     torch.nn.ReLU(),
                     torch.nn.Linear(neuron2, output_size)
                 ).to(device)
-                
+
                 optimizer = optim.Adam(model.parameters(), lr = 1e-3)
                 # --------------------
                 # Train model
                 # --------------------
-                for epoch in range(1, 41):
+                for epoch in range(1, 6):
                     total_loss = 0
                     total = 0
                     for k in range(len(X_train)):
@@ -273,7 +273,7 @@ if p == 2:
                     for k in range(len(filters_train)):
                         filter_train = filters_train[k].unsqueeze(0)
 
-                        pred_filter_train = torch.matmul(torch.softmax(model(X_train[k]), 1, torch.float32), filters_train).unsqueeze(0)
+                        pred_filter_train = torch.matmul(torch.softmax(model(X_train[k].unsqueeze(0)), 1, torch.float32), filters_train)
 
                         filter_train_2d = filter_train.reshape(3, 1024)
                         pred_filter_train_2d = pred_filter_train.reshape(3, 1024)
