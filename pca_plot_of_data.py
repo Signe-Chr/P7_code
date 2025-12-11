@@ -2,6 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import subprocess
 from sklearn.decomposition import PCA
 #from Test_train_split import load_test_train_data
 from sklearn.model_selection import train_test_split
@@ -181,8 +182,8 @@ def pca_plots_3d():
         fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
         
         # Save figure
-        fig.savefig(os.path.join(save_dir, f"pca_{split_name}_3d.pdf"), bbox_inches='tight', pad_inches=0.5)
-        print(f'Figure saved!')
+        tmp_path = os.path.join(save_dir, f"pca_{split_name}_3d.pdf")
+        fig.savefig(tmp_path, bbox_inches='tight', pad_inches=0.5)
         #plt.show()
 
 
