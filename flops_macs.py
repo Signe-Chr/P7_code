@@ -1,7 +1,7 @@
 from calflops import calculate_flops
 import Cross_validation_models as cvm
 
-model = cvm.FilterNet_regression(9,3072)
+model = cvm.FilterNet_classification(9,259)
 batch_size = 1
 input_shape = (batch_size, 9)
 flops, macs, params = calculate_flops(model=model, 
