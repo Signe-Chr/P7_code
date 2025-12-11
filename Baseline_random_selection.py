@@ -1,6 +1,6 @@
 import torch
 from Test_train_split import load_test_train_data
-
+import time
 
 ##---Perform random selection between filters for the entire test set---
 data_test, data_train, data_val = load_test_train_data()
@@ -14,8 +14,10 @@ def random_selection(filters_test, filters_train, seed_value):
     selected_filters=filters_train[random_indices]
     return data_test, selected_filters, random_indices
 
+start = time.perf_counter()
 X_test, selected_filters, random_indices = random_selection(filters_test, filters_train, 42)
-
+end = time.perf_counter()
+print((end-start)/len(X_test))
 torch.save(selected_filters, "Saved Filters/random_filters.pt")
 print("Saved filters")
 

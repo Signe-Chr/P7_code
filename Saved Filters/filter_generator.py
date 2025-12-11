@@ -133,7 +133,7 @@ filters_val = data_val[1]
 "classification"
 "acc"
 
-chosen_model = "interpolation"
+chosen_model = "classification"
 print(f"Du har valgt {chosen_model} til evaluering.")
 generate_filters(chosen_model, X_test, filters_train) 
 

@@ -38,10 +38,10 @@ class FilterNet_classification(nn.Module):
     def __init__(self, input_size, output_size):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(input_size, 128),
+            nn.Linear(input_size, 256),
             nn.Dropout(p=0.3),
             nn.ReLU(),
-            nn.Linear(128,512),
+            nn.Linear(256,512),
             nn.Dropout(p=0.3),
             nn.ReLU(),
             nn.Linear(512,128),
