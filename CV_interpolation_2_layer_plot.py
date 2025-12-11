@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 
 
 
-train_err_grid = np.loadtxt("matrix_interpolation_train_2_layers.txt")
-test_err_grid = np.loadtxt("matrix_interpolation_test_2_layers.txt")
+train_err_grid = np.loadtxt("CV filer/matrix_interpolation_train_2_layers.txt")
+test_err_grid = np.loadtxt("CV filer/matrix_interpolation_test_2_layers.txt")
 
 neurons1 = [128, 256, 512]
 neurons2 = [128, 256, 512]

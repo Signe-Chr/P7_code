@@ -13,7 +13,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Parameters
-p = 2
+p = 3
 neurons = [128, 256, 512]
 layers = [1, 2, 3]
 num_folds = 3
@@ -361,14 +361,14 @@ if p == 2:
     plt.show()
 
 if p == 3:
-    neurons1 = [int(input("Neuron 1: "))]
-    neurons2 = [int(input("Neuron 2: "))]
+    neurons1 = [128, 256, 512]
+    neurons2 = [128, 256, 512]
     neurons3 = [128, 256, 512]
 
     test_err_grid = np.zeros((len(neurons1), len(neurons2), len(neurons3)))
     train_err_grid = np.zeros((len(neurons1), len(neurons2), len(neurons3)))
 
-    for u, neuron1 in enumerate(neurons1):
+    """for u, neuron1 in enumerate(neurons1):
         for i, neuron2 in enumerate(neurons2):
             for j, neuron3 in enumerate(neurons3):
                 print(f"\n--- Testing architecture: Layer 1: {neuron1}, Layer 2: {neuron2}, Layer 3 {neuron3} ---")
@@ -521,10 +521,10 @@ if p == 3:
 
     with open(f"matrix_interpolation_test_{neurons1[0]}_{neurons2[0]}.txt", "w") as f:
         for slice2d in test_err_grid:
-            np.savetxt(f, slice2d)
+            np.savetxt(f, slice2d)"""
 
-    train_err_grid = np.loadtxt("matrix_interpolation_train_3_layers.txt").reshape(3,3,3)
-    test_err_grid = np.loadtxt("matrix_interpolation_test_3_layers.txt").reshape(3,3,3)
+    train_err_grid = np.loadtxt("CV filer/matrix_interpolation_train_3_layers.txt").reshape(3,3,3)
+    test_err_grid = np.loadtxt("CV filer/matrix_interpolation_test_3_layers.txt").reshape(3,3,3)
 
     # -------------------------------------------------
     # PLOT HEATMAPS
