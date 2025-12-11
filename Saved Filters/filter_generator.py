@@ -40,7 +40,8 @@ def generate_filters(chosen_model, X_test, Y_train):
                 output = _, prediction = torch.max(output, 1)
                 output = Y_train[prediction]
             if chosen_model == "interpolation":
-                output = torch.matmul(Y_train.T.float(), output.T.float()).T
+                output = torch.softmax(output, 1, dtype=torch.float32)
+                output = torch.matmul(output,Y_train.float())
             end = time.perf_counter()
             timings.append(end - start)
 
