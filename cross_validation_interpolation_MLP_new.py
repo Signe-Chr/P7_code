@@ -224,7 +224,7 @@ if p == 2:
                     torch.nn.ReLU(),
                     torch.nn.Linear(neuron2, output_size)
                 ).to(device)
-                
+
                 optimizer = optim.Adam(model.parameters(), lr = 1e-3)
                 # --------------------
                 # Train model

@@ -24,7 +24,7 @@ def load_model(model_name):
     elif model_name == "interpolation":
         output_size = filters_train.shape[0]
         model = cvm.FilterNet_interpolation(input_size, output_size).to(device)
-        model.load_state_dict(torch.load("MLP_interpolation_100.pth", map_location=device))
+        model.load_state_dict(torch.load("MLP_interpolation_softmax.pth", map_location=device))
     model.eval()
     return model, output_file
 

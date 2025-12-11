@@ -2,13 +2,11 @@ import os, sys, torch
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 import numpy as np
-import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from tqdm import tqdm
 from Loss_functions import MSE, Cosine_similarity, MSEP, AC_loss, compute_H_matrix
 from performance_evaluation_unfiltered import compute_pressure_with_input as cpwi
-from performance_evaluation_unfiltered import load_wav_file
-from Test_train_split import load_test_train_data, load_wav_file, L, J, x_input, indeces_bright, indeces_dark
+from Test_train_split import load_test_train_data, L, J, x_input, indeces_bright, indeces_dark
 from pesq import pesq
 from pystoi import stoi
 
@@ -218,7 +216,7 @@ def average_performance_metrics_with_filters(RIR_test, selected_filters, wav_inp
     pesq_B_list, pesq_D_list = [], []
 
     for i in tqdm(range(RIR_test.shape[0]), disable=not sys.stdout.isatty()):
-        print(i)
+        print(f"\n{i}")
         rirs = RIR_test[i]           # [n_mics, n_srcs, n_rir_samples]
         n_srcs = 3
         filter_len = 1024
@@ -336,7 +334,7 @@ def loss_function_evaluation(RIR_test, selected_filters, wav_input, indeces_brig
 "classification"
 "acc"
 
-chosen_model = "regression"
+chosen_model = "classification"
 print(f"Du har valgt {chosen_model} til evaluering.")
 
 x_input = x_input
