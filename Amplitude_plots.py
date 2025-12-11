@@ -136,7 +136,7 @@ ax2.legend(loc="upper right")
 # ax1.set_ylim(-1.1, 1.1)
 
 plt.tight_layout()
-plt.savefig("ACC_fig_brightdark_subplots.pdf", dpi=500)
+plt.savefig("Plots/ACC_fig_brightdark_subplots.pdf", dpi=500)
 plt.show()
 
 print("Subplot figure saved.")
@@ -209,6 +209,6 @@ cbar_ax = fig.add_axes([0.9, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
 cbar = fig.colorbar(im3, cax=cbar_ax)
 cbar.set_label('Power [dB]')
 
-plt.savefig("ACC_fig_spectrogram.pdf", dpi=500)
+plt.savefig("Plots/ACC_fig_spectrogram.pdf", dpi=500)
 plt.show()
 
