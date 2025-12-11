@@ -150,6 +150,8 @@ colors_list = ['red', 'green', 'blue', 'orange', 'purple', 'brown']  # more than
 # Save to plot folder
 save_dir = "Plots/"
 os.makedirs(save_dir, exist_ok=True)  # creates folder if it doesn't exist, safe to call even for "./"
+# Colormap for categories
+cmap = cm.get_cmap('tab10')
 
 def pca_plots_3d():
     for split_name, categories in splits_info.items():
@@ -173,20 +175,17 @@ def pca_plots_3d():
         ax.set_zlabel("PC3", fontsize=14)
         ax.legend(loc='upper left', bbox_to_anchor=(0.75, 0.8), fontsize=12)
         ax.view_init(elev=25, azim=30)
-        ax.grid(True)
+        #ax.set_box_aspect((1, 1, 1))
+        #ax.grid(True)
+        #fig.set_size_inches(6, 6)
+        fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
         
         # Save figure
-        plt.tight_layout()
-        fig.savefig(os.path.join(save_dir, f"pca_{split_name}_3d.pdf"))
+        fig.savefig(os.path.join(save_dir, f"pca_{split_name}_3d.pdf"), bbox_inches='tight', pad_inches=0.5)
         print(f'Figure saved!')
         #plt.show()
 
 
-# Colormap for categories
-cmap = cm.get_cmap('tab10')
-
-
-# Loop over splits to create separate figures
 def pca_plots_2d():
     for split_name, categories in splits_info.items():
         fig, ax = plt.subplots(figsize=(10, 8))  # one figure per split
