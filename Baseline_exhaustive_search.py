@@ -32,7 +32,7 @@ def Extensive_search(
     #Means: MSE: 1.189, Cosine similairty: 0.485, MSEP: 335.877, AC:19.689
     #Medians: MSE: 0.002, Cosine similairty: 0.005, MSEP: 0.359, AC:3.437
     # Loss weights
-    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 0.002, 0.005, 0.359, 3.437  #1/3.729, 1/1.000, 1/18.390, 1/17.181
+    lamda_mse, lambda_cosine, lambda_ac, lambda_msep = 1/0.002, 1/0.005, 1/3.437, 1/0.359,  #1/3.729, 1/1.000, 1/18.390, 1/17.181
     print("\nStarting Extensive Brute-Force Search with FULL COMPOSITE LOSS...")
     for i in tqdm(range(N_test)):
 
