@@ -54,7 +54,9 @@ def main():
     input_size = len(data_train[0][0])
     output_size = len(data_train[0]) # Assuming target is at index 1
 
+
     model_interpolation = cvm.FilterNet_interpolation(input_size, output_size).to(device)
+    model_interpolation.load_state_dict(torch.load("MLP_interpolation_softmax.pth"))
     optimizer = optim.Adam(model_interpolation.parameters(), lr=1e-4)
     x_input = TTS.x_input.to(device)
 
@@ -67,7 +69,7 @@ def main():
         
 
     print("\nTraining complete!")
-    torch.save(model_interpolation.state_dict(), "MLP_interpolation_softmax.pth")
+    torch.save(model_interpolation.state_dict(), "MLP_interpolation_softmax_100.pth")
 
 if __name__ == "__main__":
     main()
