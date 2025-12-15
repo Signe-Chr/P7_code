@@ -171,14 +171,42 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
         for X in X_train:
             with torch.no_grad():
                 outputs.append(torch.softmax(model(X.unsqueeze(0).float()).cpu(),1,dtype=torch.float32))
+        outputs = torch.cat(outputs, dim=0)  # (N, n_filters)
+
+        max_weights = outputs.max(dim=1).values
+
+        print("Mean max weight:", max_weights.mean().item())
+        print("Min max weight:", max_weights.min().item())
+        
+        pred_indices = torch.argmax(outputs, dim=1)
+
+        accuracy = (pred_indices == torch.arange(len(outputs))).float().mean()
+        print("Argmax matches true filter:", accuracy.item() * 100, "%")
+        
+        argmax_indices = torch.argmax(outputs, dim=1)  # (N_samples,)
+        counts = torch.bincount(argmax_indices, minlength=outputs.shape[1])
+        most_common_index = torch.argmax(counts).item()
+        percentage = counts[most_common_index].item() / len(argmax_indices) * 100
+
+        print("Most common argmax index:", most_common_index)
+        print(f"Chosen in {percentage:.2f}% of samples")
+        print(X_train[33])
+        topk = torch.topk(counts, k=5)
+
+        print("\nTop-5 most frequent argmax indices:")
+        for idx, count in zip(topk.indices, topk.values):
+            print(f"Index {idx.item():4d}: {count.item():6d} samples "
+                f"({count.item()/len(argmax_indices)*100:.2f}%)")
+
+
 
         outputs = torch.cat(outputs, dim=0)
         print("Output variance per dimension:", outputs.var(dim=0))
         print("Total variance:", outputs.var())
-        print(torch.softmax(model(X_train[0].unsqueeze(0).float()),1,dtype=torch.float32))
-        print(torch.softmax(model(X_train[1].unsqueeze(0).float()),1,dtype=torch.float32))
-        if torch.all(torch.softmax(model(X_train[0].unsqueeze(0).float()),1,dtype=torch.float32)==torch.softmax(model(X_train[1].unsqueeze(0).float()),1,dtype=torch.float32)):
-            print('They are the same')
+        #print(torch.softmax(model(X_train[0].unsqueeze(0).float()),1,dtype=torch.float32))
+        #print(torch.softmax(model(X_train[1].unsqueeze(0).float()),1,dtype=torch.float32))
+        #if torch.all(torch.softmax(model(X_train[0].unsqueeze(0).float()),1,dtype=torch.float32)==torch.softmax(model(X_train[1].unsqueeze(0).float()),1,dtype=torch.float32)):
+         #   print('They are the same')
         rmse_per_filter = []
         with torch.no_grad():
             for filter, configuration in zip(Y_train, X_train):
@@ -199,7 +227,7 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
         
 
 # vælg model her
-chosen_model = "classification"
+chosen_model = "interpolation"
 #validate_filters(chosen_model)
 
 

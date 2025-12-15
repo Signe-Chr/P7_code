@@ -16,7 +16,7 @@ def load_model(model_name):
     if model_name == "regression":
         output_size = filters_train.shape[1]
         model = cvm.FilterNet_regression(input_size, output_size).to(device)
-        model.load_state_dict(torch.load("MLP_regression.pth", map_location=device))
+        model.load_state_dict(torch.load("MLP_regression_200.pth", map_location=device))
     elif model_name == "classification":
         output_size = filters_train.shape[0] 
         model = cvm.FilterNet_classification(input_size, output_size).to(device)
@@ -134,7 +134,7 @@ filters_val = data_val[1]
 "classification"
 "acc"
 
-chosen_model = "interpolation"
+chosen_model = "regression"
 print(f"Du har valgt {chosen_model} til evaluering.")
 generate_filters(chosen_model, X_test, filters_train) 
 

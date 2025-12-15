@@ -16,7 +16,7 @@ q_filters=data_test[1][2].reshape(3,1024)
 
 RIRs_test=data_test[5][2]
 bright_zone_IR=RIRs_test[12]
-dark_zone_IR=RIRs_test[4]
+dark_zone_IR=RIRs_test[4]   
 
 # === Load filters ===
 #filters_random = torch.load("Saved Filters/random_selection_filters.pt")['selected_filters'][0].reshape(3, 1024)
@@ -100,10 +100,11 @@ plt.rcParams.update({"font.size": 17})
 # ------------------------
 # Subplot 1: Bright Zone
 # ------------------------
-ax1.plot(t, bright_original_signal, label='Unfiltered',
-         color='limegreen', alpha=0.25, linewidth=1.2)
 ax1.plot(t, bright_signal, label='ACC',
          color='orange', alpha=0.55, linewidth=1.2)
+ax1.plot(t, bright_original_signal, label='Unfiltered',
+         color='red', alpha=0.25, linewidth=1.2)
+
 
 ax1.set_ylabel("Normalised Amplitude", fontsize=20)
 ax1.set_title("Bright Zone Signals", fontsize=25)
@@ -116,10 +117,10 @@ ax1.legend(loc="upper right")
 # ------------------------
 # Subplot 2: Dark Zone
 # ------------------------
-ax2.plot(t, dark_original_signal, label='Unfiltered',
-         color='limegreen', alpha=0.25, linewidth=1.2)
 ax2.plot(t, dark_signal, label='ACC',
          color='blue', alpha=0.55, linewidth=1.2)
+ax2.plot(t, dark_original_signal, label='Unfiltered',
+         color='red', alpha=0.25, linewidth=1.2)
 
 ax2.set_xlabel("Time [s]", fontsize=20)
 ax2.set_ylabel("Normalised Amplitude", fontsize=20)
@@ -183,7 +184,7 @@ axes[0,0].set_xlabel("Time [s]")
 im1 = axes[0,1].imshow(S_bright_filt_db, aspect='auto', origin='lower',
                        extent=[0, len(bright_signal)/fs, 0, fs/2],
                        cmap='viridis', vmin=vmin, vmax=vmax)
-axes[0,1].set_title("Bright Zone - Filtered (ACC)")
+axes[0,1].set_title("Bright Zone - Filtered")
 axes[0,1].set_xlabel("Time [s]")
 
 # Dark zone unfiltered
@@ -198,7 +199,7 @@ axes[1,0].set_xlabel("Time [s]")
 im3 = axes[1,1].imshow(S_dark_filt_db, aspect='auto', origin='lower',
                        extent=[0, len(dark_signal)/fs, 0, fs/2],
                        cmap='viridis', vmin=vmin, vmax=vmax)
-axes[1,1].set_title("Dark Zone - Filtered (ACC)")
+axes[1,1].set_title("Dark Zone - Filtered")
 axes[1,1].set_xlabel("Time [s]")
 
 # ------------------------
