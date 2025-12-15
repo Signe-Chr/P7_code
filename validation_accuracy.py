@@ -191,6 +191,13 @@ def validate_filters(model_name, X_test=X_test, Y_test=filters_test, X_train=X_t
         print("Most common argmax index:", most_common_index)
         print(f"Chosen in {percentage:.2f}% of samples")
         print(X_train[33])
+        topk = torch.topk(counts, k=5)
+
+        print("\nTop-5 most frequent argmax indices:")
+        for idx, count in zip(topk.indices, topk.values):
+            print(f"Index {idx.item():4d}: {count.item():6d} samples "
+                f"({count.item()/len(argmax_indices)*100:.2f}%)")
+
 
 
         outputs = torch.cat(outputs, dim=0)
