@@ -6,6 +6,13 @@ import matplotlib.pyplot as plt
 import scipy.io.wavfile as wavfile
 from Test_train_split import load_test_train_data, x_input
 
+# Define colors as hex strings
+mycolor1 = "#5B3758"  # Primary Lilla
+mycolor2 = "#00916E"  # Secondary Mørkegrøn
+mycolor3 = "#DE6C83"  # Accent Pink
+mycolor4 = "#FCB97D"  # Contrast Orange
+mycolor5 = "#D4E4BC"  # Contrast Lysegrøn
+
 J=1024
 #x_inp = [1] + [0]*(J+512-2)
 x_inp=x_input.squeeze(0).numpy()
@@ -100,10 +107,10 @@ plt.rcParams.update({"font.size": 17})
 # ------------------------
 # Subplot 1: Bright Zone
 # ------------------------
-ax1.plot(t, bright_signal, label='ACC',
-         color='orange', alpha=0.55, linewidth=1.2)
+ax1.plot(t, bright_signal, label='Filtered (ACC)',
+         color=mycolor4, alpha=0.55, linewidth=4)
 ax1.plot(t, bright_original_signal, label='Unfiltered',
-         color='red', alpha=0.25, linewidth=1.2)
+         color=mycolor1, alpha=0.55, linewidth=4)
 
 
 ax1.set_ylabel("Normalised Amplitude", fontsize=20)
@@ -117,10 +124,10 @@ ax1.legend(loc="upper right")
 # ------------------------
 # Subplot 2: Dark Zone
 # ------------------------
-ax2.plot(t, dark_signal, label='ACC',
-         color='blue', alpha=0.55, linewidth=1.2)
+ax2.plot(t, dark_signal, label='Filtered (ACC)',
+         color=mycolor2, alpha=0.55, linewidth=4)
 ax2.plot(t, dark_original_signal, label='Unfiltered',
-         color='red', alpha=0.25, linewidth=1.2)
+         color=mycolor1, alpha=0.55, linewidth=4)
 
 ax2.set_xlabel("Time [s]", fontsize=20)
 ax2.set_ylabel("Normalised Amplitude", fontsize=20)
@@ -137,7 +144,7 @@ ax2.legend(loc="upper right")
 # ax1.set_ylim(-1.1, 1.1)
 
 plt.tight_layout()
-plt.savefig("Plots/ACC_fig_brightdark_subplots.pdf", dpi=500)
+plt.savefig("Plots/ACC_fig_brightdark_subplots.pdf", dpi=700)
 plt.show()
 
 print("Subplot figure saved.")
@@ -170,12 +177,27 @@ vmax = max(S_bright_orig_db.max(), S_bright_filt_db.max(),
 # ------------------------
 # Create figure without constrained_layout
 # ------------------------
+
+
+from matplotlib.colors import LinearSegmentedColormap
+
+# Dine farver
+colors = ["#5B3758",  # Primary Lilla
+          "#00916E",  # Secondary Mørkegrøn
+         # "#DE6C83",  # Accent Pink
+          "#FCB97D",  # Contrast Orange
+          "#D4E4BC"]  # Contrast Lysegrøn
+
+# Lav en glidende colormap
+cmap = LinearSegmentedColormap.from_list("mycmap", colors, N=256)
+
+
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
 # Bright zone unfiltered
 im0 = axes[0,0].imshow(S_bright_orig_db, aspect='auto', origin='lower',
                        extent=[0, len(bright_original_signal)/fs, 0, fs/2],
-                       cmap='viridis', vmin=vmin, vmax=vmax)
+                       cmap=cmap, vmin=vmin, vmax=vmax)
 axes[0,0].set_title("Bright Zone - Unfiltered")
 axes[0,0].set_ylabel("Frequency [Hz]")
 axes[0,0].set_xlabel("Time [s]")
@@ -183,14 +205,14 @@ axes[0,0].set_xlabel("Time [s]")
 # Bright zone filtered
 im1 = axes[0,1].imshow(S_bright_filt_db, aspect='auto', origin='lower',
                        extent=[0, len(bright_signal)/fs, 0, fs/2],
-                       cmap='viridis', vmin=vmin, vmax=vmax)
+                       cmap=cmap, vmin=vmin, vmax=vmax)
 axes[0,1].set_title("Bright Zone - Filtered")
 axes[0,1].set_xlabel("Time [s]")
 
 # Dark zone unfiltered
 im2 = axes[1,0].imshow(S_dark_orig_db, aspect='auto', origin='lower',
                        extent=[0, len(dark_original_signal)/fs, 0, fs/2],
-                       cmap='viridis', vmin=vmin, vmax=vmax)
+                       cmap=cmap, vmin=vmin, vmax=vmax)
 axes[1,0].set_title("Dark Zone - Unfiltered")
 axes[1,0].set_ylabel("Frequency [Hz]")
 axes[1,0].set_xlabel("Time [s]")
@@ -198,7 +220,7 @@ axes[1,0].set_xlabel("Time [s]")
 # Dark zone filtered
 im3 = axes[1,1].imshow(S_dark_filt_db, aspect='auto', origin='lower',
                        extent=[0, len(dark_signal)/fs, 0, fs/2],
-                       cmap='viridis', vmin=vmin, vmax=vmax)
+                       cmap=cmap, vmin=vmin, vmax=vmax)
 axes[1,1].set_title("Dark Zone - Filtered")
 axes[1,1].set_xlabel("Time [s]")
 
@@ -210,6 +232,6 @@ cbar_ax = fig.add_axes([0.9, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
 cbar = fig.colorbar(im3, cax=cbar_ax)
 cbar.set_label('Power [dB]')
 
-plt.savefig("Plots/ACC_fig_spectrogram.pdf", dpi=500)
+plt.savefig("Plots/ACC_fig_spectrogram.pdf", dpi=700)
 plt.show()
 
