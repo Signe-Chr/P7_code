@@ -108,7 +108,7 @@ plt.rcParams.update({"font.size": 17})
 # Subplot 1: Bright Zone
 # ------------------------
 ax1.plot(t, bright_signal, label='Filtered (ACC)',
-         color=mycolor4, alpha=0.55, linewidth=4)
+         color=mycolor4, alpha=1, linewidth=4)
 ax1.plot(t, bright_original_signal, label='Unfiltered',
          color=mycolor1, alpha=0.55, linewidth=4)
 
@@ -125,7 +125,7 @@ ax1.legend(loc="upper right")
 # Subplot 2: Dark Zone
 # ------------------------
 ax2.plot(t, dark_signal, label='Filtered (ACC)',
-         color=mycolor2, alpha=0.55, linewidth=4)
+         color=mycolor2, alpha=1, linewidth=4)
 ax2.plot(t, dark_original_signal, label='Unfiltered',
          color=mycolor1, alpha=0.55, linewidth=4)
 
