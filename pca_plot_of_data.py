@@ -183,8 +183,8 @@ def pca_plots_3d():
         
         # Save figure
         tmp_path = os.path.join(save_dir, f"pca_{split_name}_3d.pdf")
-        fig.savefig(tmp_path, bbox_inches='tight', pad_inches=0.5)
-        #plt.show()
+        #fig.savefig(tmp_path, bbox_inches='tight', pad_inches=0.5)
+        plt.show()
 
 
 def pca_plots_2d():
