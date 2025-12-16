@@ -4,6 +4,18 @@ sys.path.append(parent_dir)
 import matplotlib.pyplot as plt
 import numpy as np
 
+from matplotlib.colors import LinearSegmentedColormap
+
+# Dine farver
+colors = ["#5B3758",  # Primary Lilla
+          "#00916E",  # Secondary Mørkegrøn
+         # "#DE6C83",  # Accent Pink
+          "#FCB97D",  # Contrast Orange
+          "#D4E4BC"]  # Contrast Lysegrøn
+
+# Lav en glidende colormap
+cmap = LinearSegmentedColormap.from_list("mycmap", colors, N=256)
+
 train_err_grid_2 = np.loadtxt("CV filer/cross_validation_classification_train_2_layers.txt")
 test_err_grid_2 = np.loadtxt("CV filer/cross_validation_classification_test_2_layers.txt")
 # -------------------------------------------------
@@ -13,7 +25,7 @@ fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 neurons1 = [128, 256, 512]
 neurons2 = [128, 256, 512]
 def plot_mse_grid(ax, mse_grid, title):
-    im = ax.imshow(mse_grid.T, origin='lower', cmap='viridis')
+    im = ax.imshow(mse_grid.T, origin='lower', cmap=cmap)
     for x in range(mse_grid.shape[0]):
         for y in range(mse_grid.shape[1]):
             ax.text(y, x, f"{mse_grid[y, x]:.2f}", ha='center', va='center', color='w',fontsize=15)
@@ -54,7 +66,7 @@ for k, neuron3 in enumerate([128, 256, 512]):
 
     # --- Plot Train Loss ---
     ax_train = axes[0, k]
-    im_train = ax_train.imshow(train_slice.T, origin='lower', cmap='viridis', vmin=vmin_train, vmax=vmax_train)
+    im_train = ax_train.imshow(train_slice.T, origin='lower', cmap=cmap, vmin=vmin_train, vmax=vmax_train)
     for x in range(len(neurons2)):
         for y in range(len(neurons1)):
             ax_train.text(y, x, f"{train_slice[y, x]:.2f}", ha='center', va='center', color='w', fontsize=18)
@@ -70,7 +82,7 @@ for k, neuron3 in enumerate([128, 256, 512]):
 
     # --- Plot Test Loss ---
     ax_test = axes[1, k]
-    im_test = ax_test.imshow(test_slice.T, origin='lower', cmap='viridis', vmin=vmin_test, vmax=vmax_test)
+    im_test = ax_test.imshow(test_slice.T, origin='lower', cmap=cmap, vmin=vmin_test, vmax=vmax_test)
     for x in range(len(neurons2)):
         for y in range(len(neurons1)):
             ax_test.text(y, x, f"{test_slice[y, x]:.2f}", ha='center', va='center', color='w', fontsize=15)
