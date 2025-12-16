@@ -146,7 +146,14 @@ splits_info = {
     "phone_tilt": {0: "Tilt_0", 1: "Tilt_1", 2: "Tilt_2", 3: "Tilt_3"}
 }
 
-colors_list = ['red', 'green', 'blue', 'orange', 'purple', 'brown']  # more than enough for categories
+colors_list = [
+          "#00916E",  # Secondary Mørkegrøn
+          "#DE6C83",  # Accent Pink
+          "#FCB97D",  # Contrast Orange
+          "#5B3758",  # Primary Lilla
+          "#D4E4BC",
+          'brown']  # Contrast Lysegrøn
+#colors_list = ['red', 'green', 'blue', 'orange', 'purple', 'brown']  # more than enough for categories
 
 # Save to plot folder
 save_dir = "Plots/"
@@ -167,6 +174,7 @@ def pca_plots_3d():
                     s=50, depthshade=True,
                     color=colors_list[j % len(colors_list)],
                     edgecolor='k',
+                    linewidths=0.5,
                     label=label,
                     alpha=0.8
                 )
@@ -199,6 +207,7 @@ def pca_plots_2d():
                     s=50,
                     color=cmap(j % 10),
                     edgecolor='k',
+                    linewidths=0.5,
                     label=label,
                     alpha=0.8
                 )
