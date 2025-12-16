@@ -6,7 +6,17 @@ import numpy as np
 from Loss_functions import Cosine_similarity, MSEP, AC_loss, MSE,compute_H_matrix
 import matplotlib.pyplot as plt
 
+from matplotlib.colors import LinearSegmentedColormap
 
+# Dine farver
+colors = ["#5B3758",  # Primary Lilla
+          "#00916E",  # Secondary Mørkegrøn
+         # "#DE6C83",  # Accent Pink
+          "#FCB97D",  # Contrast Orange
+          "#D4E4BC"]  # Contrast Lysegrøn
+
+# Lav en glidende colormap
+cmap = LinearSegmentedColormap.from_list("mycmap", colors, N=256)
 p=3
 neurons = [128, 256, 512]
 layers = [1,2,3]
@@ -322,7 +332,7 @@ if p == 2:
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
     def plot_mse_grid(ax, mse_grid, title):
-        im = ax.imshow(mse_grid.T, origin='lower', cmap='viridis')
+        im = ax.imshow(mse_grid.T, origin='lower', cmap=cmap)
         for x in range(mse_grid.shape[0]):
             for y in range(mse_grid.shape[1]):
                 ax.text(y, x, f"{mse_grid[y, x]:.2f}", ha='center', va='center', color='w',fontsize=15)
@@ -330,14 +340,14 @@ if p == 2:
         ax.set_xticklabels(neurons2)
         ax.set_yticks(np.arange(len(neurons1)))
         ax.set_yticklabels(neurons1)
-        ax.set_xlabel("Neurons in Layer 1", fontsize=12)
-        ax.set_ylabel("Neurons in Layer 2", fontsize=12)
-        ax.tick_params(axis='x',labelsize=12)
-        ax.tick_params(axis='y',labelsize=12)
-        ax.set_title(title)
+        ax.set_xlabel("Neurons in Layer 1", fontsize=18)
+        ax.set_ylabel("Neurons in Layer 2", fontsize=18)
+        ax.tick_params(axis='x',labelsize=18)
+        ax.tick_params(axis='y',labelsize=18)
+        ax.set_title(title,fontsize=18)
         cbar = fig.colorbar(im, ax=ax)
-        cbar.set_label(title, fontsize=12)      # change label font size
-        cbar.ax.tick_params(labelsize=12) 
+        cbar.set_label(title, fontsize=18)      # change label font size
+        cbar.ax.tick_params(labelsize=18)  
 
     plot_mse_grid(axes[0], train_err_grid, "Train error")
     plot_mse_grid(axes[1], test_err_grid, "Test error")
