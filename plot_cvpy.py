@@ -133,8 +133,8 @@ def plot_mse_grid(ax, mse_grid, title):
     ax.set_yticklabels(neurons1)
     ax.tick_params(axis='x',labelsize=18)
     ax.tick_params(axis='y',labelsize=18)
-    ax.set_xlabel("Neurons in 2nd layer",fontsize=18)
-    ax.set_ylabel("Neurons in 1st layer",fontsize=18)
+    ax.set_xlabel("Neurons in 1st layer",fontsize=18)
+    ax.set_ylabel("Neurons in 2nd layer",fontsize=18)
     ax.set_title(title,fontsize=18)
     cbar = fig.colorbar(im, ax=ax)
     cbar.set_label(title, fontsize=18)      # change label font size
