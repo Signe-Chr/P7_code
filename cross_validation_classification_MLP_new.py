@@ -12,7 +12,7 @@ neurons = [128, 256, 512]
 layers = [1,2,3]
 num_folds=5
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")#torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 data_test, data_train, data_val = load_test_train_data()
 
